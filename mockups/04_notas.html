@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BX Hub · Notas e Reuniões</title>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+<style>
+  :root {
+    --charcoal: #1F2028; --charcoal-soft: #2D2E39; --charcoal-line: #393A47;
+    --violet: #5452C1; --violet-soft: #7C7AD9; --violet-deep: #3A3899; --violet-bg: #F4F3FE;
+    --teal: #14B8A6; --teal-bg: #CCFBF1;
+    --amber: #F59E0B; --amber-bg: #FEF3C7;
+    --rose: #F43F5E; --rose-bg: #FFE4E6;
+    --emerald: #10B981; --emerald-bg: #D1FAE5;
+    --sky: #0EA5E9; --sky-bg: #DBEAFE;
+    --pink: #EC4899; --pink-bg: #FCE7F3;
+    --indigo: #6366F1; --indigo-bg: #E0E7FF;
+    --neutral-50: #FAFAFA; --neutral-100: #F4F4F5; --neutral-150: #ECECEF;
+    --neutral-200: #E4E4E7; --neutral-300: #D4D4D8; --neutral-400: #A1A1AA;
+    --neutral-500: #71717A; --neutral-600: #52525B; --neutral-700: #3F3F46;
+    --white: #FFFFFF;
+    --r-sm: 6px; --r-md: 10px; --r-lg: 14px; --r-xl: 20px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { font-family: 'Montserrat', system-ui, sans-serif; font-size: 14px; color: var(--charcoal); background: var(--neutral-50); -webkit-font-smoothing: antialiased; }
+  body { min-height: 100vh; }
+  .app { display: grid; grid-template-columns: 240px 1fr; min-height: 100vh; }
+  .sidebar { background: var(--charcoal); color: var(--white); padding: 18px 14px; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
+  .sidebar::-webkit-scrollbar { width: 4px; } .sidebar::-webkit-scrollbar-thumb { background: var(--charcoal-line); }
+  .brand { display: flex; align-items: center; gap: 10px; padding: 4px 10px 22px; }
+  .brand-mark { width: 32px; height: 32px; border-radius: 8px; background: linear-gradient(135deg, var(--violet), var(--violet-deep)); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 14px; }
+  .brand-name { font-size: 15px; font-weight: 700; }
+  .brand-sub { font-size: 10px; color: rgba(255,255,255,0.5); letter-spacing: 1px; text-transform: uppercase; }
+  .nav-section { margin-top: 14px; }
+  .nav-label { font-size: 10px; color: rgba(255,255,255,0.35); letter-spacing: 1.5px; text-transform: uppercase; padding: 0 10px 6px; font-weight: 600; }
+  .nav-item { display: flex; align-items: center; gap: 11px; padding: 9px 10px; border-radius: 8px; color: rgba(255,255,255,0.7); font-size: 13px; font-weight: 500; cursor: pointer; margin-bottom: 1px; text-decoration: none; }
+  .nav-item:hover { background: rgba(255,255,255,0.04); color: var(--white); }
+  .nav-item.active { background: linear-gradient(135deg, var(--violet), var(--violet-deep)); color: var(--white); }
+  .nav-item .ic { width: 16px; height: 16px; }
+  .nav-item .badge { margin-left: auto; background: var(--rose); color: var(--white); font-size: 9px; padding: 2px 6px; border-radius: 10px; font-weight: 700; }
+  .main { display: flex; flex-direction: column; min-width: 0; }
+  .topbar { height: 56px; background: var(--white); border-bottom: 1px solid var(--neutral-200); display: flex; align-items: center; padding: 0 24px; gap: 16px; position: sticky; top: 0; z-index: 100; }
+  .crumb { font-size: 12px; color: var(--neutral-500); display: flex; gap: 8px; align-items: center; }
+  .crumb .sep { opacity: 0.4; } .crumb .current { color: var(--charcoal); font-weight: 600; }
+  .topbar-spacer { flex: 1; }
+  .search-box { display: flex; align-items: center; gap: 8px; background: var(--neutral-100); padding: 7px 12px; border-radius: 8px; width: 240px; font-size: 12px; color: var(--neutral-500); }
+  .search-box .kbd { margin-left: auto; font-size: 10px; background: var(--white); padding: 2px 6px; border-radius: 4px; border: 1px solid var(--neutral-200); }
+  .icon-btn { width: 34px; height: 34px; border-radius: 8px; background: var(--neutral-100); display: flex; align-items: center; justify-content: center; cursor: pointer; position: relative; color: var(--neutral-600); }
+  .icon-btn .dot { position: absolute; top: 6px; right: 7px; width: 7px; height: 7px; border-radius: 50%; background: var(--rose); border: 2px solid var(--white); }
+  .user-chip { display: flex; align-items: center; gap: 10px; padding: 4px 12px 4px 4px; background: var(--neutral-100); border-radius: 20px; cursor: pointer; }
+  .user-avatar { width: 28px; height: 28px; border-radius: 50%; background: linear-gradient(135deg, var(--violet), var(--violet-deep)); color: var(--white); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; }
+  .user-name { font-size: 12px; font-weight: 600; }
+  .page-hero { background: var(--charcoal); color: var(--white); padding: 28px 32px; }
+  .ph-top { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 22px; }
+  .ph-title { font-size: 9px; color: rgba(255,255,255,0.5); text-transform: uppercase; letter-spacing: 1.5px; font-weight: 700; }
+  .ph-h1 { font-size: 26px; font-weight: 800; letter-spacing: -0.5px; margin-top: 4px; line-height: 1.1; }
+  .ph-sub { font-size: 12px; color: rgba(255,255,255,0.6); margin-top: 4px; font-weight: 500; }
+  .ph-actions { display: flex; gap: 8px; }
+  .ph-btn { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.12); color: var(--white); padding: 8px 14px; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px; font-family: inherit; }
+  .ph-btn.primary { background: var(--violet); border-color: var(--violet); }
+  .ph-btn:hover { background: rgba(255,255,255,0.15); }
+  .ph-btn.primary:hover { background: var(--violet-soft); }
+  .hero-kpis { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; }
+  .hk { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 11px; padding: 12px 14px; }
+  .hk-lbl { font-size: 9px; color: rgba(255,255,255,0.5); text-transform: uppercase; letter-spacing: 0.8px; font-weight: 700; }
+  .hk-val { font-size: 24px; font-weight: 800; letter-spacing: -0.8px; margin-top: 4px; line-height: 1; }
+  .hk-sub { font-size: 9px; color: rgba(255,255,255,0.4); margin-top: 4px; font-weight: 500; }
+  .hk.alert .hk-val { color: #FCA5A5; } .hk.warn .hk-val { color: #FCD34D; }
+  .hk.good .hk-val { color: #6EE7B7; } .hk.info .hk-val { color: #93C5FD; }
+  .hk.violet .hk-val { color: #C7D2FE; }
+  .content { padding: 22px 24px; display: flex; flex-direction: column; gap: 18px; }
+  .row-2 { display: grid; grid-template-columns: 1.5fr 1fr; gap: 16px; }
+  .row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+  .row-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+  .card { background: var(--white); border: 1px solid var(--neutral-200); border-radius: var(--r-lg); padding: 16px 18px; }
+  .ch { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+  .ct { font-size: 12px; font-weight: 700; color: var(--charcoal); display: flex; align-items: center; gap: 8px; text-transform: uppercase; letter-spacing: 0.4px; }
+  .ct .dot-acc { width: 6px; height: 6px; border-radius: 50%; background: var(--violet); }
+  .cnt { background: var(--neutral-100); color: var(--neutral-600); font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 10px; }
+  .cnt.alert { background: var(--rose-bg); color: #B91C1C; }
+  .cnt.warn { background: var(--amber-bg); color: #92400E; }
+  .cnt.good { background: var(--emerald-bg); color: #047857; }
+  .cnt.info { background: var(--sky-bg); color: #075985; }
+  .checkin-btn { display: flex; align-items: center; gap: 6px; background: var(--violet); color: var(--white); border: none; padding: 8px 14px; border-radius: 8px; font-size: 11px; font-weight: 700; cursor: pointer; font-family: inherit; }
+  .checkin-btn:hover { background: var(--violet-deep); }
+
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">BX</div>
+      <div><div class="brand-name">BX Hub</div><div class="brand-sub">v3.0</div></div>
+    </div>
+    <div class="nav-section">
+      <div class="nav-label">Principal</div>
+      <a href="01_dashboard.html" class="nav-item"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>Dashboard</a>
+      <a href="02_portfolio.html" class="nav-item"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>Portfolio</a>
+      <a href="03_produtividade.html" class="nav-item"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>Produtividade</a>
+      <a href="04_notas.html" class="nav-item active"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>Notas &amp; Reuniões</a>
+    </div>
+    <div class="nav-section">
+      <div class="nav-label">Execução</div>
+      <a href="05_kanban.html" class="nav-item"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M15 3v18"/></svg>Kanban</a>
+      <a href="06_timeline.html" class="nav-item"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><circle cx="6" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="18" cy="12" r="2"/></svg>Timeline</a>
+      <a href="07_riscos.html" class="nav-item"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>Riscos<span class="badge">2</span></a>
+      <a href="08_captacao.html" class="nav-item"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 12l4-4 4 4 5-5"/></svg>Captação</a>
+      <a href="09_bi.html" class="nav-item"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7 17v-4M12 17V7M17 17v-7"/></svg>BI</a>
+      <a href="10_rotinas.html" class="nav-item"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Rotinas</a>
+    </div>
+    <div class="nav-section">
+      <div class="nav-label">Comercial</div>
+      <a href="11_crm.html" class="nav-item"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>CRM</a>
+      <a href="12_intakes.html" class="nav-item"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>Intakes</a>
+    </div>
+    <div class="nav-section">
+      <div class="nav-label">Equipe</div>
+      <a href="13_chat.html" class="nav-item"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Chat<span class="badge">5</span></a>
+      <a href="14_calendario.html" class="nav-item"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg>Calendário</a>
+      <a href="15_time.html" class="nav-item"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>Time</a>
+      <a href="16_reembolsos.html" class="nav-item"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>Reembolsos</a>
+    </div>
+    <div class="nav-section">
+      <div class="nav-label">Sistema</div>
+      <a href="18_cadastro.html" class="nav-item"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>Cadastro</a>
+      <a href="20_automacoes.html" class="nav-item"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>Automações</a>
+      <a href="17_adm.html" class="nav-item"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.09a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.09a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Administração</a>
+      <a href="19_logs.html" class="nav-item"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>Logs</a>
+    </div>
+  </aside>
+  <div class="main">
+    <div class="topbar">
+      <div class="crumb"><span>Principal</span><span class="sep">›</span><span class="current">Notas</span></div>
+      <div class="topbar-spacer"></div>
+      <div class="search-box"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg><span>Buscar…</span><span class="kbd">⌘K</span></div>
+      <button class="checkin-btn"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>Check-in</button>
+      <div class="icon-btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg><div class="dot"></div></div>
+      <div class="user-chip"><div class="user-avatar">GM</div><div class="user-name">Gabriel</div></div>
+    </div>
+    <div class="page-hero" style="padding-bottom:18px;">
+      <div class="ph-top" style="margin-bottom:14px;">
+        <div>
+          <div class="ph-title">Conhecimento e gestão de reuniões</div>
+          <div class="ph-h1">Notas &amp; Reuniões</div>
+          <div class="ph-sub">9 notas · 6 atas · 3 com follow-up pendente · 1 pinada</div>
+        </div>
+        <div class="ph-actions">
+          <button class="ph-btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>Gravar reunião</button>
+          <button class="ph-btn primary"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Nova nota</button>
+        </div>
+      </div>
+      <div class="hero-kpis">
+        <div class="hk violet"><div class="hk-lbl">Total notas</div><div class="hk-val">9</div><div class="hk-sub">+3 esta sem.</div></div>
+        <div class="hk info"><div class="hk-lbl">Atas</div><div class="hk-val">6</div><div class="hk-sub">2 pendentes</div></div>
+        <div class="hk"><div class="hk-lbl">Reuniões</div><div class="hk-val">14</div><div class="hk-sub">esta semana</div></div>
+        <div class="hk warn"><div class="hk-lbl">Follow-ups</div><div class="hk-val">3</div><div class="hk-sub">vencidos</div></div>
+        <div class="hk good"><div class="hk-lbl">Action items</div><div class="hk-val">28</div><div class="hk-sub">12 hoje</div></div>
+        <div class="hk alert"><div class="hk-lbl">Sem ata</div><div class="hk-val">5</div><div class="hk-sub">reuniões</div></div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:200px 280px 1fr;height:calc(100vh - 56px - 240px);background:var(--white);border-top:1px solid var(--neutral-200);">
+
+      <div style="border-right:1px solid var(--neutral-200);padding:18px 12px;overflow-y:auto;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;padding:0 8px;">
+          <span style="font-size:18px;">📒</span>
+          <div style="font-size:12px;font-weight:800;color:var(--charcoal);text-transform:uppercase;letter-spacing:0.5px;">Categorias</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:2px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-radius:8px;background:var(--violet-bg);color:var(--violet);font-size:12px;font-weight:700;cursor:pointer;">📁 Todas as notas <span style="font-size:10px;color:var(--violet);">9</span></div>
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-radius:8px;color:var(--charcoal);font-size:12px;font-weight:500;cursor:pointer;">🎙️ Reuniões <span style="font-size:10px;color:var(--neutral-400);">3</span></div>
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-radius:8px;color:var(--charcoal);font-size:12px;font-weight:500;cursor:pointer;">📝 Atas <span style="font-size:10px;color:var(--neutral-400);">6</span></div>
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-radius:8px;color:var(--charcoal);font-size:12px;font-weight:500;cursor:pointer;">💡 Ideias <span style="font-size:10px;color:var(--neutral-400);">0</span></div>
+        </div>
+        <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--neutral-150);">
+          <div style="font-size:10px;font-weight:700;color:var(--neutral-500);text-transform:uppercase;letter-spacing:0.8px;padding:0 10px 8px;">Por projeto</div>
+          <div style="padding:6px 10px;font-size:11px;color:var(--neutral-600);cursor:pointer;border-radius:6px;">📁 LogiSul (3)</div>
+          <div style="padding:6px 10px;font-size:11px;color:var(--neutral-600);cursor:pointer;border-radius:6px;">📁 KIMBERLIT (2)</div>
+          <div style="padding:6px 10px;font-size:11px;color:var(--neutral-600);cursor:pointer;border-radius:6px;">📁 Andrade (2)</div>
+          <div style="padding:6px 10px;font-size:11px;color:var(--neutral-600);cursor:pointer;border-radius:6px;">📁 Beta (2)</div>
+        </div>
+        <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--neutral-150);">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-radius:8px;color:var(--charcoal);font-size:12px;font-weight:500;cursor:pointer;">📌 Fixadas <span style="font-size:10px;color:var(--neutral-400);">1</span></div>
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-radius:8px;color:var(--charcoal);font-size:12px;font-weight:500;cursor:pointer;">🗑️ Lixeira <span style="font-size:10px;color:var(--neutral-400);">2</span></div>
+        </div>
+      </div>
+
+      <div style="border-right:1px solid var(--neutral-200);display:flex;flex-direction:column;">
+        <div style="padding:14px 14px 10px;">
+          <button style="width:100%;padding:10px;background:var(--violet);color:var(--white);border:none;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">+ Nova nota</button>
+        </div>
+        <div style="padding:0 14px 12px;display:flex;gap:8px;">
+          <div style="flex:1;display:flex;align-items:center;gap:6px;background:var(--neutral-100);padding:7px 10px;border-radius:7px;font-size:11px;color:var(--neutral-500);">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/></svg>Buscar
+          </div>
+          <select style="padding:6px 8px;border:1px solid var(--neutral-200);border-radius:7px;font-size:10px;font-family:inherit;background:var(--white);"><option>Recent</option></select>
+        </div>
+        <div style="flex:1;overflow-y:auto;">
+          <div style="padding:13px 16px;border-bottom:1px solid var(--neutral-150);background:var(--violet-bg);border-left:3px solid var(--violet);cursor:pointer;">
+            <div style="display:flex;align-items:flex-start;gap:8px;">
+              <span style="font-size:14px;">📝</span>
+              <div style="flex:1;">
+                <div style="font-size:12.5px;font-weight:700;color:var(--charcoal);">Diagnóstico Financeiro — LogiSul</div>
+                <div style="font-size:10.5px;color:var(--neutral-500);margin-top:3px;">Reunião de diagnóstico com equipe LogiSul. NCG, ciclo financeiro…</div>
+                <div style="font-size:9.5px;color:var(--neutral-400);margin-top:4px;">há 1d</div>
+              </div>
+              <span style="color:var(--rose);font-size:11px;">📌</span>
+            </div>
+          </div>
+          <div style="padding:13px 16px;border-bottom:1px solid var(--neutral-150);cursor:pointer;">
+            <div style="display:flex;align-items:flex-start;gap:8px;">
+              <span style="font-size:14px;">📝</span>
+              <div style="flex:1;">
+                <div style="font-size:12.5px;font-weight:700;color:var(--charcoal);">Ata Comitê Credores — LogiSul</div>
+                <div style="font-size:10.5px;color:var(--neutral-500);margin-top:3px;">Acordo com 4 credores principais. Itaú aceitou prazo de 36m…</div>
+                <div style="font-size:9.5px;color:var(--neutral-400);margin-top:4px;">há 2d</div>
+              </div>
+            </div>
+          </div>
+          <div style="padding:13px 16px;border-bottom:1px solid var(--neutral-150);cursor:pointer;">
+            <div style="display:flex;align-items:flex-start;gap:8px;">
+              <span style="font-size:14px;">📝</span>
+              <div style="flex:1;">
+                <div style="font-size:12.5px;font-weight:700;color:var(--charcoal);">Kickoff KIMBERLIT — Q2</div>
+                <div style="font-size:10.5px;color:var(--neutral-500);margin-top:3px;">Operação BNDES com KIMBERLIT. Definição de cronograma…</div>
+                <div style="font-size:9.5px;color:var(--neutral-400);margin-top:4px;">há 3d</div>
+              </div>
+            </div>
+          </div>
+          <div style="padding:13px 16px;border-bottom:1px solid var(--neutral-150);cursor:pointer;">
+            <div style="display:flex;align-items:flex-start;gap:8px;">
+              <span style="font-size:14px;">🎙️</span>
+              <div style="flex:1;">
+                <div style="font-size:12.5px;font-weight:700;color:var(--charcoal);">Reunião Andrade — Tipologia Fleuriet</div>
+                <div style="font-size:10.5px;color:var(--neutral-500);margin-top:3px;">Análise NCG-CDG-ST. Tipo 2 de Fleuriet. Sugestão de revisão…</div>
+                <div style="font-size:9.5px;color:var(--neutral-400);margin-top:4px;">há 4d</div>
+              </div>
+            </div>
+          </div>
+          <div style="padding:13px 16px;border-bottom:1px solid var(--neutral-150);cursor:pointer;">
+            <div style="display:flex;align-items:flex-start;gap:8px;">
+              <span style="font-size:14px;">📝</span>
+              <div style="flex:1;">
+                <div style="font-size:12.5px;font-weight:700;color:var(--charcoal);">Ata DD Beta — Auditoria contábil</div>
+                <div style="font-size:10.5px;color:var(--neutral-500);margin-top:3px;">Identificadas 3 inconsistências contábeis. Necessária revisão…</div>
+                <div style="font-size:9.5px;color:var(--neutral-400);margin-top:4px;">há 5d</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;background:var(--white);">
+        <div style="padding:24px 32px 0;">
+          <div style="font-size:24px;font-weight:800;color:var(--charcoal);letter-spacing:-0.5px;">Diagnóstico Financeiro — LogiSul Transportes</div>
+          <div style="display:flex;align-items:center;gap:10px;margin-top:8px;flex-wrap:wrap;">
+            <span style="font-size:11px;padding:3px 10px;border-radius:6px;background:var(--violet-bg);color:var(--violet);font-weight:700;">📝 Ata</span>
+            <span style="font-size:11px;color:var(--neutral-500);">5 abr 2026</span>
+            <span style="color:var(--rose);">📌</span>
+            <span style="font-size:11px;padding:3px 10px;border-radius:6px;background:var(--neutral-100);color:var(--neutral-600);font-weight:600;">Projeto: LogiSul</span>
+            <span style="font-size:11px;color:var(--neutral-500);">3 participantes</span>
+          </div>
+        </div>
+        <div style="flex:1;padding:20px 32px;overflow-y:auto;font-size:13px;line-height:1.7;color:var(--charcoal);">
+          <p style="margin-bottom:12px;"><b>Data:</b> 5 de abril de 2026, 14:30 — 16:00</p>
+          <p style="margin-bottom:12px;"><b>Participantes:</b> Gabriel Molina (BX), Carolina Mendes (BX), Roberto Silva (CFO LogiSul), Marina Costa (Controller)</p>
+          <h3 style="font-size:15px;font-weight:800;margin-top:18px;margin-bottom:8px;color:var(--charcoal);">Pauta</h3>
+          <ul style="margin-left:20px;margin-bottom:12px;">
+            <li style="margin-bottom:4px;">Apresentação dos resultados preliminares do diagnóstico Fleuriet</li>
+            <li style="margin-bottom:4px;">Análise de NCG, CDG e ST</li>
+            <li style="margin-bottom:4px;">Discussão da estrutura de dívida atual</li>
+            <li style="margin-bottom:4px;">Próximos passos: proposta de reestruturação</li>
+          </ul>
+          <h3 style="font-size:15px;font-weight:800;margin-top:18px;margin-bottom:8px;color:var(--charcoal);">Pontos discutidos</h3>
+          <p style="margin-bottom:10px;">A análise Fleuriet revelou que a empresa se encontra em situação <b>Tipo 5</b> (NCG &gt; 0, CDG &lt; 0, ST &lt; 0), caracterizada como "muito ruim". O ciclo financeiro está em 87 dias, sendo o PMR o principal gargalo (52 dias contra benchmark setorial de 38 dias).</p>
+          <p style="margin-bottom:10px;">A estrutura de capital mostra alavancagem elevada com Dívida/EBITDA em 6,2x, bem acima do covenant Itaú de 4,5x. Há risco iminente de quebra contratual no próximo trimestre.</p>
+          <h3 style="font-size:15px;font-weight:800;margin-top:18px;margin-bottom:8px;color:var(--charcoal);">Decisões e action items</h3>
+          <ul style="margin-left:20px;margin-bottom:12px;">
+            <li style="margin-bottom:4px;">📌 <b>Carolina:</b> Preparar carta de renegociação para o Itaú até 08/04</li>
+            <li style="margin-bottom:4px;">📌 <b>Gabriel:</b> Agendar reunião com Marina sobre PMR até 07/04</li>
+            <li style="margin-bottom:4px;">📌 <b>Roberto:</b> Disponibilizar contratos bancários completos até 09/04</li>
+            <li style="margin-bottom:4px;">📌 <b>Próxima reunião:</b> 12/04 para apresentação da proposta de reestruturação completa</li>
+          </ul>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 32px;border-top:1px solid var(--neutral-200);background:var(--neutral-50);">
+          <div style="display:flex;gap:4px;">
+            <button style="padding:6px 10px;border:1px solid var(--neutral-200);border-radius:6px;background:var(--white);cursor:pointer;font-weight:700;font-size:11px;">B</button>
+            <button style="padding:6px 10px;border:1px solid var(--neutral-200);border-radius:6px;background:var(--white);cursor:pointer;font-style:italic;font-size:11px;">I</button>
+            <button style="padding:6px 10px;border:1px solid var(--neutral-200);border-radius:6px;background:var(--white);cursor:pointer;font-weight:700;font-size:11px;">H</button>
+            <button style="padding:6px 10px;border:1px solid var(--neutral-200);border-radius:6px;background:var(--white);cursor:pointer;font-size:11px;">≡</button>
+            <button style="padding:6px 10px;border:1px solid var(--neutral-200);border-radius:6px;background:var(--white);cursor:pointer;font-size:11px;">«</button>
+            <button style="padding:6px 12px;border:1px solid var(--violet);border-radius:6px;background:var(--violet-bg);color:var(--violet);cursor:pointer;font-size:11px;font-weight:700;margin-left:8px;">✨ Enriquecer com IA</button>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;">
+            <span style="font-size:11px;color:var(--emerald);font-weight:600;">Salvo ✓</span>
+            <button style="padding:6px 14px;border:1px solid var(--rose);border-radius:7px;background:var(--white);color:var(--rose);cursor:pointer;font-size:11px;font-weight:700;font-family:inherit;">Arquivar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

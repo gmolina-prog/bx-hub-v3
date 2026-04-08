@@ -1,0 +1,1365 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BX Hub — Mockups v1 (Aprovação)</title>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; font-family: 'Montserrat', sans-serif; }
+  :root {
+    --ch: #2D2E39;
+    --ch-2: #3a3b48;
+    --vl: #5452C1;
+    --vl-light: #7B79D6;
+    --vl-bg: #F0EFFE;
+    --gray: #F2F2F2;
+    --gray-2: #FAFAFA;
+    --border: #E5E7EB;
+    --text: #2D2E39;
+    --text-2: #6B7280;
+    --text-3: #9CA3AF;
+    --green: #10B981;
+    --amber: #F59E0B;
+    --red: #EF4444;
+    --blue: #3B82F6;
+    --purple: #8B5CF6;
+    --pink: #EC4899;
+  }
+  body { background: var(--gray-2); color: var(--text); }
+
+  /* Top selector */
+  .nav-header { background: var(--ch); color: white; padding: 14px 32px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; }
+  .nav-header h1 { font-size: 16px; font-weight: 700; letter-spacing: 0.5px; }
+  .nav-header .badge { background: var(--vl); padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+  .nav-tabs { display: flex; gap: 4px; background: white; border-bottom: 1px solid var(--border); padding: 0 32px; position: sticky; top: 51px; z-index: 99; overflow-x: auto; }
+  .nav-tab { padding: 14px 20px; border: none; background: transparent; color: var(--text-2); font-size: 13px; font-weight: 600; cursor: pointer; border-bottom: 3px solid transparent; transition: all 0.2s; white-space: nowrap; }
+  .nav-tab:hover { color: var(--vl); }
+  .nav-tab.active { color: var(--vl); border-bottom-color: var(--vl); }
+
+  /* Page sections */
+  .page { display: none; padding: 32px; max-width: 1600px; margin: 0 auto; }
+  .page.active { display: block; }
+  .page-header { margin-bottom: 24px; }
+  .page-header h2 { font-size: 28px; font-weight: 800; color: var(--ch); margin-bottom: 6px; }
+  .page-header .sub { font-size: 13px; color: var(--text-2); }
+
+  /* KPI Cards */
+  .kpi-grid { display: grid; gap: 14px; margin-bottom: 24px; }
+  .kpi-grid.cols-4 { grid-template-columns: repeat(4, 1fr); }
+  .kpi-grid.cols-5 { grid-template-columns: repeat(5, 1fr); }
+  .kpi-grid.cols-6 { grid-template-columns: repeat(6, 1fr); }
+  .kpi {
+    background: var(--ch); color: white; border-radius: 14px; padding: 18px;
+    border-left: 4px solid var(--vl); position: relative; overflow: hidden;
+    transition: transform 0.2s;
+  }
+  .kpi:hover { transform: translateY(-2px); }
+  .kpi-icon { position: absolute; right: 16px; top: 16px; font-size: 24px; opacity: 0.6; }
+  .kpi-label { font-size: 10px; font-weight: 600; color: #B5B5C0; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+  .kpi-value { font-size: 26px; font-weight: 800; color: white; }
+  .kpi-sub { font-size: 11px; color: #888; margin-top: 4px; display: flex; align-items: center; gap: 4px; }
+  .kpi-sub.up { color: #4ade80; }
+  .kpi-sub.down { color: #f87171; }
+  .kpi.violet { border-left-color: var(--vl); }
+  .kpi.green { border-left-color: var(--green); }
+  .kpi.amber { border-left-color: var(--amber); }
+  .kpi.red { border-left-color: var(--red); }
+  .kpi.blue { border-left-color: var(--blue); }
+  .kpi.purple { border-left-color: var(--purple); }
+
+  /* Section card */
+  .card {
+    background: white; border-radius: 14px; padding: 24px;
+    border: 1px solid var(--border); margin-bottom: 16px;
+  }
+  .card-title { font-size: 11px; font-weight: 700; color: var(--text-2); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 14px; display: flex; align-items: center; justify-content: space-between; }
+  .card-title .actions { display: flex; gap: 6px; }
+  .btn-mini { padding: 4px 10px; border: 1px solid var(--border); border-radius: 6px; background: white; font-size: 11px; font-weight: 600; color: var(--text-2); cursor: pointer; }
+  .btn-mini.active { background: var(--vl); color: white; border-color: var(--vl); }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+  .grid-2-1 { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; }
+
+  /* Buttons */
+  .btn { padding: 10px 18px; border: none; border-radius: 10px; font-weight: 600; font-size: 13px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: all 0.2s; }
+  .btn-primary { background: var(--vl); color: white; }
+  .btn-primary:hover { background: var(--vl-light); transform: translateY(-1px); }
+  .btn-dark { background: var(--ch); color: white; }
+  .btn-secondary { background: white; color: var(--ch); border: 1px solid var(--border); }
+  .btn-ghost { background: transparent; color: var(--text-2); padding: 8px 12px; }
+
+  /* Pills / badges */
+  .pill { padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; }
+  .pill.green { background: #ECFDF5; color: var(--green); }
+  .pill.amber { background: #FEF3C7; color: #92400E; }
+  .pill.red { background: #FEE2E2; color: #991B1B; }
+  .pill.blue { background: #EFF6FF; color: var(--blue); }
+  .pill.violet { background: var(--vl-bg); color: var(--vl); }
+  .pill.gray { background: var(--gray); color: var(--text-2); }
+
+  /* Progress bars */
+  .progress { height: 8px; background: var(--gray); border-radius: 4px; overflow: hidden; }
+  .progress-bar { height: 100%; background: var(--vl); border-radius: 4px; transition: width 0.3s; }
+  .progress-bar.green { background: var(--green); }
+  .progress-bar.amber { background: var(--amber); }
+  .progress-bar.red { background: var(--red); }
+
+  /* Avatars */
+  .avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--vl); color: white; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; }
+  .avatar.sm { width: 24px; height: 24px; font-size: 10px; }
+  .avatar-stack { display: inline-flex; }
+  .avatar-stack .avatar { border: 2px solid white; margin-left: -8px; }
+  .avatar-stack .avatar:first-child { margin-left: 0; }
+
+  /* === DASHBOARD MOCKUP === */
+  .hero {
+    background: linear-gradient(135deg, var(--ch) 0%, var(--ch-2) 100%);
+    color: white; border-radius: 16px; padding: 28px 32px; margin-bottom: 20px;
+    display: flex; align-items: center; justify-content: space-between;
+    position: relative; overflow: hidden;
+  }
+  .hero::before {
+    content: ''; position: absolute; top: 0; right: 0; width: 300px; height: 100%;
+    background: radial-gradient(circle at 80% 50%, rgba(84,82,193,0.3) 0%, transparent 70%);
+  }
+  .hero-greet { font-size: 26px; font-weight: 800; margin-bottom: 4px; position: relative; }
+  .hero-date { font-size: 13px; opacity: 0.7; position: relative; }
+  .hero-time { font-size: 36px; font-weight: 800; position: relative; text-align: right; }
+  .hero-version { font-size: 11px; opacity: 0.5; text-align: right; }
+
+  /* Map section with member list */
+  .map-section { display: grid; grid-template-columns: 1fr 280px; gap: 0; background: white; border-radius: 14px; overflow: hidden; border: 1px solid var(--border); margin-bottom: 16px; }
+  .map-area { background: linear-gradient(135deg, #e8f0f8 0%, #d6e4f0 100%); height: 360px; display: flex; align-items: center; justify-content: center; position: relative; }
+  .map-pin { position: absolute; width: 40px; height: 40px; background: var(--vl); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-size: 12px; font-weight: 700; box-shadow: 0 4px 12px rgba(84,82,193,0.4); cursor: pointer; transition: transform 0.2s; }
+  .map-pin:hover { transform: scale(1.15); }
+  .map-pin::after { content: ''; position: absolute; bottom: -6px; left: 50%; transform: translateX(-50%); border: 6px solid transparent; border-top-color: var(--vl); }
+  .map-pin.gm { top: 35%; left: 30%; }
+  .map-pin.af { top: 50%; left: 45%; }
+  .map-pin.cm { top: 25%; left: 60%; }
+  .map-pin.lt { top: 65%; left: 25%; }
+  .members-list { padding: 16px; max-height: 360px; overflow-y: auto; }
+  .members-list-title { font-size: 10px; font-weight: 700; color: var(--text-3); text-transform: uppercase; margin-bottom: 12px; display: flex; justify-content: space-between; }
+  .member-row { display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 8px; cursor: pointer; transition: background 0.15s; margin-bottom: 2px; }
+  .member-row:hover { background: var(--gray); }
+  .member-row.active { background: var(--vl-bg); }
+  .member-info { flex: 1; min-width: 0; }
+  .member-name { font-size: 12px; font-weight: 600; color: var(--ch); }
+  .member-status { font-size: 10px; color: var(--text-3); }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .status-dot.escritorio { background: var(--vl); }
+  .status-dot.cliente { background: var(--green); }
+  .status-dot.remoto { background: var(--blue); }
+  .status-dot.viagem { background: var(--amber); }
+  .status-dot.ausente { background: #ccc; }
+
+  /* Saude operacional gauge */
+  .gauge-container { display: flex; align-items: center; justify-content: center; padding: 20px; }
+  .gauge { width: 180px; height: 100px; position: relative; }
+  .gauge-bg { width: 180px; height: 90px; border-radius: 180px 180px 0 0; background: conic-gradient(from 270deg, var(--green) 0deg, var(--amber) 60deg, var(--red) 120deg, var(--gray) 180deg); position: relative; overflow: hidden; }
+  .gauge-bg::after { content: ''; position: absolute; top: 20px; left: 20px; right: 20px; bottom: 0; background: white; border-radius: 180px 180px 0 0; }
+  .gauge-value { position: absolute; bottom: 8px; left: 0; right: 0; text-align: center; font-size: 32px; font-weight: 800; color: var(--ch); }
+  .gauge-label { text-align: center; margin-top: 8px; font-size: 12px; color: var(--text-2); font-weight: 600; }
+
+  /* Chart bars */
+  .bar-chart { display: flex; align-items: flex-end; gap: 8px; height: 120px; padding: 12px 0; }
+  .bar-item { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .bar { width: 100%; background: var(--vl); border-radius: 4px 4px 0 0; transition: height 0.3s; min-height: 4px; }
+  .bar.amber { background: var(--amber); }
+  .bar.green { background: var(--green); }
+  .bar-label { font-size: 9px; color: var(--text-3); }
+  .bar-value { font-size: 10px; color: var(--ch); font-weight: 700; }
+
+  /* Donut */
+  .donut-container { display: flex; align-items: center; justify-content: center; gap: 24px; padding: 16px; }
+  .donut { width: 140px; height: 140px; border-radius: 50%; background: conic-gradient(var(--vl) 0deg 120deg, var(--blue) 120deg 200deg, var(--amber) 200deg 260deg, var(--green) 260deg 320deg, var(--gray) 320deg 360deg); position: relative; }
+  .donut::after { content: ''; position: absolute; top: 22px; left: 22px; right: 22px; bottom: 22px; background: white; border-radius: 50%; }
+  .donut-center { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; z-index: 1; }
+  .donut-center .v { font-size: 22px; font-weight: 800; color: var(--ch); }
+  .donut-center .l { font-size: 9px; color: var(--text-3); text-transform: uppercase; }
+  .donut-legend { display: flex; flex-direction: column; gap: 8px; }
+  .donut-legend-item { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+  .donut-legend-item .dot { width: 10px; height: 10px; border-radius: 2px; }
+
+  /* Semáforo */
+  .semafaro-list { display: flex; flex-direction: column; gap: 10px; }
+  .semafaro-item { display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: var(--gray-2); border-radius: 10px; border-left: 4px solid var(--vl); }
+  .semafaro-item.green { border-left-color: var(--green); }
+  .semafaro-item.amber { border-left-color: var(--amber); }
+  .semafaro-item.red { border-left-color: var(--red); }
+  .semafaro-icon { font-size: 24px; }
+  .semafaro-content { flex: 1; }
+  .semafaro-content .lbl { font-size: 12px; font-weight: 600; color: var(--ch); }
+  .semafaro-content .sub { font-size: 11px; color: var(--text-3); }
+  .semafaro-value { font-size: 14px; font-weight: 700; color: var(--ch); }
+
+  /* === PORTFOLIO === */
+  .portfolio-header { display: flex; gap: 12px; margin-bottom: 24px; align-items: center; }
+  .filter-input { flex: 1; padding: 10px 14px; border: 1px solid var(--border); border-radius: 10px; font-size: 13px; background: white; }
+  .view-toggle { display: flex; background: white; border: 1px solid var(--border); border-radius: 10px; padding: 3px; }
+  .view-toggle button { padding: 6px 14px; border: none; background: transparent; border-radius: 7px; font-size: 12px; font-weight: 600; color: var(--text-2); cursor: pointer; }
+  .view-toggle button.active { background: var(--vl); color: white; }
+
+  .project-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 18px; }
+  .project-card {
+    background: white; border-radius: 16px; padding: 0; overflow: hidden;
+    border: 1px solid var(--border); transition: all 0.2s; cursor: pointer;
+    position: relative;
+  }
+  .project-card:hover { transform: translateY(-4px); box-shadow: 0 12px 32px rgba(45,46,57,0.12); }
+  .project-card-header { padding: 16px 20px; border-bottom: 1px solid var(--border); position: relative; }
+  .project-card-color-bar { height: 5px; background: var(--vl); }
+  .project-card-color-bar.diag { background: var(--blue); }
+  .project-card-color-bar.rj { background: var(--purple); }
+  .project-card-color-bar.bpo { background: var(--green); }
+  .project-card-color-bar.ma { background: var(--amber); }
+  .project-card-title { font-size: 15px; font-weight: 700; color: var(--ch); margin-bottom: 4px; }
+  .project-card-client { font-size: 11px; color: var(--text-3); display: flex; align-items: center; gap: 4px; }
+  .project-tags { display: flex; gap: 6px; margin-top: 10px; }
+  .project-card-body { padding: 16px 20px; }
+  .project-card-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .project-card-row:last-child { margin-bottom: 0; }
+  .project-stat-label { font-size: 10px; color: var(--text-3); text-transform: uppercase; font-weight: 600; }
+  .project-stat-value { font-size: 13px; font-weight: 700; color: var(--ch); }
+  .project-progress-row { margin: 12px 0; }
+  .project-progress-row .progress { height: 6px; }
+  .project-card-footer { padding: 12px 20px; background: var(--gray-2); border-top: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+  .project-mini-stats { display: flex; gap: 14px; font-size: 11px; }
+  .project-mini-stat { display: flex; align-items: center; gap: 4px; color: var(--text-2); }
+  .project-mini-stat .num { font-weight: 700; color: var(--ch); }
+  .health-dot { width: 10px; height: 10px; border-radius: 50%; }
+  .health-dot.green { background: var(--green); }
+  .health-dot.amber { background: var(--amber); }
+  .health-dot.red { background: var(--red); }
+
+  /* === KANBAN === */
+  .kanban-board { display: flex; gap: 16px; overflow-x: auto; padding-bottom: 16px; }
+  .kanban-column { flex-shrink: 0; width: 280px; background: var(--gray); border-radius: 12px; padding: 12px; }
+  .kanban-column-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; padding: 0 4px; }
+  .kanban-column-title { font-size: 12px; font-weight: 700; color: var(--ch); display: flex; align-items: center; gap: 6px; }
+  .kanban-column-count { background: white; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 700; color: var(--text-2); }
+  .kanban-column-dot { width: 8px; height: 8px; border-radius: 50%; }
+  .kanban-card {
+    background: white; border-radius: 10px; padding: 12px; margin-bottom: 8px;
+    border-left: 3px solid var(--vl); cursor: grab; transition: all 0.2s;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  }
+  .kanban-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+  .kanban-card.urgent { border-left-color: var(--red); }
+  .kanban-card.high { border-left-color: var(--amber); }
+  .kanban-card.medium { border-left-color: var(--blue); }
+  .kanban-card.low { border-left-color: var(--green); }
+  .kanban-card-tags { display: flex; gap: 4px; margin-bottom: 6px; }
+  .kanban-card-title { font-size: 13px; font-weight: 600; color: var(--ch); margin-bottom: 8px; line-height: 1.4; }
+  .kanban-card-meta { display: flex; align-items: center; justify-content: space-between; }
+  .kanban-card-meta-left { display: flex; align-items: center; gap: 6px; font-size: 10px; color: var(--text-3); }
+  .kanban-icons { display: inline-flex; gap: 6px; align-items: center; }
+
+  /* === PRODUTIVIDADE === */
+  .prod-tabs { display: flex; gap: 4px; background: white; border-radius: 10px; padding: 4px; margin-bottom: 20px; width: fit-content; border: 1px solid var(--border); }
+  .prod-tab { padding: 8px 16px; border: none; background: transparent; font-size: 13px; font-weight: 600; color: var(--text-2); cursor: pointer; border-radius: 8px; }
+  .prod-tab.active { background: var(--vl); color: white; }
+
+  .ranking-podium { display: flex; align-items: flex-end; justify-content: center; gap: 16px; padding: 30px 0 20px; }
+  .podium-spot { display: flex; flex-direction: column; align-items: center; }
+  .podium-avatar { position: relative; margin-bottom: 12px; }
+  .podium-medal { position: absolute; top: -8px; right: -8px; font-size: 22px; }
+  .podium-bar { width: 110px; border-radius: 12px 12px 0 0; padding: 14px 8px; text-align: center; color: var(--ch); display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .podium-bar.gold { background: linear-gradient(180deg, #FDE68A, #F59E0B); height: 180px; }
+  .podium-bar.silver { background: linear-gradient(180deg, #E5E7EB, #9CA3AF); height: 150px; }
+  .podium-bar.bronze { background: linear-gradient(180deg, #FED7AA, #EA580C); height: 130px; }
+  .podium-name { font-size: 12px; font-weight: 700; }
+  .podium-score { font-size: 24px; font-weight: 800; }
+  .podium-label { font-size: 9px; opacity: 0.7; }
+  .podium-bar.gold .podium-name, .podium-bar.silver .podium-name, .podium-bar.bronze .podium-name { color: white; }
+  .podium-bar.gold .podium-score, .podium-bar.silver .podium-score, .podium-bar.bronze .podium-score { color: white; }
+  .podium-bar.gold .podium-label, .podium-bar.silver .podium-label, .podium-bar.bronze .podium-label { color: white; }
+  .podium-spot .avatar { width: 56px; height: 56px; font-size: 18px; }
+
+  .leaderboard { background: white; border-radius: 14px; overflow: hidden; border: 1px solid var(--border); }
+  .lb-row { display: grid; grid-template-columns: 50px 2fr 1fr 1fr 1fr 1fr 80px; padding: 14px 20px; align-items: center; border-top: 1px solid var(--border); }
+  .lb-row.header { background: var(--ch); color: white; border: none; }
+  .lb-row.header > div { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+  .lb-row .rank { font-size: 16px; font-weight: 800; color: var(--text-3); text-align: center; }
+  .lb-row .rank.top { color: var(--amber); }
+  .lb-row .name-cell { display: flex; align-items: center; gap: 10px; }
+  .lb-row .num-cell { text-align: center; font-size: 13px; font-weight: 700; color: var(--ch); }
+  .lb-row .num-cell.violet { color: var(--vl); font-size: 16px; }
+  .lb-row.me { background: var(--vl-bg); }
+
+  /* Sparkline */
+  .sparkline { display: flex; align-items: flex-end; gap: 2px; height: 30px; width: 80px; }
+  .sparkline-bar { flex: 1; background: var(--vl); border-radius: 2px 2px 0 0; min-height: 2px; }
+
+  /* Heatmap */
+  .heatmap { display: grid; grid-template-columns: repeat(14, 1fr); gap: 4px; }
+  .heatmap-cell { width: 18px; height: 18px; border-radius: 3px; background: var(--gray); }
+  .heatmap-cell.l1 { background: #C7D2FE; }
+  .heatmap-cell.l2 { background: #A5B4FC; }
+  .heatmap-cell.l3 { background: var(--vl-light); }
+  .heatmap-cell.l4 { background: var(--vl); }
+
+  /* === ROTINAS === */
+  .rotinas-grid { display: grid; grid-template-columns: 280px 1fr; gap: 20px; }
+  .rotinas-sidebar { background: white; border-radius: 14px; padding: 20px; border: 1px solid var(--border); height: fit-content; }
+  .rotinas-sidebar-section { margin-bottom: 20px; }
+  .rotinas-sidebar-title { font-size: 10px; font-weight: 700; color: var(--text-3); text-transform: uppercase; margin-bottom: 10px; }
+  .rotinas-tag-list { display: flex; flex-wrap: wrap; gap: 6px; }
+  .rotinas-tag { padding: 6px 10px; background: var(--gray); border-radius: 8px; font-size: 11px; font-weight: 600; color: var(--text-2); cursor: pointer; }
+  .rotinas-tag.active { background: var(--vl); color: white; }
+
+  .consultant-card { background: white; border-radius: 14px; overflow: hidden; border: 1px solid var(--border); margin-bottom: 14px; }
+  .consultant-header { background: var(--ch); color: white; padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; }
+  .consultant-header-left { display: flex; align-items: center; gap: 12px; }
+  .consultant-name { font-size: 14px; font-weight: 700; }
+  .consultant-stats { font-size: 11px; opacity: 0.7; }
+  .consultant-progress-mini { display: flex; align-items: center; gap: 8px; }
+  .consultant-progress-mini .progress { width: 100px; height: 6px; background: rgba(255,255,255,0.2); }
+  .consultant-progress-mini .progress-bar { background: var(--green); }
+
+  .project-row { padding: 12px 20px 12px 30px; background: var(--gray-2); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; font-size: 12px; }
+  .project-row-name { font-weight: 600; color: var(--ch); }
+  .routine-item { padding: 12px 20px 12px 50px; border-bottom: 1px solid var(--gray); display: flex; align-items: center; gap: 12px; transition: background 0.15s; }
+  .routine-item:hover { background: var(--gray-2); }
+  .routine-checkbox { width: 18px; height: 18px; border: 2px solid var(--border); border-radius: 4px; cursor: pointer; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+  .routine-checkbox.checked { background: var(--green); border-color: var(--green); color: white; }
+  .routine-title { flex: 1; font-size: 13px; color: var(--ch); }
+  .routine-title.done { text-decoration: line-through; color: var(--text-3); }
+  .routine-actions { display: flex; gap: 4px; }
+  .routine-action { width: 28px; height: 28px; border: none; background: transparent; border-radius: 6px; cursor: pointer; color: var(--text-3); display: flex; align-items: center; justify-content: center; }
+  .routine-action:hover { background: var(--gray); color: var(--ch); }
+
+  /* Activity feed */
+  .activity-feed { display: flex; flex-direction: column; gap: 10px; }
+  .activity-item { display: flex; gap: 12px; padding: 12px; border-left: 2px solid var(--vl); background: var(--gray-2); border-radius: 0 8px 8px 0; }
+  .activity-item .avatar { width: 28px; height: 28px; font-size: 11px; flex-shrink: 0; }
+  .activity-content { flex: 1; }
+  .activity-text { font-size: 12px; color: var(--ch); }
+  .activity-text strong { font-weight: 700; }
+  .activity-time { font-size: 10px; color: var(--text-3); margin-top: 2px; }
+
+  /* Approval banner at top */
+  .approval-banner { background: var(--vl); color: white; padding: 10px 32px; text-align: center; font-size: 12px; font-weight: 600; }
+</style>
+</head>
+<body>
+
+<div class="approval-banner">📐 MOCKUPS BX HUB v3.1 — Aprovação visual antes da implementação · Clique nas abas para navegar</div>
+
+<div class="nav-header">
+  <h1>BX HUB · Mockups de Inovação Visual</h1>
+  <span class="badge">v3.1 — proposta</span>
+</div>
+
+<div class="nav-tabs">
+  <button class="nav-tab active" onclick="showPage('dashboard')">📊 Dashboard</button>
+  <button class="nav-tab" onclick="showPage('portfolio')">📁 Portfolio</button>
+  <button class="nav-tab" onclick="showPage('kanban')">📋 Kanban</button>
+  <button class="nav-tab" onclick="showPage('produtividade')">⚡ Produtividade</button>
+  <button class="nav-tab" onclick="showPage('rotinas')">⏱️ Rotinas</button>
+</div>
+
+<!-- ============= DASHBOARD ============= -->
+<div class="page active" id="page-dashboard">
+  <div class="hero">
+    <div>
+      <div class="hero-greet">☀️ Boa tarde, Gabriel!</div>
+      <div class="hero-date">segunda-feira, 6 de abril de 2026</div>
+      <div style="margin-top:14px; display:flex; gap:8px;">
+        <span class="pill amber">⚠️ 3 tarefas vencidas</span>
+        <span class="pill green">✓ 14 em dia</span>
+        <span class="pill violet">📌 2 reuniões hoje</span>
+      </div>
+    </div>
+    <div>
+      <div class="hero-time">14:18</div>
+      <div class="hero-version">BX Project Hub v3.1</div>
+    </div>
+  </div>
+
+  <!-- KPI ROW -->
+  <div class="kpi-grid cols-6">
+    <div class="kpi violet">
+      <div class="kpi-icon">📊</div>
+      <div class="kpi-label">Projetos Ativos</div>
+      <div class="kpi-value">6</div>
+      <div class="kpi-sub up">↑ 2 este mês</div>
+    </div>
+    <div class="kpi green">
+      <div class="kpi-icon">💰</div>
+      <div class="kpi-label">Pipeline</div>
+      <div class="kpi-value">R$ 60.5k</div>
+      <div class="kpi-sub up">↑ 12%</div>
+    </div>
+    <div class="kpi amber">
+      <div class="kpi-icon">⚠️</div>
+      <div class="kpi-label">Tarefas Vencidas</div>
+      <div class="kpi-value">3</div>
+      <div class="kpi-sub down">↓ 5 vs ontem</div>
+    </div>
+    <div class="kpi red">
+      <div class="kpi-icon">🚨</div>
+      <div class="kpi-label">Riscos Críticos</div>
+      <div class="kpi-value">2</div>
+      <div class="kpi-sub">acompanhar</div>
+    </div>
+    <div class="kpi blue">
+      <div class="kpi-icon">✅</div>
+      <div class="kpi-label">Tarefas Hoje</div>
+      <div class="kpi-value">8/14</div>
+      <div class="kpi-sub up">57% concluído</div>
+    </div>
+    <div class="kpi purple">
+      <div class="kpi-icon">👥</div>
+      <div class="kpi-label">Check-ins</div>
+      <div class="kpi-value">7/10</div>
+      <div class="kpi-sub">equipe ativa</div>
+    </div>
+  </div>
+
+  <!-- MAP + MEMBERS -->
+  <div class="map-section">
+    <div class="map-area">
+      <div style="position: absolute; top: 16px; left: 16px; background: white; padding: 6px 12px; border-radius: 8px; font-size: 11px; font-weight: 600; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+        🗺️ Equipe em campo · 4 ativos
+      </div>
+      <div class="map-pin gm" title="Gabriel Molina · Escritório">GM</div>
+      <div class="map-pin af" title="Aldo Ferreira · No Cliente">AF</div>
+      <div class="map-pin cm" title="Carolina Mendes · Remoto">CM</div>
+      <div class="map-pin lt" title="Lucas Tavares · Viagem">LT</div>
+      <div style="position: absolute; bottom: 16px; left: 16px; background: white; padding: 8px 12px; border-radius: 8px; font-size: 11px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); display:flex; gap:12px;">
+        <span><span class="status-dot escritorio" style="display:inline-block;margin-right:4px;"></span>Escritório</span>
+        <span><span class="status-dot cliente" style="display:inline-block;margin-right:4px;"></span>No Cliente</span>
+        <span><span class="status-dot remoto" style="display:inline-block;margin-right:4px;"></span>Remoto</span>
+        <span><span class="status-dot viagem" style="display:inline-block;margin-right:4px;"></span>Viagem</span>
+      </div>
+    </div>
+    <div class="members-list">
+      <div class="members-list-title">
+        <span>👥 EQUIPE HOJE</span>
+        <span>10</span>
+      </div>
+      <div class="member-row active">
+        <div class="status-dot escritorio"></div>
+        <div class="avatar sm">GM</div>
+        <div class="member-info">
+          <div class="member-name">Gabriel Molina</div>
+          <div class="member-status">📍 Escritório · 09:12</div>
+        </div>
+      </div>
+      <div class="member-row">
+        <div class="status-dot cliente"></div>
+        <div class="avatar sm" style="background:var(--green);">AF</div>
+        <div class="member-info">
+          <div class="member-name">Aldo Ferreira</div>
+          <div class="member-status">📍 KIMBERLIT · 08:45</div>
+        </div>
+      </div>
+      <div class="member-row">
+        <div class="status-dot remoto"></div>
+        <div class="avatar sm" style="background:var(--blue);">CM</div>
+        <div class="member-info">
+          <div class="member-name">Carolina Mendes</div>
+          <div class="member-status">🏠 Remoto · 09:00</div>
+        </div>
+      </div>
+      <div class="member-row">
+        <div class="status-dot viagem"></div>
+        <div class="avatar sm" style="background:var(--amber);">LT</div>
+        <div class="member-info">
+          <div class="member-name">Lucas Tavares</div>
+          <div class="member-status">✈️ SP→RJ · 07:30</div>
+        </div>
+      </div>
+      <div class="member-row">
+        <div class="status-dot ausente"></div>
+        <div class="avatar sm" style="background:#ccc;">RO</div>
+        <div class="member-info">
+          <div class="member-name">Raiana Oliveira</div>
+          <div class="member-status">Sem check-in</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3-COL: SAUDE + SEMAFORO + ATIVIDADE -->
+  <div class="grid-3">
+    <div class="card">
+      <div class="card-title">SAÚDE OPERACIONAL</div>
+      <div class="gauge-container">
+        <div class="gauge">
+          <div class="gauge-bg"></div>
+          <div class="gauge-value">82</div>
+        </div>
+      </div>
+      <div class="gauge-label">Score de Saúde Geral</div>
+      <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-top:14px; font-size:10px; text-align:center;">
+        <div><div style="color:var(--green); font-weight:800; font-size:18px;">14</div><div style="color:var(--text-3);">Saudáveis</div></div>
+        <div><div style="color:var(--amber); font-weight:800; font-size:18px;">3</div><div style="color:var(--text-3);">Atenção</div></div>
+        <div><div style="color:var(--red); font-weight:800; font-size:18px;">1</div><div style="color:var(--text-3);">Crítico</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">SEMÁFORO EXECUTIVO</div>
+      <div class="semafaro-list">
+        <div class="semafaro-item green">
+          <div class="semafaro-icon">📋</div>
+          <div class="semafaro-content"><div class="lbl">Tarefas</div><div class="sub">Tudo em dia</div></div>
+          <div class="semafaro-value">8 abertas</div>
+        </div>
+        <div class="semafaro-item amber">
+          <div class="semafaro-icon">💰</div>
+          <div class="semafaro-content"><div class="lbl">Pipeline</div><div class="sub">Baixo volume</div></div>
+          <div class="semafaro-value">R$ 60.5k</div>
+        </div>
+        <div class="semafaro-item red">
+          <div class="semafaro-icon">👥</div>
+          <div class="semafaro-content"><div class="lbl">Equipe</div><div class="sub">30% sem check-in</div></div>
+          <div class="semafaro-value">3/10</div>
+        </div>
+        <div class="semafaro-item green">
+          <div class="semafaro-icon">⏱️</div>
+          <div class="semafaro-content"><div class="lbl">Rotinas</div><div class="sub">85% conformidade</div></div>
+          <div class="semafaro-value">28/33</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">ATIVIDADE RECENTE</div>
+      <div class="activity-feed">
+        <div class="activity-item">
+          <div class="avatar" style="background:var(--green);">CM</div>
+          <div class="activity-content">
+            <div class="activity-text"><strong>Carolina</strong> concluiu <strong>Diagnóstico Financeiro</strong></div>
+            <div class="activity-time">há 12 min</div>
+          </div>
+        </div>
+        <div class="activity-item">
+          <div class="avatar" style="background:var(--amber);">LT</div>
+          <div class="activity-content">
+            <div class="activity-text"><strong>Lucas</strong> moveu <em>Renegociação BNDES</em> para <strong>Comitê</strong></div>
+            <div class="activity-time">há 38 min</div>
+          </div>
+        </div>
+        <div class="activity-item">
+          <div class="avatar" style="background:var(--blue);">AF</div>
+          <div class="activity-content">
+            <div class="activity-text"><strong>Aldo</strong> criou nota <em>Reunião KIMBERLIT</em></div>
+            <div class="activity-time">há 1h</div>
+          </div>
+        </div>
+        <div class="activity-item">
+          <div class="avatar">GM</div>
+          <div class="activity-content">
+            <div class="activity-text">Você fez check-in no escritório</div>
+            <div class="activity-time">há 5h</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CHARTS ROW -->
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">
+        DELIVERY POR PROJETO (7 DIAS)
+        <div class="actions"><button class="btn-mini active">7d</button><button class="btn-mini">30d</button></div>
+      </div>
+      <div class="bar-chart">
+        <div class="bar-item"><div class="bar-value">8</div><div class="bar" style="height:60%;"></div><div class="bar-label">Seg</div></div>
+        <div class="bar-item"><div class="bar-value">12</div><div class="bar" style="height:90%;"></div><div class="bar-label">Ter</div></div>
+        <div class="bar-item"><div class="bar-value">5</div><div class="bar" style="height:38%;"></div><div class="bar-label">Qua</div></div>
+        <div class="bar-item"><div class="bar-value">10</div><div class="bar" style="height:75%;"></div><div class="bar-label">Qui</div></div>
+        <div class="bar-item"><div class="bar-value">9</div><div class="bar" style="height:68%;"></div><div class="bar-label">Sex</div></div>
+        <div class="bar-item"><div class="bar-value">4</div><div class="bar amber" style="height:30%;"></div><div class="bar-label">Sáb</div></div>
+        <div class="bar-item"><div class="bar-value">2</div><div class="bar amber" style="height:15%;"></div><div class="bar-label">Dom</div></div>
+      </div>
+      <div style="margin-top:12px; padding-top:12px; border-top:1px solid var(--border); display:flex; justify-content:space-between; font-size:11px; color:var(--text-2);">
+        <span>Média diária: <strong style="color:var(--ch);">7.1 tarefas</strong></span>
+        <span>Total semana: <strong style="color:var(--vl);">50 tarefas</strong></span>
+        <span class="pill green">↑ 18% vs sem. anterior</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">DISTRIBUIÇÃO DO PIPELINE</div>
+      <div class="donut-container">
+        <div class="donut">
+          <div class="donut-center"><div class="v">R$60k</div><div class="l">total</div></div>
+        </div>
+        <div class="donut-legend">
+          <div class="donut-legend-item"><div class="dot" style="background:var(--vl);"></div><div><strong>R$ 20k</strong> · Indicação (33%)</div></div>
+          <div class="donut-legend-item"><div class="dot" style="background:var(--blue);"></div><div><strong>R$ 13k</strong> · Documentação (22%)</div></div>
+          <div class="donut-legend-item"><div class="dot" style="background:var(--amber);"></div><div><strong>R$ 10k</strong> · Comitê (17%)</div></div>
+          <div class="donut-legend-item"><div class="dot" style="background:var(--green);"></div><div><strong>R$ 10k</strong> · Aprovado (17%)</div></div>
+          <div class="donut-legend-item"><div class="dot" style="background:#ccc;"></div><div><strong>R$ 7.5k</strong> · Liberado (11%)</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============= PORTFOLIO ============= -->
+<div class="page" id="page-portfolio">
+  <div class="page-header">
+    <h2>📁 Portfólio de Projetos</h2>
+    <div class="sub">Visão executiva de todos os projetos · KPIs · Saúde · Filtros avançados</div>
+  </div>
+
+  <!-- KPI ROW -->
+  <div class="kpi-grid cols-5">
+    <div class="kpi violet">
+      <div class="kpi-icon">📁</div>
+      <div class="kpi-label">Total de Projetos</div>
+      <div class="kpi-value">6</div>
+      <div class="kpi-sub">5 ativos · 1 concluído</div>
+    </div>
+    <div class="kpi green">
+      <div class="kpi-icon">✅</div>
+      <div class="kpi-label">No Tempo</div>
+      <div class="kpi-value">4</div>
+      <div class="kpi-sub up">67% saudáveis</div>
+    </div>
+    <div class="kpi amber">
+      <div class="kpi-icon">⚠️</div>
+      <div class="kpi-label">Em Atenção</div>
+      <div class="kpi-value">1</div>
+      <div class="kpi-sub">prazo apertado</div>
+    </div>
+    <div class="kpi red">
+      <div class="kpi-icon">🚨</div>
+      <div class="kpi-label">Em Risco</div>
+      <div class="kpi-value">1</div>
+      <div class="kpi-sub down">requer ação</div>
+    </div>
+    <div class="kpi blue">
+      <div class="kpi-icon">💰</div>
+      <div class="kpi-label">Orçamento Total</div>
+      <div class="kpi-value">R$ 1.2M</div>
+      <div class="kpi-sub">R$ 480k gasto (40%)</div>
+    </div>
+  </div>
+
+  <!-- FILTROS -->
+  <div class="portfolio-header">
+    <input type="text" class="filter-input" placeholder="🔍 Buscar projeto, cliente ou consultor...">
+    <select class="filter-input" style="flex:0 0 180px;"><option>Todos os Tipos</option><option>RJ</option><option>M&A</option><option>Diagnóstico</option><option>BPO</option></select>
+    <select class="filter-input" style="flex:0 0 160px;"><option>Todos Status</option><option>Ativo</option><option>Pausado</option><option>Concluído</option></select>
+    <select class="filter-input" style="flex:0 0 160px;"><option>Toda Saúde</option><option>🟢 Saudável</option><option>🟡 Atenção</option><option>🔴 Crítico</option></select>
+    <div class="view-toggle">
+      <button class="active">⊞ Cards</button>
+      <button>☰ Lista</button>
+      <button>📊 Kanban</button>
+    </div>
+    <button class="btn btn-primary">+ Novo Projeto</button>
+  </div>
+
+  <!-- PROJECT CARDS -->
+  <div class="project-grid">
+    <!-- Card 1 -->
+    <div class="project-card">
+      <div class="project-card-color-bar diag"></div>
+      <div class="project-card-header">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+          <div>
+            <div class="project-card-title">Diagnóstico Financeiro</div>
+            <div class="project-card-client">🏢 Grupo Andrade · #DIAG-2025-08</div>
+          </div>
+          <span class="pill green">🟢 Saudável</span>
+        </div>
+        <div class="project-tags">
+          <span class="pill violet">Diagnóstico</span>
+          <span class="pill blue">Alta</span>
+          <span class="pill gray">Em andamento</span>
+        </div>
+      </div>
+      <div class="project-card-body">
+        <div class="project-card-row">
+          <span class="project-stat-label">Progresso</span>
+          <span class="project-stat-value">65%</span>
+        </div>
+        <div class="progress" style="margin-bottom:12px;"><div class="progress-bar green" style="width:65%;"></div></div>
+        <div class="project-card-row">
+          <div><div class="project-stat-label">Orçamento</div><div class="project-stat-value">R$ 180k</div></div>
+          <div style="text-align:right;"><div class="project-stat-label">Gasto</div><div class="project-stat-value" style="color:var(--green);">R$ 117k</div></div>
+        </div>
+        <div class="project-card-row" style="margin-top:8px;">
+          <div><div class="project-stat-label">Prazo</div><div class="project-stat-value">29/04/2026</div></div>
+          <div style="text-align:right;"><div class="project-stat-label">Restantes</div><div class="project-stat-value" style="color:var(--green);">23 dias</div></div>
+        </div>
+      </div>
+      <div class="project-card-footer">
+        <div class="avatar-stack">
+          <div class="avatar sm">GM</div>
+          <div class="avatar sm" style="background:var(--green);">AF</div>
+          <div class="avatar sm" style="background:var(--blue);">CM</div>
+        </div>
+        <div class="project-mini-stats">
+          <div class="project-mini-stat">📋 <span class="num">12</span></div>
+          <div class="project-mini-stat">⚠️ <span class="num">0</span></div>
+          <div class="project-mini-stat">💬 <span class="num">8</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Card 2 -->
+    <div class="project-card">
+      <div class="project-card-color-bar rj"></div>
+      <div class="project-card-header">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+          <div>
+            <div class="project-card-title">Recuperação Judicial</div>
+            <div class="project-card-client">🏢 KIMBERLIT · #RJ-2025-12</div>
+          </div>
+          <span class="pill amber">🟡 Atenção</span>
+        </div>
+        <div class="project-tags">
+          <span class="pill violet">RJ</span>
+          <span class="pill red">Crítica</span>
+          <span class="pill gray">Em andamento</span>
+        </div>
+      </div>
+      <div class="project-card-body">
+        <div class="project-card-row">
+          <span class="project-stat-label">Progresso</span>
+          <span class="project-stat-value">42%</span>
+        </div>
+        <div class="progress" style="margin-bottom:12px;"><div class="progress-bar amber" style="width:42%;"></div></div>
+        <div class="project-card-row">
+          <div><div class="project-stat-label">Orçamento</div><div class="project-stat-value">R$ 450k</div></div>
+          <div style="text-align:right;"><div class="project-stat-label">Gasto</div><div class="project-stat-value" style="color:var(--amber);">R$ 225k</div></div>
+        </div>
+        <div class="project-card-row" style="margin-top:8px;">
+          <div><div class="project-stat-label">Prazo</div><div class="project-stat-value">15/06/2026</div></div>
+          <div style="text-align:right;"><div class="project-stat-label">Restantes</div><div class="project-stat-value" style="color:var(--amber);">70 dias</div></div>
+        </div>
+      </div>
+      <div class="project-card-footer">
+        <div class="avatar-stack">
+          <div class="avatar sm">GM</div>
+          <div class="avatar sm" style="background:var(--amber);">LT</div>
+        </div>
+        <div class="project-mini-stats">
+          <div class="project-mini-stat">📋 <span class="num">28</span></div>
+          <div class="project-mini-stat">⚠️ <span class="num" style="color:var(--amber);">3</span></div>
+          <div class="project-mini-stat">💬 <span class="num">14</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Card 3 -->
+    <div class="project-card">
+      <div class="project-card-color-bar bpo"></div>
+      <div class="project-card-header">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+          <div>
+            <div class="project-card-title">BPO Financeiro</div>
+            <div class="project-card-client">🏢 LogiSul Transportes · #BPO-2025-15</div>
+          </div>
+          <span class="pill green">🟢 Saudável</span>
+        </div>
+        <div class="project-tags">
+          <span class="pill violet">BPO</span>
+          <span class="pill amber">Média</span>
+          <span class="pill gray">Em andamento</span>
+        </div>
+      </div>
+      <div class="project-card-body">
+        <div class="project-card-row">
+          <span class="project-stat-label">Progresso</span>
+          <span class="project-stat-value">88%</span>
+        </div>
+        <div class="progress" style="margin-bottom:12px;"><div class="progress-bar green" style="width:88%;"></div></div>
+        <div class="project-card-row">
+          <div><div class="project-stat-label">Orçamento</div><div class="project-stat-value">R$ 120k</div></div>
+          <div style="text-align:right;"><div class="project-stat-label">Gasto</div><div class="project-stat-value" style="color:var(--green);">R$ 95k</div></div>
+        </div>
+        <div class="project-card-row" style="margin-top:8px;">
+          <div><div class="project-stat-label">Prazo</div><div class="project-stat-value">10/04/2026</div></div>
+          <div style="text-align:right;"><div class="project-stat-label">Restantes</div><div class="project-stat-value" style="color:var(--green);">4 dias</div></div>
+        </div>
+      </div>
+      <div class="project-card-footer">
+        <div class="avatar-stack">
+          <div class="avatar sm" style="background:var(--blue);">CM</div>
+          <div class="avatar sm" style="background:var(--green);">RO</div>
+        </div>
+        <div class="project-mini-stats">
+          <div class="project-mini-stat">📋 <span class="num">42</span></div>
+          <div class="project-mini-stat">⚠️ <span class="num">0</span></div>
+          <div class="project-mini-stat">💬 <span class="num">6</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Card 4 -->
+    <div class="project-card">
+      <div class="project-card-color-bar ma"></div>
+      <div class="project-card-header">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+          <div>
+            <div class="project-card-title">M&A Estruturação</div>
+            <div class="project-card-client">🏢 Rede Bella · #MA-2025-03</div>
+          </div>
+          <span class="pill red">🔴 Crítico</span>
+        </div>
+        <div class="project-tags">
+          <span class="pill violet">M&A</span>
+          <span class="pill red">Crítica</span>
+          <span class="pill amber">Pausado</span>
+        </div>
+      </div>
+      <div class="project-card-body">
+        <div class="project-card-row">
+          <span class="project-stat-label">Progresso</span>
+          <span class="project-stat-value">15%</span>
+        </div>
+        <div class="progress" style="margin-bottom:12px;"><div class="progress-bar red" style="width:15%;"></div></div>
+        <div class="project-card-row">
+          <div><div class="project-stat-label">Orçamento</div><div class="project-stat-value">R$ 280k</div></div>
+          <div style="text-align:right;"><div class="project-stat-label">Gasto</div><div class="project-stat-value" style="color:var(--red);">R$ 42k</div></div>
+        </div>
+        <div class="project-card-row" style="margin-top:8px;">
+          <div><div class="project-stat-label">Prazo</div><div class="project-stat-value">30/03/2026</div></div>
+          <div style="text-align:right;"><div class="project-stat-label">Atraso</div><div class="project-stat-value" style="color:var(--red);">7 dias</div></div>
+        </div>
+      </div>
+      <div class="project-card-footer">
+        <div class="avatar-stack">
+          <div class="avatar sm">GM</div>
+        </div>
+        <div class="project-mini-stats">
+          <div class="project-mini-stat">📋 <span class="num">5</span></div>
+          <div class="project-mini-stat">⚠️ <span class="num" style="color:var(--red);">2</span></div>
+          <div class="project-mini-stat">💬 <span class="num">3</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============= KANBAN ============= -->
+<div class="page" id="page-kanban">
+  <div class="page-header">
+    <h2>📋 Kanban — Tarefas</h2>
+    <div class="sub">Drag & drop · Filtros · Métricas em tempo real</div>
+  </div>
+
+  <!-- TOP STATS -->
+  <div class="kpi-grid cols-5">
+    <div class="kpi violet"><div class="kpi-icon">📋</div><div class="kpi-label">Total</div><div class="kpi-value">47</div><div class="kpi-sub">tarefas ativas</div></div>
+    <div class="kpi blue"><div class="kpi-icon">⏳</div><div class="kpi-label">Em Andamento</div><div class="kpi-value">12</div><div class="kpi-sub">25%</div></div>
+    <div class="kpi amber"><div class="kpi-icon">👀</div><div class="kpi-label">Em Revisão</div><div class="kpi-value">5</div><div class="kpi-sub">aguardando</div></div>
+    <div class="kpi green"><div class="kpi-icon">✅</div><div class="kpi-label">Concluídas (7d)</div><div class="kpi-value">23</div><div class="kpi-sub up">↑ 15%</div></div>
+    <div class="kpi red"><div class="kpi-icon">⚠️</div><div class="kpi-label">Vencidas</div><div class="kpi-value">3</div><div class="kpi-sub">prioridade</div></div>
+  </div>
+
+  <!-- FILTROS -->
+  <div class="portfolio-header">
+    <input type="text" class="filter-input" placeholder="🔍 Buscar tarefa...">
+    <select class="filter-input" style="flex:0 0 200px;"><option>Todos os Projetos</option></select>
+    <select class="filter-input" style="flex:0 0 180px;"><option>Todos Responsáveis</option></select>
+    <select class="filter-input" style="flex:0 0 160px;"><option>Todas Prioridades</option></select>
+    <button class="btn btn-secondary">📊 Métricas</button>
+    <button class="btn btn-primary">+ Nova Tarefa</button>
+  </div>
+
+  <!-- KANBAN BOARD -->
+  <div class="kanban-board">
+    <!-- BACKLOG -->
+    <div class="kanban-column">
+      <div class="kanban-column-header">
+        <div class="kanban-column-title"><div class="kanban-column-dot" style="background:#9ca3af;"></div>📦 Backlog</div>
+        <div class="kanban-column-count">8</div>
+      </div>
+      <div class="kanban-card medium">
+        <div class="kanban-card-tags"><span class="pill violet">Diagnóstico</span></div>
+        <div class="kanban-card-title">Mapear endividamento bancário (LP e CP)</div>
+        <div class="kanban-card-meta">
+          <div class="kanban-card-meta-left">📅 12/04 · 2h</div>
+          <div class="avatar sm">RO</div>
+        </div>
+      </div>
+      <div class="kanban-card low">
+        <div class="kanban-card-tags"><span class="pill blue">BPO</span></div>
+        <div class="kanban-card-title">Coletar balanços e DREs 2023-2025</div>
+        <div class="kanban-card-meta">
+          <div class="kanban-card-meta-left">📅 15/04</div>
+          <div class="avatar sm" style="background:var(--green);">AF</div>
+        </div>
+      </div>
+      <div class="kanban-card medium">
+        <div class="kanban-card-tags"><span class="pill amber">RJ</span></div>
+        <div class="kanban-card-title">Preparar petição inicial</div>
+        <div class="kanban-card-meta">
+          <div class="kanban-card-meta-left">📅 20/04 · 4h</div>
+          <div class="avatar sm" style="background:var(--amber);">LT</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TODO -->
+    <div class="kanban-column">
+      <div class="kanban-column-header">
+        <div class="kanban-column-title"><div class="kanban-column-dot" style="background:var(--blue);"></div>📋 A Fazer</div>
+        <div class="kanban-column-count">14</div>
+      </div>
+      <div class="kanban-card high">
+        <div class="kanban-card-tags"><span class="pill amber">Alta</span> <span class="pill violet">DIAG</span></div>
+        <div class="kanban-card-title">Calcular EBITDA e indicadores de rentabilidade</div>
+        <div class="progress" style="height:4px; margin:6px 0;"><div class="progress-bar" style="width:60%;"></div></div>
+        <div class="kanban-card-meta">
+          <div class="kanban-card-meta-left">📅 hoje · ✅ 3/5</div>
+          <div class="avatar sm">GM</div>
+        </div>
+      </div>
+      <div class="kanban-card urgent">
+        <div class="kanban-card-tags"><span class="pill red">🚨 URGENTE</span></div>
+        <div class="kanban-card-title">Levantar posição consolidada de dívida</div>
+        <div class="kanban-card-meta">
+          <div class="kanban-card-meta-left">⏰ vence hoje</div>
+          <div class="avatar sm" style="background:var(--blue);">CM</div>
+        </div>
+      </div>
+      <div class="kanban-card medium">
+        <div class="kanban-card-tags"><span class="pill blue">BPO</span></div>
+        <div class="kanban-card-title">Atualizar kit banco completo</div>
+        <div class="kanban-card-meta">
+          <div class="kanban-card-meta-left">📅 11/04</div>
+          <div class="avatar sm" style="background:var(--green);">RO</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- DOING -->
+    <div class="kanban-column">
+      <div class="kanban-column-header">
+        <div class="kanban-column-title"><div class="kanban-column-dot" style="background:var(--vl);"></div>⏳ Em Andamento</div>
+        <div class="kanban-column-count">12</div>
+      </div>
+      <div class="kanban-card high">
+        <div class="kanban-card-tags"><span class="pill amber">Alta</span></div>
+        <div class="kanban-card-title">Montar modelo Fleuriet (NCG/CDG/ST)</div>
+        <div class="progress" style="height:4px; margin:6px 0;"><div class="progress-bar" style="width:75%;"></div></div>
+        <div class="kanban-card-meta">
+          <div class="kanban-card-meta-left">⏱️ 75% · 2h</div>
+          <div class="avatar sm">GM</div>
+        </div>
+      </div>
+      <div class="kanban-card urgent">
+        <div class="kanban-card-tags"><span class="pill red">🚨 Crítica</span> <span class="pill violet">RJ</span></div>
+        <div class="kanban-card-title">Reunião com credores - alinhamento prévio</div>
+        <div class="kanban-card-meta">
+          <div class="kanban-card-meta-left">📅 amanhã · 14h</div>
+          <div class="avatar sm" style="background:var(--amber);">LT</div>
+        </div>
+      </div>
+      <div class="kanban-card medium">
+        <div class="kanban-card-tags"><span class="pill blue">DIAG</span></div>
+        <div class="kanban-card-title">Análise vertical e horizontal DRE</div>
+        <div class="progress" style="height:4px; margin:6px 0;"><div class="progress-bar" style="width:40%;"></div></div>
+        <div class="kanban-card-meta">
+          <div class="kanban-card-meta-left">📅 13/04 · 40%</div>
+          <div class="avatar sm" style="background:var(--blue);">CM</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- REVIEW -->
+    <div class="kanban-column">
+      <div class="kanban-column-header">
+        <div class="kanban-column-title"><div class="kanban-column-dot" style="background:var(--amber);"></div>👀 Em Revisão</div>
+        <div class="kanban-column-count">5</div>
+      </div>
+      <div class="kanban-card medium">
+        <div class="kanban-card-tags"><span class="pill violet">Diagnóstico</span></div>
+        <div class="kanban-card-title">Relatório executivo Q1 - Grupo Andrade</div>
+        <div class="kanban-card-meta">
+          <div class="kanban-card-meta-left">👀 com Gabriel</div>
+          <div class="avatar sm" style="background:var(--green);">AF</div>
+        </div>
+      </div>
+      <div class="kanban-card low">
+        <div class="kanban-card-tags"><span class="pill blue">BPO</span></div>
+        <div class="kanban-card-title">Conciliação bancária março</div>
+        <div class="kanban-card-meta">
+          <div class="kanban-card-meta-left">👀 aprovação</div>
+          <div class="avatar sm" style="background:var(--blue);">CM</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- DONE -->
+    <div class="kanban-column">
+      <div class="kanban-column-header">
+        <div class="kanban-column-title"><div class="kanban-column-dot" style="background:var(--green);"></div>✅ Concluído</div>
+        <div class="kanban-column-count">8</div>
+      </div>
+      <div class="kanban-card low" style="opacity:0.7;">
+        <div class="kanban-card-title">Setup inicial workspace KIMBERLIT</div>
+        <div class="kanban-card-meta">
+          <div class="kanban-card-meta-left">✓ ontem</div>
+          <div class="avatar sm" style="background:var(--amber);">LT</div>
+        </div>
+      </div>
+      <div class="kanban-card low" style="opacity:0.7;">
+        <div class="kanban-card-title">Onboarding Aldo - DIAG</div>
+        <div class="kanban-card-meta">
+          <div class="kanban-card-meta-left">✓ 3 dias</div>
+          <div class="avatar sm">GM</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============= PRODUTIVIDADE ============= -->
+<div class="page" id="page-produtividade">
+  <div class="page-header">
+    <h2>⚡ Produtividade</h2>
+    <div class="sub">Performance individual · Ranking · Insights · Streaks</div>
+  </div>
+
+  <div class="prod-tabs">
+    <button class="prod-tab active">👤 Pessoal</button>
+    <button class="prod-tab">👥 Time</button>
+    <button class="prod-tab">📁 Projetos</button>
+    <button class="prod-tab">📊 Análises</button>
+  </div>
+
+  <!-- PESSOAL: Top 6 KPIs -->
+  <div class="kpi-grid cols-6">
+    <div class="kpi green"><div class="kpi-icon">✅</div><div class="kpi-label">Concluídas</div><div class="kpi-value">87</div><div class="kpi-sub up">↑ 14% mês</div></div>
+    <div class="kpi amber"><div class="kpi-icon">🔥</div><div class="kpi-label">Streak</div><div class="kpi-value">12d</div><div class="kpi-sub">recorde pessoal</div></div>
+    <div class="kpi violet"><div class="kpi-icon">📊</div><div class="kpi-label">Taxa Conclusão</div><div class="kpi-value">82%</div><div class="kpi-sub up">acima da média</div></div>
+    <div class="kpi blue"><div class="kpi-icon">📋</div><div class="kpi-label">Abertas</div><div class="kpi-value">14</div><div class="kpi-sub">3 vencidas</div></div>
+    <div class="kpi purple"><div class="kpi-icon">📈</div><div class="kpi-label">Média/Dia</div><div class="kpi-value">7.2</div><div class="kpi-sub">tarefas</div></div>
+    <div class="kpi"><div class="kpi-icon">⭐</div><div class="kpi-label">Pontuação</div><div class="kpi-value">2.450</div><div class="kpi-sub">pts</div></div>
+  </div>
+
+  <!-- HEATMAP + PRIORIDADE -->
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">
+        ATIVIDADE NOS ÚLTIMOS 14 DIAS
+        <div class="actions"><button class="btn-mini active">14d</button><button class="btn-mini">30d</button><button class="btn-mini">90d</button></div>
+      </div>
+      <div class="bar-chart">
+        <div class="bar-item"><div class="bar-value">5</div><div class="bar" style="height:30%;"></div><div class="bar-label">24/3</div></div>
+        <div class="bar-item"><div class="bar-value">8</div><div class="bar" style="height:50%;"></div><div class="bar-label">25/3</div></div>
+        <div class="bar-item"><div class="bar-value">3</div><div class="bar amber" style="height:18%;"></div><div class="bar-label">26/3</div></div>
+        <div class="bar-item"><div class="bar-value">12</div><div class="bar green" style="height:75%;"></div><div class="bar-label">27/3</div></div>
+        <div class="bar-item"><div class="bar-value">10</div><div class="bar" style="height:62%;"></div><div class="bar-label">28/3</div></div>
+        <div class="bar-item"><div class="bar-value">7</div><div class="bar" style="height:43%;"></div><div class="bar-label">29/3</div></div>
+        <div class="bar-item"><div class="bar-value">6</div><div class="bar" style="height:37%;"></div><div class="bar-label">30/3</div></div>
+        <div class="bar-item"><div class="bar-value">9</div><div class="bar" style="height:56%;"></div><div class="bar-label">31/3</div></div>
+        <div class="bar-item"><div class="bar-value">11</div><div class="bar green" style="height:68%;"></div><div class="bar-label">1/4</div></div>
+        <div class="bar-item"><div class="bar-value">14</div><div class="bar green" style="height:87%;"></div><div class="bar-label">2/4</div></div>
+        <div class="bar-item"><div class="bar-value">8</div><div class="bar" style="height:50%;"></div><div class="bar-label">3/4</div></div>
+        <div class="bar-item"><div class="bar-value">6</div><div class="bar" style="height:37%;"></div><div class="bar-label">4/4</div></div>
+        <div class="bar-item"><div class="bar-value">10</div><div class="bar" style="height:62%;"></div><div class="bar-label">5/4</div></div>
+        <div class="bar-item"><div class="bar-value">4</div><div class="bar amber" style="height:25%;"></div><div class="bar-label">hoje</div></div>
+      </div>
+      <div style="display:flex; gap:8px; justify-content:center; margin-top:12px; padding-top:12px; border-top:1px solid var(--border); font-size:11px;">
+        <span style="color:var(--text-2);">Pico: <strong style="color:var(--green);">14 (2/4)</strong></span>
+        <span style="color:var(--text-2);">·</span>
+        <span style="color:var(--text-2);">Total 14d: <strong style="color:var(--vl);">113 tarefas</strong></span>
+        <span style="color:var(--text-2);">·</span>
+        <span class="pill green" style="font-size:10px;">↑ 18%</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">DISTRIBUIÇÃO POR PRIORIDADE</div>
+      <div style="display:flex; flex-direction:column; gap:14px; padding:12px 0;">
+        <div>
+          <div style="display:flex; justify-content:space-between; margin-bottom:6px;"><span style="font-size:13px; font-weight:600;"><span style="display:inline-block; width:10px; height:10px; border-radius:50%; background:var(--red); margin-right:8px;"></span>🚨 Urgente</span><span style="font-size:12px; font-weight:700; color:var(--red);">12 (14%)</span></div>
+          <div class="progress"><div class="progress-bar red" style="width:14%;"></div></div>
+        </div>
+        <div>
+          <div style="display:flex; justify-content:space-between; margin-bottom:6px;"><span style="font-size:13px; font-weight:600;"><span style="display:inline-block; width:10px; height:10px; border-radius:50%; background:var(--amber); margin-right:8px;"></span>🟠 Alta</span><span style="font-size:12px; font-weight:700; color:var(--amber);">28 (32%)</span></div>
+          <div class="progress"><div class="progress-bar amber" style="width:32%;"></div></div>
+        </div>
+        <div>
+          <div style="display:flex; justify-content:space-between; margin-bottom:6px;"><span style="font-size:13px; font-weight:600;"><span style="display:inline-block; width:10px; height:10px; border-radius:50%; background:var(--blue); margin-right:8px;"></span>🟡 Média</span><span style="font-size:12px; font-weight:700; color:var(--blue);">35 (40%)</span></div>
+          <div class="progress"><div class="progress-bar" style="background:var(--blue); width:40%;"></div></div>
+        </div>
+        <div>
+          <div style="display:flex; justify-content:space-between; margin-bottom:6px;"><span style="font-size:13px; font-weight:600;"><span style="display:inline-block; width:10px; height:10px; border-radius:50%; background:var(--green); margin-right:8px;"></span>🟢 Baixa</span><span style="font-size:12px; font-weight:700; color:var(--green);">12 (14%)</span></div>
+          <div class="progress"><div class="progress-bar green" style="width:14%;"></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PODIUM RANKING -->
+  <div class="card" style="margin-top:16px;">
+    <div class="card-title">🏆 RANKING DA EQUIPE — TOP 3</div>
+    <div class="ranking-podium">
+      <div class="podium-spot">
+        <div class="podium-avatar"><div class="avatar" style="background:var(--blue);">CM</div><span class="podium-medal">🥈</span></div>
+        <div class="podium-bar silver"><div class="podium-name">Carolina Mendes</div><div class="podium-score">76</div><div class="podium-label">tarefas</div></div>
+      </div>
+      <div class="podium-spot">
+        <div class="podium-avatar"><div class="avatar" style="background:var(--vl);">GM</div><span class="podium-medal">🥇</span></div>
+        <div class="podium-bar gold"><div class="podium-name">Gabriel Molina</div><div class="podium-score">87</div><div class="podium-label">tarefas</div></div>
+      </div>
+      <div class="podium-spot">
+        <div class="podium-avatar"><div class="avatar" style="background:var(--green);">AF</div><span class="podium-medal">🥉</span></div>
+        <div class="podium-bar bronze"><div class="podium-name">Aldo Ferreira</div><div class="podium-score">62</div><div class="podium-label">tarefas</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- LEADERBOARD COMPLETO -->
+  <div class="leaderboard" style="margin-top:16px;">
+    <div class="lb-row header">
+      <div>#</div>
+      <div>Membro</div>
+      <div>Concluídas</div>
+      <div>Abertas</div>
+      <div>Streak</div>
+      <div>Taxa</div>
+      <div>Score</div>
+    </div>
+    <div class="lb-row me">
+      <div class="rank top">🥇</div>
+      <div class="name-cell"><div class="avatar sm">GM</div><div><div style="font-size:13px; font-weight:700;">Gabriel Molina <span style="font-size:9px; color:var(--vl);">(você)</span></div><div style="font-size:10px; color:var(--text-3);">Managing Partner</div></div></div>
+      <div class="num-cell violet">87</div>
+      <div class="num-cell">14</div>
+      <div class="num-cell">12d 🔥</div>
+      <div class="num-cell"><div class="progress" style="width:60px; height:5px; margin:0 auto 4px;"><div class="progress-bar" style="width:82%;"></div></div>82%</div>
+      <div class="num-cell" style="color:var(--vl);">2.450</div>
+    </div>
+    <div class="lb-row">
+      <div class="rank top">🥈</div>
+      <div class="name-cell"><div class="avatar sm" style="background:var(--blue);">CM</div><div><div style="font-size:13px; font-weight:700;">Carolina Mendes</div><div style="font-size:10px; color:var(--text-3);">Analista Sênior</div></div></div>
+      <div class="num-cell violet">76</div>
+      <div class="num-cell">10</div>
+      <div class="num-cell">8d 🔥</div>
+      <div class="num-cell"><div class="progress" style="width:60px; height:5px; margin:0 auto 4px;"><div class="progress-bar" style="width:79%;"></div></div>79%</div>
+      <div class="num-cell" style="color:var(--vl);">2.180</div>
+    </div>
+    <div class="lb-row">
+      <div class="rank top">🥉</div>
+      <div class="name-cell"><div class="avatar sm" style="background:var(--green);">AF</div><div><div style="font-size:13px; font-weight:700;">Aldo Ferreira</div><div style="font-size:10px; color:var(--text-3);">Analista Pleno</div></div></div>
+      <div class="num-cell violet">62</div>
+      <div class="num-cell">8</div>
+      <div class="num-cell">5d</div>
+      <div class="num-cell"><div class="progress" style="width:60px; height:5px; margin:0 auto 4px;"><div class="progress-bar" style="width:74%;"></div></div>74%</div>
+      <div class="num-cell" style="color:var(--vl);">1.840</div>
+    </div>
+    <div class="lb-row">
+      <div class="rank">4</div>
+      <div class="name-cell"><div class="avatar sm" style="background:var(--amber);">LT</div><div><div style="font-size:13px; font-weight:700;">Lucas Tavares</div><div style="font-size:10px; color:var(--text-3);">Analista Pleno</div></div></div>
+      <div class="num-cell violet">54</div>
+      <div class="num-cell">12</div>
+      <div class="num-cell">3d</div>
+      <div class="num-cell"><div class="progress" style="width:60px; height:5px; margin:0 auto 4px;"><div class="progress-bar amber" style="width:65%;"></div></div>65%</div>
+      <div class="num-cell" style="color:var(--vl);">1.580</div>
+    </div>
+    <div class="lb-row">
+      <div class="rank">5</div>
+      <div class="name-cell"><div class="avatar sm" style="background:var(--purple);">RO</div><div><div style="font-size:13px; font-weight:700;">Raiana Oliveira</div><div style="font-size:10px; color:var(--text-3);">Analista Júnior</div></div></div>
+      <div class="num-cell violet">48</div>
+      <div class="num-cell">15</div>
+      <div class="num-cell">2d</div>
+      <div class="num-cell"><div class="progress" style="width:60px; height:5px; margin:0 auto 4px;"><div class="progress-bar amber" style="width:58%;"></div></div>58%</div>
+      <div class="num-cell" style="color:var(--vl);">1.420</div>
+    </div>
+  </div>
+</div>
+
+<!-- ============= ROTINAS ============= -->
+<div class="page" id="page-rotinas">
+  <div class="page-header">
+    <h2>⏱️ Rotinas — Modelo Executivo BX</h2>
+    <div class="sub">Controle de execução · Conformidade ao modelo padrão · 28 rotinas</div>
+  </div>
+
+  <div class="prod-tabs">
+    <button class="prod-tab active">📋 Controle</button>
+    <button class="prod-tab">📊 Dashboard</button>
+    <button class="prod-tab">📅 Calendário</button>
+  </div>
+
+  <!-- KPI ROW -->
+  <div class="kpi-grid cols-5">
+    <div class="kpi violet"><div class="kpi-icon">✅</div><div class="kpi-label">Rotinas Ativas</div><div class="kpi-value">33</div><div class="kpi-sub">5 inativas</div></div>
+    <div class="kpi blue"><div class="kpi-icon">📅</div><div class="kpi-label">Diárias</div><div class="kpi-value">14</div><div class="kpi-sub">308 exec/mês</div></div>
+    <div class="kpi amber"><div class="kpi-icon">📆</div><div class="kpi-label">Semanais</div><div class="kpi-value">4</div><div class="kpi-sub">16 exec/mês</div></div>
+    <div class="kpi purple"><div class="kpi-icon">🗓️</div><div class="kpi-label">Mensais</div><div class="kpi-value">15</div><div class="kpi-sub">15 exec/mês</div></div>
+    <div class="kpi green"><div class="kpi-icon">📊</div><div class="kpi-label">Conformidade</div><div class="kpi-value">85%</div><div class="kpi-sub up">↑ excelente</div></div>
+  </div>
+
+  <!-- TOOLBAR -->
+  <div class="portfolio-header">
+    <button class="btn btn-primary">+ Nova Rotina</button>
+    <button class="btn btn-dark">📋 Aplicar Modelo (28)</button>
+    <select class="filter-input" style="flex:0 0 200px;"><option>Todos os Projetos</option></select>
+    <select class="filter-input" style="flex:0 0 180px;"><option>Todos os Consultores</option></select>
+    <select class="filter-input" style="flex:0 0 160px;"><option>Todas Frequências</option></select>
+    <button class="btn btn-secondary">Mostrar Inativas</button>
+  </div>
+
+  <!-- CONSULTANT GROUP 1: Aldo Ferreira -->
+  <div class="consultant-card">
+    <div class="consultant-header">
+      <div class="consultant-header-left">
+        <div class="avatar" style="background:var(--green);">AF</div>
+        <div>
+          <div class="consultant-name">Aldo Ferreira</div>
+          <div class="consultant-stats">2 projetos · 14 rotinas ativas</div>
+        </div>
+      </div>
+      <div class="consultant-progress-mini">
+        <div class="progress"><div class="progress-bar" style="width:92%;"></div></div>
+        <span style="font-size:13px; font-weight:700;">92% Conformidade</span>
+      </div>
+    </div>
+
+    <div class="project-row">
+      <div class="project-row-name">📁 Diagnóstico Financeiro — Grupo Andrade</div>
+      <span style="font-size:11px; color:var(--text-2); font-weight:700;">12/14 · 86%</span>
+    </div>
+
+    <div class="routine-item">
+      <div class="routine-checkbox checked">✓</div>
+      <div class="routine-title done">Recebimento de extratos bancários diários</div>
+      <span class="pill blue">Diária</span>
+      <span class="pill green">✓ Concluído 09:15</span>
+      <div class="routine-actions">
+        <button class="routine-action">✏️</button>
+        <button class="routine-action">⚡</button>
+        <button class="routine-action">🗑️</button>
+      </div>
+    </div>
+    <div class="routine-item">
+      <div class="routine-checkbox checked">✓</div>
+      <div class="routine-title done">Conciliação bancária (extratos + saldos)</div>
+      <span class="pill blue">Diária</span>
+      <span class="pill green">✓ Concluído 09:30</span>
+      <div class="routine-actions">
+        <button class="routine-action">✏️</button>
+        <button class="routine-action">⚡</button>
+        <button class="routine-action">🗑️</button>
+      </div>
+    </div>
+    <div class="routine-item">
+      <div class="routine-checkbox"></div>
+      <div class="routine-title">Lançamento VOP</div>
+      <span class="pill blue">Diária</span>
+      <span class="pill amber">⏳ Vence Hoje</span>
+      <div class="routine-actions">
+        <button class="routine-action">✏️</button>
+        <button class="routine-action">⚡</button>
+        <button class="routine-action">🗑️</button>
+      </div>
+    </div>
+    <div class="routine-item">
+      <div class="routine-checkbox"></div>
+      <div class="routine-title">Atualização do fluxo de caixa</div>
+      <span class="pill amber">Semanal</span>
+      <span class="pill gray">📅 Pendente</span>
+      <div class="routine-actions">
+        <button class="routine-action">✏️</button>
+        <button class="routine-action">⚡</button>
+        <button class="routine-action">🗑️</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- CONSULTANT GROUP 2: Carolina Mendes -->
+  <div class="consultant-card">
+    <div class="consultant-header">
+      <div class="consultant-header-left">
+        <div class="avatar" style="background:var(--blue);">CM</div>
+        <div>
+          <div class="consultant-name">Carolina Mendes</div>
+          <div class="consultant-stats">1 projeto · 8 rotinas ativas</div>
+        </div>
+      </div>
+      <div class="consultant-progress-mini">
+        <div class="progress"><div class="progress-bar amber" style="width:75%;"></div></div>
+        <span style="font-size:13px; font-weight:700;">75% Conformidade</span>
+      </div>
+    </div>
+
+    <div class="project-row">
+      <div class="project-row-name">📁 BPO Financeiro — LogiSul Transportes</div>
+      <span style="font-size:11px; color:var(--text-2); font-weight:700;">6/8 · 75%</span>
+    </div>
+
+    <div class="routine-item">
+      <div class="routine-checkbox checked">✓</div>
+      <div class="routine-title done">Reunião de caixa</div>
+      <span class="pill blue">Diária</span>
+      <span class="pill green">✓ Concluído 10:00</span>
+      <div class="routine-actions">
+        <button class="routine-action">✏️</button>
+        <button class="routine-action">⚡</button>
+        <button class="routine-action">🗑️</button>
+      </div>
+    </div>
+    <div class="routine-item">
+      <div class="routine-checkbox"></div>
+      <div class="routine-title">Autorização de pagamento</div>
+      <span class="pill blue">Diária</span>
+      <span class="pill amber">⏳ Vence Hoje</span>
+      <div class="routine-actions">
+        <button class="routine-action">✏️</button>
+        <button class="routine-action">⚡</button>
+        <button class="routine-action">🗑️</button>
+      </div>
+    </div>
+    <div class="routine-item">
+      <div class="routine-checkbox"></div>
+      <div class="routine-title">Solicitar endividamento bancário atualizado</div>
+      <span class="pill purple">Mensal</span>
+      <span class="pill red">⚠️ Atrasado 2d</span>
+      <div class="routine-actions">
+        <button class="routine-action">✏️</button>
+        <button class="routine-action">⚡</button>
+        <button class="routine-action">🗑️</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- COVERAGE BANNER -->
+  <div class="card" style="margin-top:20px;">
+    <div class="card-title">🎯 ADERÊNCIA AO MODELO PADRÃO BX (28 rotinas executivas)</div>
+    <div style="margin-bottom:14px;">
+      <div style="display:flex; justify-content:space-between; margin-bottom:6px;"><span style="font-size:13px; font-weight:700;">Diagnóstico Financeiro — Grupo Andrade</span><span style="font-size:12px; font-weight:700; color:var(--green);">26/28 (93%)</span></div>
+      <div class="progress"><div class="progress-bar green" style="width:93%;"></div></div>
+    </div>
+    <div style="margin-bottom:14px;">
+      <div style="display:flex; justify-content:space-between; margin-bottom:6px;"><span style="font-size:13px; font-weight:700;">BPO Financeiro — LogiSul</span><span style="font-size:12px; font-weight:700; color:var(--green);">25/28 (89%)</span></div>
+      <div class="progress"><div class="progress-bar green" style="width:89%;"></div></div>
+    </div>
+    <div style="margin-bottom:14px;">
+      <div style="display:flex; justify-content:space-between; margin-bottom:6px;"><span style="font-size:13px; font-weight:700;">Recuperação Judicial — KIMBERLIT</span><span style="font-size:12px; font-weight:700; color:var(--amber);">18/28 (64%)</span></div>
+      <div class="progress"><div class="progress-bar amber" style="width:64%;"></div></div>
+    </div>
+    <div>
+      <div style="display:flex; justify-content:space-between; margin-bottom:6px;"><span style="font-size:13px; font-weight:700;">M&A Estruturação — Rede Bella</span><span style="font-size:12px; font-weight:700; color:var(--red);">8/28 (29%)</span></div>
+      <div class="progress"><div class="progress-bar red" style="width:29%;"></div></div>
+    </div>
+  </div>
+</div>
+
+<script>
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  event.target.classList.add('active');
+  window.scrollTo(0, 0);
+}
+</script>
+
+</body>
+</html>

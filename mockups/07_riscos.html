@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BX Hub · Riscos</title>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+<style>
+  :root {
+    --charcoal: #1F2028; --charcoal-soft: #2D2E39; --charcoal-line: #393A47;
+    --violet: #5452C1; --violet-soft: #7C7AD9; --violet-deep: #3A3899; --violet-bg: #F4F3FE;
+    --teal: #14B8A6; --teal-bg: #CCFBF1;
+    --amber: #F59E0B; --amber-bg: #FEF3C7;
+    --rose: #F43F5E; --rose-bg: #FFE4E6;
+    --emerald: #10B981; --emerald-bg: #D1FAE5;
+    --sky: #0EA5E9; --sky-bg: #DBEAFE;
+    --pink: #EC4899; --pink-bg: #FCE7F3;
+    --indigo: #6366F1; --indigo-bg: #E0E7FF;
+    --neutral-50: #FAFAFA; --neutral-100: #F4F4F5; --neutral-150: #ECECEF;
+    --neutral-200: #E4E4E7; --neutral-300: #D4D4D8; --neutral-400: #A1A1AA;
+    --neutral-500: #71717A; --neutral-600: #52525B; --neutral-700: #3F3F46;
+    --white: #FFFFFF;
+    --r-sm: 6px; --r-md: 10px; --r-lg: 14px; --r-xl: 20px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { font-family: 'Montserrat', system-ui, sans-serif; font-size: 14px; color: var(--charcoal); background: var(--neutral-50); -webkit-font-smoothing: antialiased; }
+  body { min-height: 100vh; }
+  .app { display: grid; grid-template-columns: 240px 1fr; min-height: 100vh; }
+  .sidebar { background: var(--charcoal); color: var(--white); padding: 18px 14px; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
+  .sidebar::-webkit-scrollbar { width: 4px; } .sidebar::-webkit-scrollbar-thumb { background: var(--charcoal-line); }
+  .brand { display: flex; align-items: center; gap: 10px; padding: 4px 10px 22px; }
+  .brand-mark { width: 32px; height: 32px; border-radius: 8px; background: linear-gradient(135deg, var(--violet), var(--violet-deep)); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 14px; }
+  .brand-name { font-size: 15px; font-weight: 700; }
+  .brand-sub { font-size: 10px; color: rgba(255,255,255,0.5); letter-spacing: 1px; text-transform: uppercase; }
+  .nav-section { margin-top: 14px; }
+  .nav-label { font-size: 10px; color: rgba(255,255,255,0.35); letter-spacing: 1.5px; text-transform: uppercase; padding: 0 10px 6px; font-weight: 600; }
+  .nav-item { display: flex; align-items: center; gap: 11px; padding: 9px 10px; border-radius: 8px; color: rgba(255,255,255,0.7); font-size: 13px; font-weight: 500; cursor: pointer; margin-bottom: 1px; text-decoration: none; }
+  .nav-item:hover { background: rgba(255,255,255,0.04); color: var(--white); }
+  .nav-item.active { background: linear-gradient(135deg, var(--violet), var(--violet-deep)); color: var(--white); }
+  .nav-item .ic { width: 16px; height: 16px; }
+  .nav-item .badge { margin-left: auto; background: var(--rose); color: var(--white); font-size: 9px; padding: 2px 6px; border-radius: 10px; font-weight: 700; }
+  .main { display: flex; flex-direction: column; min-width: 0; }
+  .topbar { height: 56px; background: var(--white); border-bottom: 1px solid var(--neutral-200); display: flex; align-items: center; padding: 0 24px; gap: 16px; position: sticky; top: 0; z-index: 100; }
+  .crumb { font-size: 12px; color: var(--neutral-500); display: flex; gap: 8px; align-items: center; }
+  .crumb .sep { opacity: 0.4; } .crumb .current { color: var(--charcoal); font-weight: 600; }
+  .topbar-spacer { flex: 1; }
+  .search-box { display: flex; align-items: center; gap: 8px; background: var(--neutral-100); padding: 7px 12px; border-radius: 8px; width: 240px; font-size: 12px; color: var(--neutral-500); }
+  .search-box .kbd { margin-left: auto; font-size: 10px; background: var(--white); padding: 2px 6px; border-radius: 4px; border: 1px solid var(--neutral-200); }
+  .icon-btn { width: 34px; height: 34px; border-radius: 8px; background: var(--neutral-100); display: flex; align-items: center; justify-content: center; cursor: pointer; position: relative; color: var(--neutral-600); }
+  .icon-btn .dot { position: absolute; top: 6px; right: 7px; width: 7px; height: 7px; border-radius: 50%; background: var(--rose); border: 2px solid var(--white); }
+  .user-chip { display: flex; align-items: center; gap: 10px; padding: 4px 12px 4px 4px; background: var(--neutral-100); border-radius: 20px; cursor: pointer; }
+  .user-avatar { width: 28px; height: 28px; border-radius: 50%; background: linear-gradient(135deg, var(--violet), var(--violet-deep)); color: var(--white); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; }
+  .user-name { font-size: 12px; font-weight: 600; }
+  .page-hero { background: var(--charcoal); color: var(--white); padding: 28px 32px; }
+  .ph-top { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 22px; }
+  .ph-title { font-size: 9px; color: rgba(255,255,255,0.5); text-transform: uppercase; letter-spacing: 1.5px; font-weight: 700; }
+  .ph-h1 { font-size: 26px; font-weight: 800; letter-spacing: -0.5px; margin-top: 4px; line-height: 1.1; }
+  .ph-sub { font-size: 12px; color: rgba(255,255,255,0.6); margin-top: 4px; font-weight: 500; }
+  .ph-actions { display: flex; gap: 8px; }
+  .ph-btn { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.12); color: var(--white); padding: 8px 14px; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px; font-family: inherit; }
+  .ph-btn.primary { background: var(--violet); border-color: var(--violet); }
+  .ph-btn:hover { background: rgba(255,255,255,0.15); }
+  .ph-btn.primary:hover { background: var(--violet-soft); }
+  .hero-kpis { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; }
+  .hk { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 11px; padding: 12px 14px; }
+  .hk-lbl { font-size: 9px; color: rgba(255,255,255,0.5); text-transform: uppercase; letter-spacing: 0.8px; font-weight: 700; }
+  .hk-val { font-size: 24px; font-weight: 800; letter-spacing: -0.8px; margin-top: 4px; line-height: 1; }
+  .hk-sub { font-size: 9px; color: rgba(255,255,255,0.4); margin-top: 4px; font-weight: 500; }
+  .hk.alert .hk-val { color: #FCA5A5; } .hk.warn .hk-val { color: #FCD34D; }
+  .hk.good .hk-val { color: #6EE7B7; } .hk.info .hk-val { color: #93C5FD; }
+  .hk.violet .hk-val { color: #C7D2FE; }
+  .content { padding: 22px 24px; display: flex; flex-direction: column; gap: 18px; }
+  .row-2 { display: grid; grid-template-columns: 1.5fr 1fr; gap: 16px; }
+  .row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+  .row-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+  .card { background: var(--white); border: 1px solid var(--neutral-200); border-radius: var(--r-lg); padding: 16px 18px; }
+  .ch { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+  .ct { font-size: 12px; font-weight: 700; color: var(--charcoal); display: flex; align-items: center; gap: 8px; text-transform: uppercase; letter-spacing: 0.4px; }
+  .ct .dot-acc { width: 6px; height: 6px; border-radius: 50%; background: var(--violet); }
+  .cnt { background: var(--neutral-100); color: var(--neutral-600); font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 10px; }
+  .cnt.alert { background: var(--rose-bg); color: #B91C1C; }
+  .cnt.warn { background: var(--amber-bg); color: #92400E; }
+  .cnt.good { background: var(--emerald-bg); color: #047857; }
+  .cnt.info { background: var(--sky-bg); color: #075985; }
+  .checkin-btn { display: flex; align-items: center; gap: 6px; background: var(--violet); color: var(--white); border: none; padding: 8px 14px; border-radius: 8px; font-size: 11px; font-weight: 700; cursor: pointer; font-family: inherit; }
+  .checkin-btn:hover { background: var(--violet-deep); }
+  .matrix { display: grid; grid-template-columns: 60px repeat(5, 1fr); grid-template-rows: 40px repeat(5, 70px); gap: 4px; }
+  .mx-empty { }
+  .mx-h { display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 800; color: var(--neutral-500); text-transform: uppercase; letter-spacing: 0.5px; }
+  .mx-l { display: flex; align-items: center; justify-content: flex-end; padding-right: 8px; font-size: 10px; font-weight: 800; color: var(--neutral-500); text-transform: uppercase; letter-spacing: 0.5px; }
+  .mx-cell { border-radius: 8px; position: relative; padding: 6px; display: flex; flex-wrap: wrap; gap: 3px; align-content: flex-start; }
+  .mx-cell.l1 { background: #ECFDF5; } .mx-cell.l2 { background: #D1FAE5; } .mx-cell.l3 { background: #FEF3C7; } .mx-cell.l4 { background: #FECACA; } .mx-cell.l5 { background: var(--rose); }
+  .mx-dot { width: 22px; height: 22px; border-radius: 50%; background: var(--charcoal); color: var(--white); display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 800; cursor: pointer; border: 2px solid var(--white); box-shadow: 0 2px 4px rgba(0,0,0,0.15); }
+  .risk-row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 10px; background: var(--white); border: 1px solid var(--neutral-200); cursor: pointer; }
+  .risk-row.crit { border-left: 3px solid var(--rose); }
+  .risk-row.hi { border-left: 3px solid var(--amber); }
+  .risk-row.med { border-left: 3px solid var(--sky); }
+  .risk-num { width: 32px; height: 32px; border-radius: 50%; background: var(--charcoal); color: var(--white); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; flex-shrink: 0; }
+  .risk-info { flex: 1; min-width: 0; }
+  .risk-ttl { font-size: 13px; font-weight: 700; color: var(--charcoal); }
+  .risk-meta { font-size: 10px; color: var(--neutral-500); margin-top: 3px; display: flex; gap: 10px; }
+  .risk-score { font-size: 16px; font-weight: 800; }
+  .risk-score.crit { color: var(--rose); } .risk-score.hi { color: var(--amber); } .risk-score.med { color: var(--sky); }
+  .risk-status { font-size: 9px; font-weight: 800; padding: 3px 8px; border-radius: 10px; text-transform: uppercase; }
+  .risk-status.open { background: var(--rose-bg); color: #B91C1C; }
+  .risk-status.mit { background: var(--amber-bg); color: #92400E; }
+  .risk-status.cls { background: var(--emerald-bg); color: #047857; }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">BX</div>
+      <div><div class="brand-name">BX Hub</div><div class="brand-sub">v3.0</div></div>
+    </div>
+    <div class="nav-section">
+      <div class="nav-label">Principal</div>
+      <a href="01_dashboard.html" class="nav-item"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>Dashboard</a>
+      <a href="02_portfolio.html" class="nav-item"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>Portfolio</a>
+      <a href="03_produtividade.html" class="nav-item"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>Produtividade</a>
+      <a href="04_notas.html" class="nav-item"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>Notas &amp; Reuniões</a>
+    </div>
+    <div class="nav-section">
+      <div class="nav-label">Execução</div>
+      <a href="05_kanban.html" class="nav-item"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M15 3v18"/></svg>Kanban</a>
+      <a href="06_timeline.html" class="nav-item"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><circle cx="6" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="18" cy="12" r="2"/></svg>Timeline</a>
+      <a href="07_riscos.html" class="nav-item active"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>Riscos<span class="badge">2</span></a>
+      <a href="08_captacao.html" class="nav-item"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 12l4-4 4 4 5-5"/></svg>Captação</a>
+      <a href="09_bi.html" class="nav-item"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7 17v-4M12 17V7M17 17v-7"/></svg>BI</a>
+      <a href="10_rotinas.html" class="nav-item"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Rotinas</a>
+    </div>
+    <div class="nav-section">
+      <div class="nav-label">Comercial</div>
+      <a href="11_crm.html" class="nav-item"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>CRM</a>
+      <a href="12_intakes.html" class="nav-item"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>Intakes</a>
+    </div>
+    <div class="nav-section">
+      <div class="nav-label">Equipe</div>
+      <a href="13_chat.html" class="nav-item"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Chat<span class="badge">5</span></a>
+      <a href="14_calendario.html" class="nav-item"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg>Calendário</a>
+      <a href="15_time.html" class="nav-item"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>Time</a>
+      <a href="16_reembolsos.html" class="nav-item"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>Reembolsos</a>
+    </div>
+    <div class="nav-section">
+      <div class="nav-label">Sistema</div>
+      <a href="18_cadastro.html" class="nav-item"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>Cadastro</a>
+      <a href="20_automacoes.html" class="nav-item"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>Automações</a>
+      <a href="17_adm.html" class="nav-item"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.09a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.09a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Administração</a>
+      <a href="19_logs.html" class="nav-item"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>Logs</a>
+    </div>
+  </aside>
+  <div class="main">
+    <div class="topbar">
+      <div class="crumb"><span>Execução</span><span class="sep">›</span><span class="current">Riscos</span></div>
+      <div class="topbar-spacer"></div>
+      <div class="search-box"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg><span>Buscar…</span><span class="kbd">⌘K</span></div>
+      <button class="checkin-btn"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>Check-in</button>
+      <div class="icon-btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg><div class="dot"></div></div>
+      <div class="user-chip"><div class="user-avatar">GM</div><div class="user-name">Gabriel</div></div>
+    </div>
+    <div class="page-hero">
+      <div class="ph-top">
+        <div>
+          <div class="ph-title">Matriz de riscos</div>
+          <div class="ph-h1">Gestão de riscos</div>
+          <div class="ph-sub">14 riscos ativos · 2 críticos · 5 mitigados nesta semana</div>
+        </div>
+        <div class="ph-actions">
+          <button class="ph-btn">Exportar</button>
+          <button class="ph-btn primary">+ Novo risco</button>
+        </div>
+      </div>
+      <div class="hero-kpis">
+        <div class="hk alert"><div class="hk-lbl">Críticos</div><div class="hk-val">2</div><div class="hk-sub">score ≥ 8</div></div>
+        <div class="hk warn"><div class="hk-lbl">Altos</div><div class="hk-val">4</div><div class="hk-sub">score 6-8</div></div>
+        <div class="hk info"><div class="hk-lbl">Médios</div><div class="hk-val">6</div><div class="hk-sub">score 4-6</div></div>
+        <div class="hk good"><div class="hk-lbl">Mitigados</div><div class="hk-val">5</div><div class="hk-sub">esta semana</div></div>
+        <div class="hk violet"><div class="hk-lbl">Total ativos</div><div class="hk-val">14</div><div class="hk-sub">8 projetos</div></div>
+        <div class="hk"><div class="hk-lbl">Score médio</div><div class="hk-val">5,8</div><div class="hk-sub">/10</div></div>
+      </div>
+    </div>
+
+    <div class="content">
+      <div class="row-2">
+
+        <div class="card">
+          <div class="ch"><div class="ct"><div class="dot-acc"></div>Matriz 5×5 (Probabilidade × Impacto)</div><div class="cnt">14 ativos</div></div>
+          <div class="matrix">
+            <div class="mx-empty"></div>
+            <div class="mx-h">Mín</div><div class="mx-h">Baixo</div><div class="mx-h">Médio</div><div class="mx-h">Alto</div><div class="mx-h">Crít</div>
+
+            <div class="mx-l">Quase certo</div>
+            <div class="mx-cell l2"></div><div class="mx-cell l3"></div><div class="mx-cell l3"></div><div class="mx-cell l4"><div class="mx-dot">7</div></div><div class="mx-cell l5"><div class="mx-dot">1</div></div>
+
+            <div class="mx-l">Provável</div>
+            <div class="mx-cell l2"></div><div class="mx-cell l2"></div><div class="mx-cell l3"><div class="mx-dot">8</div></div><div class="mx-cell l4"><div class="mx-dot">3</div><div class="mx-dot">5</div></div><div class="mx-cell l5"><div class="mx-dot">2</div></div>
+
+            <div class="mx-l">Possível</div>
+            <div class="mx-cell l1"></div><div class="mx-cell l2"></div><div class="mx-cell l3"><div class="mx-dot">9</div><div class="mx-dot">10</div></div><div class="mx-cell l4"><div class="mx-dot">4</div><div class="mx-dot">6</div></div><div class="mx-cell l4"></div>
+
+            <div class="mx-l">Improvável</div>
+            <div class="mx-cell l1"></div><div class="mx-cell l1"></div><div class="mx-cell l2"><div class="mx-dot">11</div></div><div class="mx-cell l3"><div class="mx-dot">12</div></div><div class="mx-cell l4"></div>
+
+            <div class="mx-l">Raro</div>
+            <div class="mx-cell l1"></div><div class="mx-cell l1"></div><div class="mx-cell l2"><div class="mx-dot">13</div></div><div class="mx-cell l2"><div class="mx-dot">14</div></div><div class="mx-cell l3"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="ch"><div class="ct"><div class="dot-acc"></div>Distribuição por categoria</div><div class="cnt">5 categorias</div></div>
+          <div style="display:flex;flex-direction:column;gap:14px;">
+            <div><div style="display:flex;justify-content:space-between;margin-bottom:5px;font-size:12px;"><span style="color:var(--charcoal);font-weight:600;">⚖ Jurídico-regulatório</span><span style="font-weight:800;color:var(--rose);">5</span></div><div style="height:7px;background:var(--neutral-100);border-radius:3px;overflow:hidden;"><div style="height:100%;background:var(--rose);width:35%;"></div></div></div>
+            <div><div style="display:flex;justify-content:space-between;margin-bottom:5px;font-size:12px;"><span style="color:var(--charcoal);font-weight:600;">💰 Financeiro-creditício</span><span style="font-weight:800;color:var(--amber);">4</span></div><div style="height:7px;background:var(--neutral-100);border-radius:3px;overflow:hidden;"><div style="height:100%;background:var(--amber);width:28%;"></div></div></div>
+            <div><div style="display:flex;justify-content:space-between;margin-bottom:5px;font-size:12px;"><span style="color:var(--charcoal);font-weight:600;">⚙ Operacional</span><span style="font-weight:800;color:var(--sky);">3</span></div><div style="height:7px;background:var(--neutral-100);border-radius:3px;overflow:hidden;"><div style="height:100%;background:var(--sky);width:21%;"></div></div></div>
+            <div><div style="display:flex;justify-content:space-between;margin-bottom:5px;font-size:12px;"><span style="color:var(--charcoal);font-weight:600;">👥 Reputacional</span><span style="font-weight:800;color:var(--violet);">1</span></div><div style="height:7px;background:var(--neutral-100);border-radius:3px;overflow:hidden;"><div style="height:100%;background:var(--violet);width:7%;"></div></div></div>
+            <div><div style="display:flex;justify-content:space-between;margin-bottom:5px;font-size:12px;"><span style="color:var(--charcoal);font-weight:600;">🌐 Externo</span><span style="font-weight:800;color:var(--teal);">1</span></div><div style="height:7px;background:var(--neutral-100);border-radius:3px;overflow:hidden;"><div style="height:100%;background:var(--teal);width:7%;"></div></div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="ch"><div class="ct"><div class="dot-acc"></div>Lista de riscos ativos</div><div class="cnt alert">14</div></div>
+        <div style="display:flex;flex-direction:column;gap:8px;">
+
+          <div class="risk-row crit">
+            <div class="risk-num">1</div>
+            <div class="risk-info">
+              <div class="risk-ttl">Quebra de covenant Itaú</div>
+              <div class="risk-meta"><span>📁 LogiSul Transportes</span><span>👤 Carolina</span><span>⚖ Financeiro</span></div>
+            </div>
+            <div class="risk-score crit">8.4</div>
+            <div class="risk-status open">Aberto</div>
+          </div>
+
+          <div class="risk-row crit">
+            <div class="risk-num">2</div>
+            <div class="risk-info">
+              <div class="risk-ttl">Atraso folha de pagamento</div>
+              <div class="risk-meta"><span>📁 Indústria Beta</span><span>👤 Pedro</span><span>⚙ Operacional</span></div>
+            </div>
+            <div class="risk-score crit">7.8</div>
+            <div class="risk-status open">Aberto</div>
+          </div>
+
+          <div class="risk-row hi">
+            <div class="risk-num">3</div>
+            <div class="risk-info">
+              <div class="risk-ttl">Reprovação ata Comitê Credores</div>
+              <div class="risk-meta"><span>📁 LogiSul</span><span>👤 Gabriel</span><span>⚖ Jurídico</span></div>
+            </div>
+            <div class="risk-score hi">7.2</div>
+            <div class="risk-status mit">Mitigando</div>
+          </div>
+
+          <div class="risk-row hi">
+            <div class="risk-num">4</div>
+            <div class="risk-info">
+              <div class="risk-ttl">Perda de cliente-chave durante DD</div>
+              <div class="risk-meta"><span>📁 Beta</span><span>👤 Lucas</span><span>👥 Reputacional</span></div>
+            </div>
+            <div class="risk-score hi">6.8</div>
+            <div class="risk-status open">Aberto</div>
+          </div>
+
+          <div class="risk-row hi">
+            <div class="risk-num">5</div>
+            <div class="risk-info">
+              <div class="risk-ttl">Inconsistência contábil identificada</div>
+              <div class="risk-meta"><span>📁 Beta</span><span>👤 Pedro</span><span>⚖ Jurídico</span></div>
+            </div>
+            <div class="risk-score hi">6.5</div>
+            <div class="risk-status mit">Mitigando</div>
+          </div>
+
+          <div class="risk-row hi">
+            <div class="risk-num">6</div>
+            <div class="risk-info">
+              <div class="risk-ttl">Risco de execução fiscal Receita</div>
+              <div class="risk-meta"><span>📁 Têxtil Aurora</span><span>👤 Aldo</span><span>⚖ Jurídico</span></div>
+            </div>
+            <div class="risk-score hi">6.2</div>
+            <div class="risk-status open">Aberto</div>
+          </div>
+
+          <div class="risk-row med">
+            <div class="risk-num">7</div>
+            <div class="risk-info">
+              <div class="risk-ttl">Sobrecarga de Carolina (115%)</div>
+              <div class="risk-meta"><span>📁 Múltiplos</span><span>👤 Gabriel</span><span>👥 Equipe</span></div>
+            </div>
+            <div class="risk-score med">5.8</div>
+            <div class="risk-status open">Aberto</div>
+          </div>
+
+          <div class="risk-row med">
+            <div class="risk-num">8</div>
+            <div class="risk-info">
+              <div class="risk-ttl">Atraso documentação cliente</div>
+              <div class="risk-meta"><span>📁 Andrade</span><span>👤 Juliana</span><span>⚙ Operacional</span></div>
+            </div>
+            <div class="risk-score med">5.5</div>
+            <div class="risk-status mit">Mitigando</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,773 @@
+import React, { useEffect, useState, useMemo } from 'react'
+import { supabase } from '../lib/supabase'
+import { useData } from '../contexts/DataContext'
+import {
+  FolderOpen,
+  Building2,
+  Users,
+  Tag,
+  Briefcase,
+  Landmark,
+  Archive,
+  Plus,
+  Search,
+  Edit3,
+  Trash2,
+  RefreshCw,
+  AlertCircle,
+  CheckCircle,
+  MapPin,
+  Mail,
+  Phone,
+  Filter,
+  Download,
+  X,
+} from 'lucide-react'
+
+// ============================================================================
+// Cadastro.jsx v2 — Base de dados centralizada
+// ----------------------------------------------------------------------------
+// ENRIQUECE o /cadastro existente do v3 (4 abas: Empresas, Colaboradores,
+// Etiquetas, Projetos) adicionando:
+//   - KPIs hero
+//   - 2 abas novas: Instituições, Arquivados
+//   - Filtros avancados
+//   - Cards visuais alem das tabelas
+//   - Busca textual
+//   - Estatisticas por subsidiaria
+//
+// Todas as 4 abas originais ficam intactas. So adicionamos.
+//
+// Tabelas Supabase reais utilizadas:
+//   companies     - id, org_id, name, cnpj, segment, contact_name,
+//                   contact_email, contact_phone, city, state, status,
+//                   criticality, color, trading_name, label_ids, ...
+//   profiles      - id, org_id, full_name, initials, role, avatar_color,
+//                   location, email
+//   labels        - (existente, schema variavel)
+//   projects      - (existente, schema variavel)
+//   institutions  - (existente, schema variavel)
+// ============================================================================
+
+const TABS = [
+  { id: 'companies',     label: 'Empresas',      icon: Building2, emoji: '🏢' },
+  { id: 'profiles',      label: 'Colaboradores', icon: Users,     emoji: '👥' },
+  { id: 'labels',        label: 'Etiquetas',     icon: Tag,       emoji: '🏷️' },
+  { id: 'projects',      label: 'Projetos',      icon: Briefcase, emoji: '📁' },
+  { id: 'institutions',  label: 'Instituições',  icon: Landmark,  emoji: '🏦' },
+  { id: 'archived',      label: 'Arquivados',    icon: Archive,   emoji: '📦' },
+]
+
+// Roles reais do banco: analyst, Gerente, owner (com extras pra futuro)
+const ROLES = [
+  { value: 'owner',   label: 'Owner',    color: 'bg-violet-100 text-violet-700' },
+  { value: 'admin',   label: 'Admin',    color: 'bg-rose-100 text-rose-700' },
+  { value: 'Gerente', label: 'Gerente',  color: 'bg-amber-100 text-amber-700' },
+  { value: 'senior',  label: 'Sênior',   color: 'bg-emerald-100 text-emerald-700' },
+  { value: 'analyst', label: 'Analista', color: 'bg-sky-100 text-sky-700' },
+  { value: 'viewer',  label: 'Viewer',   color: 'bg-zinc-100 text-zinc-600' },
+]
+
+// Criticality real: alto, critico (extras assumidos)
+const CRITICALITY_META = {
+  baixo:   { label: 'Baixo',   color: 'bg-emerald-100 text-emerald-700', dot: 'bg-emerald-500' },
+  medio:   { label: 'Médio',   color: 'bg-sky-100 text-sky-700',         dot: 'bg-sky-500' },
+  alto:    { label: 'Alto',    color: 'bg-amber-100 text-amber-700',     dot: 'bg-amber-500' },
+  critico: { label: 'Crítico', color: 'bg-rose-100 text-rose-700',       dot: 'bg-rose-500' },
+}
+
+export default function Cadastro() {
+  const { profile } = useData()
+  const [activeTab, setActiveTab] = useState('companies')
+  const [companies, setCompanies] = useState([])
+  const [profiles, setProfiles] = useState([])
+  const [labels, setLabels] = useState([])
+  const [projects, setProjects] = useState([])
+  const [institutions, setInstitutions] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
+  const [successMsg, setSuccessMsg] = useState(null)
+  const [search, setSearch] = useState('')
+  const [filterCriticality, setFilterCriticality] = useState('all')
+  const [filterStatus, setFilterStatus] = useState('all')
+  const [viewMode, setViewMode] = useState('table') // 'table' | 'cards'
+
+  useEffect(() => {
+    if (profile?.org_id) loadAll()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile?.org_id])
+
+  async function loadAll() {
+    setLoading(true)
+    setError(null)
+    try {
+      await Promise.all([
+        loadTable('companies', setCompanies),
+        loadTable('profiles', setProfiles),
+        loadTable('labels', setLabels),
+        loadTable('projects', setProjects),
+        loadTable('institutions', setInstitutions),
+      ])
+    } catch (err) {
+      console.error('Error loading cadastro:', err)
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function loadTable(tableName, setter) {
+    try {
+      const { data, error: qErr } = await supabase
+        .from(tableName)
+        .select('*')
+        .eq('org_id', profile?.org_id)
+      if (qErr) {
+        console.warn(`Tabela ${tableName}:`, qErr.message)
+        setter([])
+        return
+      }
+      setter(data || [])
+    } catch (err) {
+      console.warn(`Tabela ${tableName} nao acessivel:`, err.message)
+      setter([])
+    }
+  }
+
+  function showSuccess(msg) {
+    setSuccessMsg(msg)
+    setTimeout(() => setSuccessMsg(null), 3500)
+  }
+
+  // ===== KPIs derivados =====
+  const kpis = useMemo(() => {
+    const activeCompanies = companies.filter(c => c.status !== 'arquivado').length
+    const archivedCompanies = companies.filter(c => c.status === 'arquivado').length
+    const criticalCompanies = companies.filter(c => c.criticality === 'critico' || c.criticality === 'alto').length
+    return {
+      companies: companies.length,
+      activeCompanies,
+      archivedCompanies,
+      criticalCompanies,
+      profiles: profiles.length,
+      labels: labels.length,
+      projects: projects.length,
+      institutions: institutions.length,
+    }
+  }, [companies, profiles, labels, projects, institutions])
+
+  // ===== Filtragem =====
+  const filteredCompanies = useMemo(() => {
+    return companies.filter(c => {
+      if (search) {
+        const s = search.toLowerCase()
+        const hay = `${c.name || ''} ${c.cnpj || ''} ${c.segment || ''} ${c.city || ''} ${c.contact_name || ''}`.toLowerCase()
+        if (!hay.includes(s)) return false
+      }
+      if (filterCriticality !== 'all' && c.criticality !== filterCriticality) return false
+      if (filterStatus !== 'all' && c.status !== filterStatus) return false
+      return true
+    })
+  }, [companies, search, filterCriticality, filterStatus])
+
+  const filteredProfiles = useMemo(() => {
+    if (!search) return profiles
+    const s = search.toLowerCase()
+    return profiles.filter(p => `${p.full_name || ''} ${p.email || ''} ${p.role || ''}`.toLowerCase().includes(s))
+  }, [profiles, search])
+
+  // Reset filters when changing tab
+  useEffect(() => {
+    setSearch('')
+    setFilterCriticality('all')
+    setFilterStatus('all')
+  }, [activeTab])
+
+  function exportCSV() {
+    let header = []
+    let rows = []
+    if (activeTab === 'companies') {
+      header = ['Nome', 'CNPJ', 'Segmento', 'Cidade/UF', 'Status', 'Criticidade', 'Contato']
+      rows = filteredCompanies.map(c => [
+        c.name || '',
+        c.cnpj || '',
+        c.segment || '',
+        `${c.city || ''}/${c.state || ''}`,
+        c.status || '',
+        c.criticality || '',
+        c.contact_name || '',
+      ])
+    } else if (activeTab === 'profiles') {
+      header = ['Nome', 'Email', 'Role', 'Localização']
+      rows = filteredProfiles.map(p => [
+        p.full_name || '',
+        p.email || '',
+        p.role || '',
+        p.location || '',
+      ])
+    } else {
+      return
+    }
+    const csv = [header, ...rows].map(r => r.map(c => `"${(c || '').toString().replace(/"/g, '""')}"`).join(',')).join('\n')
+    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `bx-cadastro-${activeTab}-${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  return (
+    <div className="p-6 max-w-[1600px] mx-auto">
+      {/* Hero */}
+      <div className="bg-gradient-to-br from-zinc-800 to-zinc-900 rounded-2xl p-6 mb-6 text-white">
+        <div className="flex items-start justify-between mb-4 flex-wrap gap-4">
+          <div>
+            <div className="text-xs font-bold uppercase tracking-wider text-violet-300 mb-1 flex items-center gap-2">
+              <FolderOpen className="w-3 h-3" />
+              Base de dados centralizada
+            </div>
+            <h1 className="text-2xl font-bold mb-1">Cadastro</h1>
+            <p className="text-sm text-zinc-300">
+              {kpis.companies} empresas · {kpis.profiles} colaboradores · {kpis.projects} projetos
+              · {kpis.labels} etiquetas · {kpis.institutions} instituições
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={loadAll}
+              disabled={loading}
+              className="px-3 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-sm font-semibold flex items-center gap-2 disabled:opacity-50"
+            >
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+              Atualizar
+            </button>
+            {(activeTab === 'companies' || activeTab === 'profiles') && (
+              <button
+                onClick={exportCSV}
+                className="px-3 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-sm font-semibold flex items-center gap-2"
+              >
+                <Download className="w-4 h-4" />
+                Exportar
+              </button>
+            )}
+            <button
+              className="px-4 py-2 bg-violet-600 hover:bg-violet-500 rounded-lg text-sm font-semibold flex items-center gap-2"
+            >
+              <Plus className="w-4 h-4" />
+              Novo
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+          <Kpi label="Empresas" value={kpis.activeCompanies} sub={`${kpis.archivedCompanies} arq.`} accent="violet" />
+          <Kpi label="Críticas" value={kpis.criticalCompanies} sub="alto + crítico" accent="rose" />
+          <Kpi label="Equipe" value={kpis.profiles} accent="emerald" />
+          <Kpi label="Projetos" value={kpis.projects} accent="sky" />
+          <Kpi label="Etiquetas" value={kpis.labels} accent="amber" />
+          <Kpi label="Bancos" value={kpis.institutions} accent="violet" />
+        </div>
+
+        {/* Tabs */}
+        <div className="flex gap-1 mt-5 border-b border-white/10 -mb-2 overflow-x-auto">
+          {TABS.map(tab => {
+            const Icon = tab.icon
+            const count = (
+              tab.id === 'companies' ? kpis.activeCompanies :
+              tab.id === 'profiles' ? kpis.profiles :
+              tab.id === 'labels' ? kpis.labels :
+              tab.id === 'projects' ? kpis.projects :
+              tab.id === 'institutions' ? kpis.institutions :
+              tab.id === 'archived' ? kpis.archivedCompanies :
+              0
+            )
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`px-4 py-2.5 text-sm font-semibold flex items-center gap-2 border-b-2 transition-colors whitespace-nowrap ${
+                  activeTab === tab.id
+                    ? 'border-violet-400 text-white'
+                    : 'border-transparent text-zinc-400 hover:text-white'
+                }`}
+              >
+                <span className="text-base">{tab.emoji}</span>
+                {tab.label}
+                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                  activeTab === tab.id ? 'bg-violet-500/30' : 'bg-white/10'
+                }`}>
+                  {count}
+                </span>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      {successMsg && (
+        <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 mb-4 flex items-center gap-2">
+          <CheckCircle className="w-4 h-4 text-emerald-600" />
+          <span className="text-sm text-emerald-900 font-semibold">{successMsg}</span>
+        </div>
+      )}
+      {error && (
+        <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 mb-4 flex items-start gap-2">
+          <AlertCircle className="w-4 h-4 text-rose-600 mt-0.5" />
+          <span className="text-sm text-rose-900">{error}</span>
+        </div>
+      )}
+
+      {/* ============== TAB: EMPRESAS ============== */}
+      {activeTab === 'companies' && (
+        <>
+          {/* Filtros */}
+          <div className="bg-white border border-zinc-200 rounded-xl p-4 mb-4">
+            <div className="grid grid-cols-1 md:grid-cols-[2fr_1fr_1fr_auto] gap-3">
+              <div className="relative">
+                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
+                <input
+                  type="text"
+                  placeholder="Buscar empresa, CNPJ, segmento, contato…"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 text-sm border border-zinc-200 rounded-lg focus:border-violet-500 focus:outline-none"
+                />
+              </div>
+              <select
+                value={filterCriticality}
+                onChange={(e) => setFilterCriticality(e.target.value)}
+                className="px-3 py-2 text-sm border border-zinc-200 rounded-lg bg-white"
+              >
+                <option value="all">Todas criticidades</option>
+                <option value="critico">Crítico</option>
+                <option value="alto">Alto</option>
+                <option value="medio">Médio</option>
+                <option value="baixo">Baixo</option>
+              </select>
+              <select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+                className="px-3 py-2 text-sm border border-zinc-200 rounded-lg bg-white"
+              >
+                <option value="all">Todos status</option>
+                <option value="ativo">Ativo</option>
+                <option value="pausado">Pausado</option>
+                <option value="arquivado">Arquivado</option>
+              </select>
+              <div className="flex gap-1 bg-zinc-100 rounded-lg p-1">
+                <button
+                  onClick={() => setViewMode('table')}
+                  className={`px-3 py-1.5 text-xs font-bold rounded-md ${viewMode === 'table' ? 'bg-white shadow text-violet-700' : 'text-zinc-500'}`}
+                >
+                  Tabela
+                </button>
+                <button
+                  onClick={() => setViewMode('cards')}
+                  className={`px-3 py-1.5 text-xs font-bold rounded-md ${viewMode === 'cards' ? 'bg-white shadow text-violet-700' : 'text-zinc-500'}`}
+                >
+                  Cards
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {loading ? (
+            <LoadingState />
+          ) : filteredCompanies.length === 0 ? (
+            <EmptyState
+              icon={Building2}
+              title={companies.length === 0 ? 'Nenhuma empresa cadastrada' : 'Nenhum resultado'}
+              message={companies.length === 0 ? 'Clique em "Novo" para cadastrar a primeira.' : 'Ajuste os filtros para ver resultados.'}
+            />
+          ) : viewMode === 'table' ? (
+            // ===== TABELA =====
+            <div className="bg-white border border-zinc-200 rounded-xl overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-zinc-800 text-white">
+                    <tr>
+                      <th className="text-left px-4 py-3 text-[10px] font-bold uppercase tracking-wider">Empresa</th>
+                      <th className="text-left px-4 py-3 text-[10px] font-bold uppercase tracking-wider">CNPJ</th>
+                      <th className="text-left px-4 py-3 text-[10px] font-bold uppercase tracking-wider">Segmento</th>
+                      <th className="text-left px-4 py-3 text-[10px] font-bold uppercase tracking-wider">Cidade/UF</th>
+                      <th className="text-left px-4 py-3 text-[10px] font-bold uppercase tracking-wider">Criticidade</th>
+                      <th className="text-left px-4 py-3 text-[10px] font-bold uppercase tracking-wider">Status</th>
+                      <th className="text-right px-4 py-3 text-[10px] font-bold uppercase tracking-wider">Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-zinc-100">
+                    {filteredCompanies.map(c => {
+                      const crit = CRITICALITY_META[c.criticality]
+                      return (
+                        <tr key={c.id} className="hover:bg-zinc-50">
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-3">
+                              {c.color && (
+                                <div className="w-2 h-10 rounded-full flex-shrink-0" style={{ background: c.color }} />
+                              )}
+                              <div>
+                                <div className="font-bold text-zinc-800">{c.name || '—'}</div>
+                                {c.trading_name && c.trading_name !== c.name && (
+                                  <div className="text-xs text-zinc-500">{c.trading_name}</div>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-zinc-600 font-mono text-xs">{c.cnpj || '—'}</td>
+                          <td className="px-4 py-3 text-zinc-600 max-w-xs truncate" title={c.segment}>{c.segment || '—'}</td>
+                          <td className="px-4 py-3 text-zinc-600">
+                            {c.city ? `${c.city}${c.state ? '/' + c.state : ''}` : '—'}
+                          </td>
+                          <td className="px-4 py-3">
+                            {crit ? (
+                              <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${crit.color} uppercase tracking-wide`}>
+                                <span className={`w-1.5 h-1.5 rounded-full ${crit.dot}`} />
+                                {crit.label}
+                              </span>
+                            ) : (
+                              <span className="text-xs text-zinc-400">—</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide ${
+                              c.status === 'ativo' ? 'bg-emerald-100 text-emerald-700' :
+                              c.status === 'arquivado' ? 'bg-zinc-200 text-zinc-600' :
+                              'bg-amber-100 text-amber-700'
+                            }`}>
+                              {c.status || '—'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex gap-1 justify-end">
+                              <button className="p-1.5 text-zinc-500 hover:bg-zinc-100 rounded" title="Editar">
+                                <Edit3 className="w-3.5 h-3.5" />
+                              </button>
+                              <button className="p-1.5 text-rose-600 hover:bg-rose-50 rounded" title="Excluir">
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : (
+            // ===== CARDS =====
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filteredCompanies.map(c => {
+                const crit = CRITICALITY_META[c.criticality]
+                return (
+                  <div
+                    key={c.id}
+                    className="bg-white border border-zinc-200 rounded-xl p-5 hover:shadow-md transition-shadow border-l-4"
+                    style={{ borderLeftColor: c.color || '#5452C1' }}
+                  >
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="min-w-0 flex-1">
+                        <h3 className="font-bold text-zinc-800 truncate">{c.name || '—'}</h3>
+                        {c.trading_name && c.trading_name !== c.name && (
+                          <div className="text-xs text-zinc-500 truncate">{c.trading_name}</div>
+                        )}
+                      </div>
+                      {crit && (
+                        <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${crit.color} uppercase tracking-wide flex-shrink-0`}>
+                          {crit.label}
+                        </span>
+                      )}
+                    </div>
+                    {c.segment && (
+                      <p className="text-xs text-zinc-600 mb-3 line-clamp-2">{c.segment}</p>
+                    )}
+                    <div className="space-y-1.5 text-xs text-zinc-500 mb-3">
+                      {c.cnpj && (
+                        <div className="font-mono">{c.cnpj}</div>
+                      )}
+                      {c.city && (
+                        <div className="flex items-center gap-1">
+                          <MapPin className="w-3 h-3" />
+                          {c.city}{c.state ? `/${c.state}` : ''}
+                        </div>
+                      )}
+                      {c.contact_name && (
+                        <div className="flex items-center gap-1">
+                          <Users className="w-3 h-3" />
+                          {c.contact_name}
+                        </div>
+                      )}
+                      {c.contact_email && (
+                        <div className="flex items-center gap-1 truncate">
+                          <Mail className="w-3 h-3 flex-shrink-0" />
+                          <span className="truncate">{c.contact_email}</span>
+                        </div>
+                      )}
+                      {c.contact_phone && (
+                        <div className="flex items-center gap-1">
+                          <Phone className="w-3 h-3" />
+                          {c.contact_phone}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex gap-1 pt-3 border-t border-zinc-100">
+                      <button className="flex-1 px-3 py-1.5 text-xs font-bold text-violet-700 bg-violet-50 hover:bg-violet-100 rounded">
+                        <Edit3 className="w-3 h-3 inline mr-1" />
+                        Editar
+                      </button>
+                      <button className="px-3 py-1.5 text-xs text-rose-600 hover:bg-rose-50 rounded" title="Arquivar">
+                        <Archive className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ============== TAB: COLABORADORES ============== */}
+      {activeTab === 'profiles' && (
+        <>
+          <div className="bg-white border border-zinc-200 rounded-xl p-4 mb-4">
+            <div className="relative">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
+              <input
+                type="text"
+                placeholder="Buscar colaborador, email, role…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full pl-9 pr-3 py-2 text-sm border border-zinc-200 rounded-lg focus:border-violet-500 focus:outline-none"
+              />
+            </div>
+          </div>
+          {loading ? (
+            <LoadingState />
+          ) : filteredProfiles.length === 0 ? (
+            <EmptyState icon={Users} title="Nenhum colaborador" message="Ajuste a busca." />
+          ) : (
+            <div className="bg-white border border-zinc-200 rounded-xl overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-zinc-800 text-white">
+                  <tr>
+                    <th className="text-left px-4 py-3 text-[10px] font-bold uppercase tracking-wider">Colaborador</th>
+                    <th className="text-left px-4 py-3 text-[10px] font-bold uppercase tracking-wider">Email</th>
+                    <th className="text-left px-4 py-3 text-[10px] font-bold uppercase tracking-wider">Role</th>
+                    <th className="text-left px-4 py-3 text-[10px] font-bold uppercase tracking-wider">Localização</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-zinc-100">
+                  {filteredProfiles.map(p => {
+                    const role = ROLES.find(r => r.value === p.role) || { label: p.role || '—', color: 'bg-zinc-100 text-zinc-600' }
+                    const initials = p.initials || (p.full_name || p.email || '?').split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase()
+                    const avatarStyle = p.avatar_color ? { background: p.avatar_color } : {}
+                    const avatarClass = p.avatar_color
+                      ? 'w-9 h-9 rounded-full text-white flex items-center justify-center font-bold text-xs flex-shrink-0'
+                      : 'w-9 h-9 rounded-full bg-gradient-to-br from-violet-500 to-violet-700 text-white flex items-center justify-center font-bold text-xs flex-shrink-0'
+                    return (
+                      <tr key={p.id} className="hover:bg-zinc-50">
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-3">
+                            <div className={avatarClass} style={avatarStyle}>{initials}</div>
+                            <div className="font-bold text-zinc-800">{p.full_name || '—'}</div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-zinc-600">{p.email || '—'}</td>
+                        <td className="px-4 py-3">
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${role.color} uppercase tracking-wide`}>
+                            {role.label}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-zinc-600 text-xs">{p.location || '—'}</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ============== TAB: ETIQUETAS ============== */}
+      {activeTab === 'labels' && (
+        <>
+          {loading ? (
+            <LoadingState />
+          ) : labels.length === 0 ? (
+            <EmptyState icon={Tag} title="Nenhuma etiqueta" message="Cadastre etiquetas para classificar projetos e tarefas." />
+          ) : (
+            <div className="bg-white border border-zinc-200 rounded-xl p-6">
+              <div className="flex flex-wrap gap-2">
+                {labels.map(l => (
+                  <span
+                    key={l.id}
+                    className="inline-flex items-center gap-2 text-sm font-semibold px-3 py-1.5 rounded-full"
+                    style={{
+                      background: l.color ? `${l.color}20` : '#F4F3FE',
+                      color: l.color || '#5452C1',
+                      border: `1px solid ${l.color || '#7C7AD9'}40`,
+                    }}
+                  >
+                    {l.color && <span className="w-2 h-2 rounded-full" style={{ background: l.color }} />}
+                    {l.name || l.label || l.title || '—'}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ============== TAB: PROJETOS ============== */}
+      {activeTab === 'projects' && (
+        <>
+          {loading ? (
+            <LoadingState />
+          ) : projects.length === 0 ? (
+            <EmptyState icon={Briefcase} title="Nenhum projeto" message="Crie projetos para começar." />
+          ) : (
+            <div className="bg-white border border-zinc-200 rounded-xl overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-zinc-800 text-white">
+                  <tr>
+                    <th className="text-left px-4 py-3 text-[10px] font-bold uppercase tracking-wider">Projeto</th>
+                    <th className="text-left px-4 py-3 text-[10px] font-bold uppercase tracking-wider">Tipo</th>
+                    <th className="text-left px-4 py-3 text-[10px] font-bold uppercase tracking-wider">Prazo</th>
+                    <th className="text-left px-4 py-3 text-[10px] font-bold uppercase tracking-wider">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-zinc-100">
+                  {projects.map(p => (
+                    <tr key={p.id} className="hover:bg-zinc-50">
+                      <td className="px-4 py-3 font-bold text-zinc-800">{p.name || p.title || '—'}</td>
+                      <td className="px-4 py-3 text-zinc-600">{p.type || p.project_type || '—'}</td>
+                      <td className="px-4 py-3 text-zinc-600">{p.deadline || p.due_date || p.end_date || '—'}</td>
+                      <td className="px-4 py-3">
+                        {p.status && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 uppercase tracking-wide">
+                            {p.status}
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ============== TAB: INSTITUIÇÕES (NOVA) ============== */}
+      {activeTab === 'institutions' && (
+        <>
+          {loading ? (
+            <LoadingState />
+          ) : institutions.length === 0 ? (
+            <EmptyState
+              icon={Landmark}
+              title="Nenhuma instituição cadastrada"
+              message='Cadastre bancos e instituições financeiras (Itaú BBA, Bradesco, BNDES…) para usar no módulo Captação.'
+            />
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {institutions.map(i => (
+                <div key={i.id} className="bg-white border border-zinc-200 rounded-xl p-5 hover:shadow-md">
+                  <div className="flex items-start gap-3">
+                    <div className="w-12 h-12 rounded-lg bg-violet-50 flex items-center justify-center flex-shrink-0">
+                      <Landmark className="w-6 h-6 text-violet-600" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-bold text-zinc-800 truncate">{i.name || '—'}</h3>
+                      {i.type && <div className="text-xs text-zinc-500">{i.type}</div>}
+                      {i.contact_name && <div className="text-xs text-zinc-600 mt-2">{i.contact_name}</div>}
+                      {i.contact_email && <div className="text-xs text-zinc-500 truncate">{i.contact_email}</div>}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ============== TAB: ARQUIVADOS (NOVA) ============== */}
+      {activeTab === 'archived' && (
+        <>
+          {loading ? (
+            <LoadingState />
+          ) : kpis.archivedCompanies === 0 ? (
+            <EmptyState
+              icon={Archive}
+              title="Nenhum item arquivado"
+              message="Empresas, projetos e cadastros arquivados aparecerão aqui. Você pode restaurá-los a qualquer momento."
+            />
+          ) : (
+            <div className="bg-white border border-zinc-200 rounded-xl p-5">
+              <h3 className="text-sm font-bold text-zinc-800 mb-4">Empresas arquivadas</h3>
+              <div className="space-y-2">
+                {companies.filter(c => c.status === 'arquivado').map(c => (
+                  <div key={c.id} className="flex items-center justify-between p-3 bg-zinc-50 rounded-lg">
+                    <div>
+                      <div className="font-bold text-zinc-700">{c.name}</div>
+                      <div className="text-xs text-zinc-500">{c.cnpj}</div>
+                    </div>
+                    <button className="text-xs font-bold text-violet-700 hover:bg-violet-50 px-3 py-1.5 rounded">
+                      Restaurar
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
+// ============================================================================
+// Sub-components
+// ============================================================================
+
+function Kpi({ label, value, sub, accent }) {
+  const accents = {
+    violet: 'text-violet-300',
+    emerald: 'text-emerald-300',
+    sky: 'text-sky-300',
+    amber: 'text-amber-300',
+    rose: 'text-rose-300',
+  }
+  return (
+    <div className="bg-white/5 border border-white/10 rounded-lg p-3">
+      <div className={`text-[10px] font-bold uppercase tracking-wider ${accents[accent] || 'text-zinc-300'} mb-1`}>
+        {label}
+      </div>
+      <div className="text-2xl font-bold tracking-tight">{value}</div>
+      {sub && <div className="text-[10px] text-zinc-400 mt-0.5">{sub}</div>}
+    </div>
+  )
+}
+
+function LoadingState() {
+  return (
+    <div className="bg-white border border-zinc-200 rounded-xl p-12 text-center">
+      <RefreshCw className="w-5 h-5 animate-spin inline-block mr-2 text-zinc-400" />
+      <span className="text-sm text-zinc-500">Carregando…</span>
+    </div>
+  )
+}
+
+function EmptyState({ icon: Icon, title, message }) {
+  return (
+    <div className="bg-white border border-zinc-200 rounded-xl p-12 text-center">
+      <Icon className="w-12 h-12 text-zinc-300 mx-auto mb-3" />
+      <div className="text-sm font-bold text-zinc-700">{title}</div>
+      <div className="text-xs text-zinc-500 mt-1 max-w-md mx-auto">{message}</div>
+    </div>
+  )
+}
