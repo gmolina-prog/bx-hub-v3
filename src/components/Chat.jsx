@@ -69,7 +69,8 @@ function NewChannelModal({ profile, projects, onCreated, onClose }) {
       org_id: profile.org_id, name: name.trim(), description: desc.trim() || null,
       icon, project_id: projectId || null, is_general: false,
     }).select().single()
-    if (!error && data) { onCreated(data) }
+    if (error) { console.error('[Chat] criar canal:', error.message); setSaving(false); return }
+    if (data) { onCreated(data) }
     setSaving(false)
   }
 

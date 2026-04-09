@@ -18,7 +18,7 @@ function riskLevel(score) {
 const CATEGORIES = ['Financeiro','Operacional','Legal','Estratégico','Tecnologia','RH','Mercado','Compliance']
 const STATUS_OPTS = ['open','mitigated','closed']
 const STATUS_LABELS = { open: 'Aberto', mitigated: 'Em Mitigação', closed: 'Fechado' }
-const EMPTY = { name: '', description: '', probability: 3, impact: 3, category: 'Operacional', status: 'open', mitigation: '', owner: '', project_id: '' }
+const EMPTY = { name: '', probability: 3, impact: 3, status: 'open', mitigation: '', owner_id: '', project_id: '' }
 
 // Heatmap 5×5
 const HEAT_CELLS = []
@@ -38,6 +38,7 @@ export default function Riscos() {
   const { profile } = useData()
   const [risks, setRisks] = useState([])
   const [projects, setProjects] = useState([])
+  const [profiles, setProfiles] = useState([])
   const [loading, setLoading] = useState(true)
   const [tableError, setTableError] = useState(false)
   const [selected, setSelected] = useState(null)
@@ -51,15 +52,17 @@ export default function Riscos() {
   const load = useCallback(async () => {
     if (!profile) return
     setLoading(true)
-    const [risksR, projR] = await Promise.allSettled([
+    const [risksR, projR, profR] = await Promise.allSettled([
       supabase.from('risks').select('*').eq('org_id', profile.org_id).order('created_at', { ascending: false }),
       supabase.from('projects').select('id,name').eq('org_id', profile.org_id).order('name'),
+      supabase.from('profiles').select('id,full_name').eq('org_id', profile.org_id).order('full_name'),
     ])
     if (risksR.status === 'fulfilled') {
       if (risksR.value.error?.code === '42P01') { setTableError(true); setLoading(false); return }
       setRisks(risksR.value.data || [])
     }
     if (projR.status === 'fulfilled' && !projR.value.error) setProjects(projR.value.data || [])
+    if (profR.status === 'fulfilled' && !profR.value.error) setProfiles(profR.value.data || [])
     setLoading(false)
   }, [profile])
 
@@ -83,10 +86,19 @@ export default function Riscos() {
 
   async function saveRisk() {
     setSaving(true); setError(null)
-    const payload = { ...form, org_id: profile.org_id, project_id: form.project_id || null }
+    // B-12: campos explícitos — não enviar id/org_id/created_at/created_by no update
+    const safe = {
+      name: form.name,
+      probability: parseInt(form.probability) || 3,
+      impact: parseInt(form.impact) || 3,
+      status: form.status,
+      mitigation: form.mitigation || null,
+      owner_id: form.owner_id || null,
+      project_id: form.project_id || null,
+    }
     const { error: err } = isNew
-      ? await supabase.from('risks').insert(payload)
-      : await supabase.from('risks').update(form).eq('id', selected.id)
+      ? await supabase.from('risks').insert({ ...safe, org_id: profile.org_id })
+      : await supabase.from('risks').update(safe).eq('id', selected.id)
     if (err) { setError(err.message); setSaving(false); return }
     await load(); setSelected(null); setIsNew(false); setSaving(false)
   }
@@ -97,7 +109,19 @@ export default function Riscos() {
     setSelected(null); await load()
   }
 
-  function openEdit(risk) { setSelected(risk); setIsNew(false); setForm({ ...risk }); setError(null) }
+  function openEdit(risk) {
+    setSelected(risk); setIsNew(false)
+    setForm({
+      name: risk.name || '',
+      probability: risk.probability || 3,
+      impact: risk.impact || 3,
+      status: risk.status || 'open',
+      mitigation: risk.mitigation || '',
+      owner_id: risk.owner_id || '',
+      project_id: risk.project_id || '',
+    })
+    setError(null)
+  }
   function openNew() { setSelected(null); setIsNew(true); setForm(EMPTY); setError(null) }
 
   if (tableError) return (
@@ -294,10 +318,7 @@ export default function Riscos() {
                 <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Nome *</label>
                 <input className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500" value={form.name || ''} onChange={e => setForm(p => ({...p, name: e.target.value}))} />
               </div>
-              <div>
-                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Descrição</label>
-                <textarea className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500 resize-none" rows={3} value={form.description || ''} onChange={e => setForm(p => ({...p, description: e.target.value}))} />
-              </div>
+              {/* Descrição removida — campo não existe no banco */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Probabilidade (1-5)</label>
@@ -340,7 +361,10 @@ export default function Riscos() {
               </div>
               <div>
                 <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Responsável</label>
-                <input className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500" value={form.owner || ''} onChange={e => setForm(p => ({...p, owner: e.target.value}))} placeholder="Nome..." />
+                <select className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500" value={form.owner_id || ''} onChange={e => setForm(p => ({...p, owner_id: e.target.value}))}>
+                  <option value="">— nenhum —</option>
+                  {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
+                </select>
               </div>
               <div>
                 <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Mitigação</label>

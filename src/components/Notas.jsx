@@ -283,11 +283,23 @@ export default function Notas() {
 
   function scheduleAutoSave(id, title, content_html) {
     clearTimeout(saveTimerRef.current)
-    setSaveStatus('Salvando...')
+    // Não chamar setSaveStatus aqui — causaria re-render durante digitação
     saveTimerRef.current = setTimeout(async () => {
-      await supabase.from('notes').update({ title, content_html, updated_at: new Date().toISOString() }).eq('id', id)
-      setNotes(prev => prev.map(n => n.id === id ? { ...n, title, content_html, updated_at: new Date().toISOString() } : n))
-      setSaveStatus('Salvo ✓')
+      // Ler innerHTML atual do editor (pode ter mudado durante o debounce)
+      const currentHtml = editorRef.current ? editorRef.current.innerHTML : content_html
+      setSaveStatus('Salvando...')
+      const { error } = await supabase.from('notes').update({
+        title, content_html: currentHtml, updated_at: new Date().toISOString()
+      }).eq('id', id)
+      if (!error) {
+        // Atualizar state APENAS após save confirmado — sem re-render durante digitação
+        setNotes(prev => prev.map(n =>
+          n.id === id ? { ...n, title, content_html: currentHtml, updated_at: new Date().toISOString() } : n
+        ))
+        setSaveStatus('Salvo ✓')
+      } else {
+        setSaveStatus('Erro ao salvar')
+      }
     }, 1200)
   }
 
@@ -464,6 +476,7 @@ export default function Notas() {
             {/* Editor body */}
             <div className="flex-1 overflow-y-auto px-6 py-4">
               <div
+                key={selected.id}
                 ref={editorRef}
                 contentEditable
                 suppressContentEditableWarning
@@ -472,9 +485,11 @@ export default function Notas() {
                 style={{ color: CH, fontFamily: 'Montserrat, system-ui, sans-serif' }}
                 dangerouslySetInnerHTML={{ __html: selected.content_html || '' }}
                 onInput={e => {
-                  const html = e.currentTarget.innerHTML
-                  setNotes(prev => prev.map(n => n.id === selected.id ? { ...n, content_html: html } : n))
-                  scheduleAutoSave(selected.id, selected.title || '', html)
+                  // B-13: NÃO atualizar state durante digitação
+                  // Isso causaria re-render → dangerouslySetInnerHTML → perda de cursor
+                  // O scheduleAutoSave lê innerHTML direto do ref e atualiza o state
+                  // apenas no debounce de 1.2s, quando o usuário parou de digitar
+                  scheduleAutoSave(selected.id, selected.title || '', e.currentTarget.innerHTML)
                 }}
               />
             </div>

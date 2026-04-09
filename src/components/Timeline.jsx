@@ -178,7 +178,7 @@ export default function Timeline() {
                 const progress = pct(p.progress)
                 const projTasks = tasks.filter(t => t.project_id === p.id)
                 const doneTasks = projTasks.filter(t => t.column_id === 'done').length
-                const taskPct = projTasks.length > 0 ? Math.round(doneTasks / projTasks.length * 100) : progress
+                const taskPct = projTasks.length > 0 ? Math.round(doneTasks / projTasks.length * 100) : (progress > 0 ? progress : -1)
                 return (
                   <div key={p.id} className="relative h-14 border-b border-zinc-100 flex items-center px-2">
                     {months.map((m, i) => <div key={i} className="absolute top-0 bottom-0 border-l border-zinc-100" style={{ left: `${m.pct}%` }} />)}
@@ -227,6 +227,7 @@ export default function Timeline() {
                 const projTasks = tasks.filter(t => t.project_id === p.id)
                 const doneTasks = projTasks.filter(t => t.column_id === 'done').length
                 const progress = projTasks.length > 0 ? Math.round(doneTasks / projTasks.length * 100) : pct(p.progress)
+                const hasNoTasks = projTasks.length === 0
                 return (
                   <tr key={p.id} className="hover:bg-zinc-50 transition-colors">
                     <td className="px-5 py-3 font-semibold text-zinc-800">{p.name}</td>
@@ -236,12 +237,16 @@ export default function Timeline() {
                       <span className="text-[10px] font-bold px-2 py-0.5 rounded" style={{ background: `${st.color}18`, color: st.color }}>{st.label}</span>
                     </td>
                     <td className="px-4 py-3">
+                      {hasNoTasks ? (
+                        <span className="text-[10px] text-zinc-400 italic">Sem tarefas</span>
+                      ) : (
                       <div className="flex items-center gap-2">
                         <div className="flex-1 bg-zinc-100 rounded-full h-1.5">
                           <div className="h-1.5 rounded-full" style={{ width: `${progress}%`, background: st.color }} />
                         </div>
                         <span className="text-xs text-zinc-500 w-8 text-right">{progress}%</span>
                       </div>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       {p.deadline ? (

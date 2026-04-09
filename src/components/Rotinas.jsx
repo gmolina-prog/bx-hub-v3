@@ -33,7 +33,7 @@ export default function Rotinas() {
     const since = new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0]
     const [routR, compR, projR, profR] = await Promise.allSettled([
       supabase.from('routines').select('*').eq('org_id', profile.org_id).eq('is_active', true).order('title'),
-      supabase.from('routine_completions').select('*').eq('org_id', profile.org_id).gte('reference_date', since),
+      supabase.from('routine_completions').select('*').eq('org_id', profile.org_id).or(`reference_date.gte.${since},completed_at.gte.${new Date(Date.now() - 30 * 86400000).toISOString()}`),
       supabase.from('projects').select('id,name').eq('org_id', profile.org_id).order('name'),
       supabase.from('profiles').select('id,full_name,initials,avatar_color').eq('org_id', profile.org_id).order('full_name'),
     ])
@@ -48,10 +48,24 @@ export default function Rotinas() {
 
   const todayStr = today()
 
-  function isDoneToday(id) { return completions.some(c => c.routine_id === id && c.reference_date === todayStr) }
+  function isDoneToday(id) {
+    return completions.some(c => {
+      if (c.routine_id !== id) return false
+      if (c.reference_date) return c.reference_date === todayStr
+      // fallback: verificar completed_at se reference_date for null
+      return c.completed_at && c.completed_at.startsWith(todayStr)
+    })
+  }
   function lastDone(id) {
-    const done = completions.filter(c => c.routine_id === id).sort((a, b) => b.reference_date.localeCompare(a.reference_date))
-    return done.length > 0 ? done[0].reference_date : null
+    const done = completions.filter(c => c.routine_id === id)
+    if (!done.length) return null
+    // Usar reference_date se disponível, senão extrair data de completed_at
+    done.sort((a, b) => {
+      const da = a.reference_date || (a.completed_at ? a.completed_at.slice(0, 10) : '')
+      const db = b.reference_date || (b.completed_at ? b.completed_at.slice(0, 10) : '')
+      return db.localeCompare(da)
+    })
+    return done[0].reference_date || (done[0].completed_at ? done[0].completed_at.slice(0, 10) : null)
   }
   function isOverdue(r) {
     const last = lastDone(r.id)
