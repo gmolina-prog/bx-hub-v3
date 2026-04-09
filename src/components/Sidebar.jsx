@@ -37,6 +37,7 @@ const SECTIONS = [
     title: 'EQUIPE',
     items: [
       { emoji: '💬', label: 'Chat',       path: '/chat',       badge: 'chat' },
+      { emoji: '🔔', label: 'Notificações', path: '/notificacoes', badge: 'notif' },
       { emoji: '📢', label: 'Avisos',     path: '/avisos' },
       { emoji: '📅', label: 'Calendário', path: '/calendario' },
       { emoji: '👥', label: 'Time',       path: '/time' },
@@ -51,7 +52,6 @@ const SECTIONS = [
       { emoji: '⚡', label: 'Automações',    path: '/automacoes' },
       { emoji: '⚙️', label: 'Admin',         path: '/admin' },
       { emoji: '📝', label: 'Logs',          path: '/logs' },
-      { emoji: '🔔', label: 'Notificações',  path: '/notificacoes', badge: 'notif' },
       { emoji: '⚙️', label: 'Configurações', path: '/configuracoes' },
     ],
   },
