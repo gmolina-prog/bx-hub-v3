@@ -2,6 +2,7 @@
 import React, { useEffect, useState, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import { useData } from '../contexts/DataContext'
+import { usePageTitle } from '../hooks/usePageTitle'
 import {
   BarChart3,
   ExternalLink,
@@ -43,6 +44,7 @@ const TABS = [
 
 export default function BI() {
   const { profile } = useData()
+  usePageTitle('BI & Relatórios')
   const [activeTab, setActiveTab] = useState('powerbi')
   const [companies, setCompanies] = useState([])
   const [proposals, setProposals] = useState([])

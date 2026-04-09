@@ -23,6 +23,7 @@ import {
   Handshake,
   Edit3,
   Trash2,
+  Building2,
 } from 'lucide-react'
 
 // ============================================================================
