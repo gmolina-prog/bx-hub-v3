@@ -57,14 +57,21 @@ export default function Reembolsos() {
   async function createReport() {
     if (!newTitle.trim()) return
     setSaving(true)
-    await supabase.from('expense_reports').insert({ org_id: profile.org_id, submitted_by: profile.id, title: newTitle, status: 'rascunho', total_amount: 0 })
+    const { error } = await supabase.from('expense_reports').insert({
+      org_id: profile.org_id, submitted_by: profile.id, title: newTitle, status: 'rascunho', total_amount: 0
+    })
+    if (error) { toast.error('Erro ao criar relatório: ' + error.message); setSaving(false); return }
     setShowNew(false); setNewTitle(''); await load(); setSaving(false)
+    toast.success('Relatório criado')
   }
 
   async function advanceStatus(r) {
     const next = STATUS[r.status]?.next
     if (!next) return
-    await supabase.from('expense_reports').update({ status: next }).eq('id', r.id); await load()
+    const { error } = await supabase.from('expense_reports')
+      .update({ status: next }).eq('id', r.id).eq('org_id', profile.org_id)
+    if (error) { toast.error('Erro ao avançar status: ' + error.message); return }
+    await load()
   }
 
   async function deleteReport(id) {
@@ -76,19 +83,33 @@ export default function Reembolsos() {
   async function addItem(reportId) {
     if (!newItem.description.trim() || !newItem.value) return
     setSaving(true)
-    const val = parseFloat(newItem.value.replace(',', '.'))
-    await supabase.from('expense_items').insert({ report_id: reportId, category: newItem.category, description: newItem.description, amount: val, date: newItem.date || new Date().toISOString().split('T')[0] })
-    const repItems = [...(items[reportId] || []), { value: val }]
-    const total = repItems.reduce((s, it) => s + (parseFloat(it.amount) || 0), 0)
-    await supabase.from('expense_reports').update({ total_amount: total }).eq('id', reportId)
-    setAddingItem(null); setNewItem({ category: 'refeicao', description: '', value: '', date: '' }); await load(); setSaving(false)
+    try {
+      const val = parseFloat(newItem.value.replace(',', '.'))
+      const { error } = await supabase.from('expense_items').insert({
+        report_id: reportId, org_id: profile.org_id,
+        category: newItem.category, description: newItem.description,
+        amount: val, date: newItem.date || new Date().toISOString().split('T')[0]
+      })
+      if (error) throw error
+      const repItems = [...(items[reportId] || []), { amount: val }]
+      const total = repItems.reduce((s, it) => s + (parseFloat(it.amount) || 0), 0)
+      await supabase.from('expense_reports').update({ total_amount: total }).eq('id', reportId).eq('org_id', profile.org_id)
+      setAddingItem(null); setNewItem({ category: 'refeicao', description: '', value: '', date: '' })
+      await load()
+    } catch (err) {
+      toast.error('Erro ao adicionar item: ' + err.message)
+    } finally {
+      setSaving(false)
+    }
   }
 
   async function deleteItem(reportId, itemId) {
-    await supabase.from('expense_items').delete().eq('id', itemId)
+    const { error } = await supabase.from('expense_items').delete().eq('id', itemId)
+    if (error) { toast.error('Erro ao remover item: ' + error.message); return }
     const remaining = (items[reportId] || []).filter(it => it.id !== itemId)
     const total = remaining.reduce((s, it) => s + (parseFloat(it.amount) || 0), 0)
-    await supabase.from('expense_reports').update({ total_amount: total }).eq('id', reportId); await load()
+    await supabase.from('expense_reports').update({ total_amount: total }).eq('id', reportId).eq('org_id', profile.org_id)
+    await load()
   }
 
   const filtered = filterStatus === 'all' ? reports : reports.filter(r => r.status === filterStatus)

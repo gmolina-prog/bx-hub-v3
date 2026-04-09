@@ -238,7 +238,7 @@ export default function CRM() {
   }
 
   async function deleteProposal(proposalId) {
-    if (!confirm('Excluir esta proposta? Esta ação não pode ser desfeita.')) return
+    if (!await confirm('Excluir esta proposta? Esta ação não pode ser desfeita.', { danger: true, confirmLabel: 'Excluir', cancelLabel: 'Cancelar' })) return
     try {
       const { error: dErr } = await supabase.from('proposals').delete().eq('id', proposalId).eq('org_id', profile.org_id)
       if (dErr) throw dErr

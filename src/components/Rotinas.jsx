@@ -78,13 +78,26 @@ export default function Rotinas() {
   async function toggle(r) {
     const done = isDoneToday(r.id)
     setSaving(r.id)
-    if (done) {
-      const comp = completions.find(c => c.routine_id === r.id && c.reference_date === todayStr)
-      if (comp) await supabase.from('routine_completions').delete().eq('id', comp.id)
-    } else {
-      await supabase.from('routine_completions').insert({ routine_id: r.id, completed_by: profile.id, reference_date: todayStr, org_id: profile.org_id })
+    try {
+      if (done) {
+        const comp = completions.find(c => c.routine_id === r.id && c.reference_date === todayStr)
+        if (comp) {
+          const { error } = await supabase.from('routine_completions').delete().eq('id', comp.id).eq('org_id', profile.org_id)
+          if (error) throw error
+        }
+      } else {
+        const { error } = await supabase.from('routine_completions').insert({
+          routine_id: r.id, completed_by: profile.id,
+          reference_date: todayStr, org_id: profile.org_id
+        })
+        if (error) throw error
+      }
+      await load()
+    } catch (err) {
+      toast.error('Erro ao registrar rotina: ' + err.message)
+    } finally {
+      setSaving(null)
     }
-    await load(); setSaving(null)
   }
 
   async function createRoutine() {

@@ -305,7 +305,9 @@ export default function Notas() {
   }
 
   async function archiveNote(id) {
-    await supabase.from('notes').update({ status: 'archived' }).eq('id', id).eq('org_id', profile.org_id)
+    const { error } = await supabase.from('notes')
+      .update({ status: 'archived' }).eq('id', id).eq('org_id', profile.org_id)
+    if (error) { toast.error('Erro ao arquivar nota: ' + error.message); return }
     setNotes(prev => prev.filter(n => n.id !== id))
     setSelectedId(null)
   }
@@ -313,7 +315,9 @@ export default function Notas() {
   async function togglePin(id) {
     const n = notes.find(x => x.id === id)
     if (!n) return
-    await supabase.from('notes').update({ pinned: !n.pinned }).eq('id', id).eq('org_id', profile.org_id)
+    const { error } = await supabase.from('notes')
+      .update({ pinned: !n.pinned }).eq('id', id).eq('org_id', profile.org_id)
+    if (error) { toast.error('Erro ao fixar nota: ' + error.message); return }
     setNotes(prev => prev.map(x => x.id === id ? { ...x, pinned: !x.pinned } : x))
   }
 

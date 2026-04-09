@@ -28,13 +28,15 @@ function NotificationPanel({ profile, onClose }) {
   }, [profile])
 
   async function markRead(id) {
-    await supabase.from('notifications').update({ is_read: true }).eq('id', id)
+    await supabase.from('notifications')
+      .update({ is_read: true }).eq('id', id).eq('user_id', profile.id)
     setNotifs(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n))
   }
 
   async function markAll() {
     const ids = notifs.filter(n => !n.is_read).map(n => n.id)
-    if (ids.length > 0) await supabase.from('notifications').update({ is_read: true }).in('id', ids)
+    if (ids.length > 0) await supabase.from('notifications')
+      .update({ is_read: true }).eq('user_id', profile.id).eq('org_id', profile.org_id)
     setNotifs(prev => prev.map(n => ({ ...n, is_read: true })))
   }
 

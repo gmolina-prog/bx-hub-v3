@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { Hash, Send, Plus, X, Search, Bell, BellOff, Pin, Reply, Smile, MoreHorizontal, Users, Check, CheckCheck, Circle, ChevronDown, AlertCircle, Paperclip, AtSign } from 'lucide-react'
+import { toast } from './Toast'
 import { supabase } from '../lib/supabase'
 import { useData } from '../contexts/DataContext'
 import { useNavigate } from 'react-router-dom'
@@ -420,7 +421,11 @@ export default function Chat() {
 
   // ── Pin message ──
   async function handlePin(msg) {
-    await supabase.from('chat_messages').update({ is_pinned: !msg.is_pinned }).eq('id', msg.id)
+    const { error } = await supabase.from('chat_messages')
+      .update({ is_pinned: !msg.is_pinned }).eq('id', msg.id).eq('org_id', profile.org_id)
+    if (error) { toast.error('Erro ao fixar mensagem: ' + error.message); return }
+    // Atualizar localmente para UX imediata
+    setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, is_pinned: !msg.is_pinned } : m))
   }
 
   // ── Input handling: @mentions ──

@@ -50,22 +50,27 @@ export default function Notificacoes() {
   }, [profile])
 
   async function markRead(id) {
-    await supabase.from('notifications').update({ is_read: true }).eq('id', id)
+    await supabase.from('notifications')
+      .update({ is_read: true }).eq('id', id).eq('user_id', profile.id)
     setNotifs(prev => prev.map(n => n.id === id ? {...n, is_read: true} : n))
   }
 
   async function markAllRead() {
     setActing(true)
-    const ids = notifs.filter(n => !n.is_read).map(n => n.id)
-    if (ids.length > 0) {
-      await supabase.from('notifications').update({ is_read: true }).in('id', ids)
+    if (notifs.some(n => !n.is_read)) {
+      await supabase.from('notifications')
+        .update({ is_read: true })
+        .eq('user_id', profile.id)
+        .eq('org_id', profile.org_id)
       setNotifs(prev => prev.map(n => ({...n, is_read: true})))
     }
     setActing(false)
   }
 
   async function deleteNotif(id) {
-    await supabase.from('notifications').delete().eq('id', id)
+    const { error } = await supabase.from('notifications')
+      .delete().eq('id', id).eq('user_id', profile.id)
+    if (error) { toast.error('Erro ao remover notificação: ' + error.message); return }
     setNotifs(prev => prev.filter(n => n.id !== id))
   }
 

@@ -422,8 +422,11 @@ export default function Kanban() {
   }
 
   async function archiveTask(id) {
-    await supabase.from('tasks').update({ is_archived: true }).eq('id', id)
+    const { error } = await supabase.from('tasks')
+      .update({ is_archived: true }).eq('id', id).eq('org_id', profile.org_id)
+    if (error) { toast.error('Erro ao arquivar tarefa: ' + error.message); return }
     await load(); setModalTask(null)
+    toast.success('Tarefa arquivada')
   }
 
   function openNew(colId = 'todo') {
