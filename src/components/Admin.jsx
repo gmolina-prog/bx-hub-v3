@@ -207,7 +207,12 @@ export default function Admin() {
       await loadProfiles()
       showSuccess('Convite registrado. Envie o link de acesso separadamente.')
     } catch (err) {
-      toast.error(`Erro ao convidar: ` + err.message)
+      // 23505 = unique_violation (email já cadastrado)
+      if (err.code === '23505' || (err.message || '').includes('duplicate') || (err.message || '').includes('unique')) {
+        toast.error('Este e-mail já está cadastrado na organização.')
+      } else {
+        toast.error('Erro ao convidar: ' + err.message)
+      }
     } finally {
       setInviting(false)
     }

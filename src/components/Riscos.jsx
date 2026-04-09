@@ -108,7 +108,8 @@ export default function Riscos() {
 
   async function deleteRisk(id) {
     if (!await confirm('Excluir este risco?', { danger: true, confirmLabel: 'Excluir', cancelLabel: 'Cancelar' })) return
-    await supabase.from('risks').delete().eq('id', id).eq('org_id', profile.org_id)
+    const { error } = await supabase.from('risks').delete().eq('id', id).eq('org_id', profile.org_id)
+    if (error) { toast.error('Erro ao excluir risco: ' + error.message); return }
     setSelected(null); await load()
   }
 
@@ -277,7 +278,7 @@ export default function Riscos() {
                   <thead><tr className="bg-zinc-800 text-white text-xs uppercase tracking-wider">
                     <th className="text-left px-5 py-3 font-bold">Risco</th>
                     <th className="text-left px-4 py-3 font-bold">Projeto</th>
-                    <th className="text-left px-4 py-3 font-bold">Categoria</th>
+                    <th className="text-left px-4 py-3 font-bold">Responsável</th>
                     <th className="text-left px-4 py-3 font-bold">Score</th>
                     <th className="text-left px-4 py-3 font-bold">Nível</th>
                     <th className="text-left px-4 py-3 font-bold">Status</th>
@@ -290,7 +291,7 @@ export default function Riscos() {
                         <tr key={r.id} onClick={() => openEdit(r)} className="hover:bg-zinc-50 cursor-pointer transition-colors">
                           <td className="px-5 py-3 font-semibold text-zinc-800">{r.name || '—'}</td>
                           <td className="px-4 py-3 text-zinc-500 text-xs">{projMap[r.project_id]?.name || '—'}</td>
-                          <td className="px-4 py-3 text-zinc-500 text-xs">{r.category}</td>
+                          <td className="px-4 py-3 text-xs text-zinc-600">{profMap[r.owner_id]?.full_name || '—'}</td>
                           <td className="px-4 py-3 font-bold text-zinc-700">{score}/25</td>
                           <td className="px-4 py-3">
                             <span className="text-[10px] font-bold px-2 py-0.5 rounded border" style={{ background: lvl.bg, color: lvl.color, borderColor: `${lvl.color}40` }}>

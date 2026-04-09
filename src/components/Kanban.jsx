@@ -81,10 +81,11 @@ function TaskModal({ task, projects, profiles, onClose, onSave, onDelete, onArch
 
   async function addComment() {
     if (!newComment.trim() || !task.id || task.id === 'new') return
-    const { data } = await supabase.from('task_comments').insert({
+    const { data, error } = await supabase.from('task_comments').insert({
       task_id: task.id, org_id: profile.org_id,
       user_id: profile.id, user_name: profile.full_name, content: newComment, type: 'comment',
     }).select().single()
+    if (error) { toast.error('Erro ao comentar: ' + error.message); return }
     if (data) setComments(prev => [...prev, data])
     setNewComment('')
   }
@@ -420,7 +421,10 @@ export default function Kanban() {
 
   async function deleteTask(id) {
     if (!await confirm('Excluir esta tarefa?', { danger: true, confirmLabel: 'Excluir', cancelLabel: 'Cancelar' })) return
-    await supabase.from('tasks').update({ deleted_at: new Date().toISOString() }).eq('id', id)
+    const { error } = await supabase.from('tasks')
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('id', id).eq('org_id', profile.org_id)
+    if (error) { toast.error('Erro ao excluir tarefa: ' + error.message); return }
     await load(); setModalTask(null)
   }
 
