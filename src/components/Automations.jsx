@@ -165,7 +165,7 @@ export default function Automations() {
         .eq('org_id', profile.org_id)
       if (uErr) throw uErr
       await loadRules()
-      showSuccess(currentStatus ? 'Automação desativada' : 'Automação ativada')
+      toast.success(currentStatus ? 'Automação desativada' : 'Automação ativada')
     } catch (err) {
       console.error('Error toggling rule:', err)
       toast.error(`Erro ao atualizar regra: ` + (err.message || 'desconhecido'))
@@ -182,7 +182,7 @@ export default function Automations() {
         .eq('org_id', profile.org_id)
       if (dErr) throw dErr
       await loadRules()
-      showSuccess('Automação excluída')
+      toast.success('Automação excluída')
     } catch (err) {
       console.error('Error deleting rule:', err)
       toast.error(`Erro ao excluir regra: ` + (err.message || 'desconhecido'))
@@ -214,7 +214,7 @@ export default function Automations() {
       setFormData({ name: '', trigger_desc: '', action_desc: '' })
       setShowForm(false)
       await loadRules()
-      showSuccess('Automação criada com sucesso! Ative para começar a rodar.')
+      toast.success('Automação criada com sucesso! Ative para começar a rodar.')
     } catch (err) {
       console.error('Error creating rule:', err)
       toast.error(`Erro ao criar automação: ` + (err.message || 'desconhecido'))
@@ -233,10 +233,7 @@ export default function Automations() {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
-  function showSuccess(msg) {
-    setSuccessMsg(msg)
-    setTimeout(() => setSuccessMsg(null), 3500)
-  }
+  // B-120: showSuccess migrado para toast.success()
 
   // KPIs
   const activeCount = rules.filter(r => r.is_active).length

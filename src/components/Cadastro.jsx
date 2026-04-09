@@ -229,10 +229,7 @@ export default function Cadastro() {
     setSaving(false)
   }
 
-  function showSuccess(msg) {
-    setSuccessMsg(msg)
-    setTimeout(() => setSuccessMsg(null), 3500)
-  }
+  // B-120: showSuccess migrado para toast.success()
 
   // ===== KPIs derivados =====
   const kpis = useMemo(() => {

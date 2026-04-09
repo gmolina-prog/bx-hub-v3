@@ -183,7 +183,7 @@ export default function Captacao() {
       setForm({ name: '', company_id: '', institution_name: '', stage: 'indicacao', value: '', probability: 20, contact_name: '', next_action: '', expected_close: '', notes: '' })
       setShowForm(false)
       await loadAll()
-      showSuccess('Oportunidade criada')
+      toast.success('Oportunidade criada')
     } catch (err) {
       toast.error(`Erro ao criar oportunidade: ` + err.message)
     } finally {
@@ -205,15 +205,10 @@ export default function Captacao() {
       if (uErr) throw uErr
       logActivity(supabase, { org_id: profile.org_id, actor_id: profile.id, entity_type: 'pipeline_item', entity_id: itemId, action: 'stage_changed', module: 'captacao', metadata: { to: newStage } })
       await loadAll()
-      showSuccess('Movido para ' + STAGES.find(s => s.id === newStage)?.label)
+      toast.success('Movido para ' + STAGES.find(s => s.id === newStage)?.label)
     } catch (err) {
       toast.error(`Erro ao mover: ` + err.message)
     }
-  }
-
-  function showSuccess(msg) {
-    setSuccessMsg(msg)
-    setTimeout(() => setSuccessMsg(null), 3500)
   }
 
   // Filtragem
@@ -647,7 +642,7 @@ export default function Captacao() {
             if (error) { toast.error('Erro ao salvar: ' + error.message); return }
             await loadAll()
             setSelectedItem(null)
-            showSuccess('Oportunidade salva')
+            toast.success('Oportunidade salva')
           }}
           onArchive={async () => {
             try {
@@ -666,7 +661,7 @@ export default function Captacao() {
             await supabase.from('pipeline_items').delete().eq('id', selectedItem.id).eq('org_id', profile.org_id)
             await loadAll()
             setSelectedItem(null)
-            showSuccess('Oportunidade excluída')
+            toast.success('Oportunidade excluída')
           }}
         />
       )}

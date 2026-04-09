@@ -155,17 +155,12 @@ export default function Time() {
       setKudoForm({ to_user: '', category: 'teamwork', message: '' })
       setShowKudoForm(false)
       await loadAll()
-      showSuccess('Kudo enviado! 🎉')
+      toast.success('Kudo enviado! 🎉')
     } catch (err) {
       toast.error(`Erro ao enviar kudo: ` + err.message)
     } finally {
       setSubmitting(false)
     }
-  }
-
-  function showSuccess(msg) {
-    setSuccessMsg(msg)
-    setTimeout(() => setSuccessMsg(null), 3500)
   }
 
   // ============================================================

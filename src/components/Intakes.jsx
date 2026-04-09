@@ -177,7 +177,7 @@ export default function Intakes() {
       })
       setShowForm(false)
       await loadAll()
-      showSuccess('Intake criado com sucesso')
+      toast.success('Intake criado com sucesso')
     } catch (err) {
       toast.error(`Erro ao criar intake: ` + err.message)
     } finally {
@@ -194,7 +194,7 @@ export default function Intakes() {
         .eq('org_id', profile.org_id)
       if (uErr) throw uErr
       await loadAll()
-      showSuccess('Status atualizado')
+      toast.success('Status atualizado')
     } catch (err) {
       toast.error(`Erro ao atualizar: ` + err.message)
     }
@@ -206,11 +206,6 @@ export default function Intakes() {
     setFilterType('all')
     setSearch('')
     setSortBy('recent')
-  }
-
-  function showSuccess(msg) {
-    setSuccessMsg(msg)
-    setTimeout(() => setSuccessMsg(null), 3500)
   }
 
   // Filtragem

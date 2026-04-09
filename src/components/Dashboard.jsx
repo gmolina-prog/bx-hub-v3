@@ -173,6 +173,12 @@ export default function Dashboard() {
 
   useEffect(() => { load() }, [load])
 
+  // B-121: refresh automático a cada 2 minutos
+  useEffect(() => {
+    const interval = setInterval(() => { load() }, 2 * 60 * 1000)
+    return () => clearInterval(interval)
+  }, [load])
+
   // Mapa Leaflet
   useEffect(() => {
     if (!data || !mapRef.current) return
@@ -276,9 +282,13 @@ export default function Dashboard() {
               <span>{statusIcon}</span><span>{statusText}</span>
             </div>
           </div>
-          <div className="text-right">
+          <div className="text-right flex flex-col items-end gap-2">
             <div ref={clockRef} className="text-4xl font-bold tracking-widest" />
-            <p className="text-xs text-zinc-500 mt-1">BX Project Hub v3</p>
+            <p className="text-xs text-zinc-500">BX Project Hub v3</p>
+            <button onClick={load} title="Atualizar dados"
+              className="flex items-center gap-1.5 px-2 py-1 bg-white/10 hover:bg-white/20 rounded-lg text-xs text-zinc-300 transition-colors">
+              <RefreshCw className="w-3 h-3" /> Atualizar
+            </button>
           </div>
         </div>
       </div>

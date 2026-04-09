@@ -202,7 +202,7 @@ export default function Admin() {
         .eq('org_id', profile.org_id)
       if (uErr) throw uErr
       await loadProfiles()
-      showSuccess('Role atualizada')
+      toast.success('Role atualizada')
     } catch (err) {
       toast.error(`Erro ao atualizar role: ` + err.message)
     }
@@ -239,7 +239,7 @@ export default function Admin() {
       setInviteData({ email: '', full_name: '', role: 'analyst', cargo: '' })
       setShowInviteForm(false)
       await loadProfiles()
-      showSuccess('Convite registrado. Envie o link de acesso separadamente.')
+      toast.success('Convite registrado. Envie o link de acesso separadamente.')
     } catch (err) {
       // 23505 = unique_violation (email já cadastrado)
       if (err.code === '23505' || (err.message || '').includes('duplicate') || (err.message || '').includes('unique')) {
@@ -252,10 +252,7 @@ export default function Admin() {
     }
   }
 
-  function showSuccess(msg) {
-    setSuccessMsg(msg)
-    setTimeout(() => setSuccessMsg(null), 3500)
-  }
+  // B-120: showSuccess migrado para toast.success()
 
   // KPIs
   const kpis = useMemo(() => {
