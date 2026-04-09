@@ -130,7 +130,9 @@ export default function Reembolsos() {
   }
 
   const filtered = filterStatus === 'all' ? reports : reports.filter(r => r.status === filterStatus)
-  const totalPendente = reports.filter(r => r.status === 'submetido').reduce((s, r) => s + (parseFloat(r.total_amount) || 0), 0)
+  const totalPendente  = reports.filter(r => r.status === 'submetido').reduce((s, r) => s + (parseFloat(r.total_amount) || 0), 0)
+  const totalAprovado  = reports.filter(r => r.status === 'aprovado' ).reduce((s, r) => s + (parseFloat(r.total_amount) || 0), 0)
+  const totalPago      = reports.filter(r => r.status === 'pago'     ).reduce((s, r) => s + (parseFloat(r.total_amount) || 0), 0)
   const profMap = {}; profiles.forEach(p => { profMap[p.id] = p })
 
   return (
@@ -140,7 +142,12 @@ export default function Reembolsos() {
           <div>
             <div className="text-xs font-bold uppercase tracking-wider text-violet-300 mb-1 flex items-center gap-2"><Receipt className="w-3 h-3" /> Despesas</div>
             <h1 className="text-2xl font-bold mb-1">Reembolsos</h1>
-            <p className="text-sm text-zinc-400">{reports.length} relatório{reports.length !== 1 ? 's' : ''} · {fmtBRL(totalPendente)} pendente de aprovação</p>
+            <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1">
+              {totalPendente > 0 && <span className="text-sm text-amber-400 font-semibold">{fmtBRL(totalPendente)} aguardando aprovação</span>}
+              {totalAprovado > 0 && <span className="text-sm text-emerald-400 font-semibold">{fmtBRL(totalAprovado)} aprovado</span>}
+              {totalPago > 0     && <span className="text-sm text-sky-400 font-semibold">{fmtBRL(totalPago)} pago</span>}
+              <span className="text-sm text-zinc-400">{reports.length} relatório{reports.length !== 1 ? 's' : ''}</span>
+            </div>
           </div>
           <div className="flex gap-3 flex-wrap">
             {Object.entries(STATUS).map(([k, s]) => (
@@ -232,7 +239,14 @@ export default function Reembolsos() {
                               <td className="px-5 py-2.5">
                                 <span className="text-[10px] font-bold uppercase tracking-wider bg-zinc-100 text-zinc-600 px-2 py-0.5 rounded">{CAT_LABELS[it.category] || it.category}</span>
                               </td>
-                              <td className="px-4 py-2.5 text-zinc-700">{it.description}</td>
+                              <td className="px-4 py-2.5 text-zinc-700">
+                                <div>{it.description}</div>
+                                {it.km_distance && (
+                                  <div className="text-[10px] text-violet-600 font-semibold mt-0.5">
+                                    {it.km_distance} km × R$ {parseFloat(it.km_rate || 0.60).toFixed(2)}/km
+                                  </div>
+                                )}
+                              </td>
                               <td className="px-4 py-2.5 text-zinc-500 text-xs">{it.date ? new Date(it.date).toLocaleDateString('pt-BR') : '—'}</td>
                               <td className="px-4 py-2.5 text-right font-semibold text-zinc-800">{fmtBRL(it.amount)}</td>
                               <td className="px-4 py-2.5"><button onClick={() => deleteItem(report.id, it.id)} className="text-zinc-300 hover:text-red-400"><X className="w-3.5 h-3.5" /></button></td>

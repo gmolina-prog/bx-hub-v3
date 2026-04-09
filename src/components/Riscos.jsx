@@ -93,7 +93,8 @@ export default function Riscos() {
     const matchSearch  = !search.trim() ||
       (r.title       || '').toLowerCase().includes(search.toLowerCase()) ||
       (r.description || '').toLowerCase().includes(search.toLowerCase()) ||
-      (r.owner       || '').toLowerCase().includes(search.toLowerCase())
+      (r.owner       || '').toLowerCase().includes(search.toLowerCase()) ||
+      (profMap[r.owner_id]?.full_name || '').toLowerCase().includes(search.toLowerCase())
     return matchStatus && matchProject && matchSearch
   })
   const projMap = {}

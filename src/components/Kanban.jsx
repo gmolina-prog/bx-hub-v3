@@ -350,9 +350,11 @@ export default function Kanban() {
   const [dragOver, setDragOver] = useState(null)
 
   function exportCSV() {
+    // B-164: exporta tasks filtradas (respeita filtros ativos) + coluna Emergência
+    const exportTasks = (filterProject !== 'all' || filterPriority !== 'all' || filterAssignee !== 'all' || search) ? filtered : tasks
     const rows = [
-      ['Título','Status','Prioridade','Responsável','Projeto','Vencimento','Horas'],
-      ...tasks.map(t => {
+      ['Título','Status','Prioridade','Responsável','Projeto','Vencimento','Horas','Emergência'],
+      ...exportTasks.map(t => {
         const prof = profMap[t.assigned_to]
         const proj = projMap[t.project_id]
         const col  = { todo: 'A Fazer', doing: 'Executando', review: 'Revisão', done: 'Concluído' }
@@ -364,6 +366,7 @@ export default function Kanban() {
           proj?.name || '',
           t.due_date ? t.due_date.slice(0,10) : '',
           t.hours_logged || '',
+          t.is_emergency ? 'Sim' : '',
         ].join(',')
       })
     ]
@@ -733,6 +736,14 @@ export default function Kanban() {
                     <div className="w-2 h-2 rounded-full" style={{ background: col.color }} />
                     <span className="text-sm font-bold text-zinc-700">{col.label}</span>
                     <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: '#E5E5E5', color: '#6B7280' }}>{colTasks.length}</span>
+                    {(() => {
+                      const hrs = colTasks.reduce((s, t) => s + (parseFloat(t.hours_logged) || 0), 0)
+                      return hrs > 0 ? (
+                        <span className="text-[10px] text-zinc-400 flex items-center gap-0.5">
+                          <Clock className="w-2.5 h-2.5" />{hrs.toFixed(1)}h
+                        </span>
+                      ) : null
+                    })()}
                   </div>
                   <button onClick={() => openNew(col.id)} className="text-zinc-400 hover:text-violet-600 transition-colors">
                     <Plus className="w-4 h-4" />

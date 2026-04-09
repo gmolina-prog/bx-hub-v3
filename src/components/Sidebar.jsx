@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useData } from '../contexts/DataContext'
 import { supabase } from '../lib/supabase'
+import { toast } from './Toast'
 import { LogOut } from 'lucide-react'
 
 const SECTIONS = [
@@ -79,8 +80,9 @@ export default function Sidebar() {
       await supabase.auth.signOut()
     } catch (err) {
       console.error('[Logout]', err.message)
+      toast.warning('Erro ao sair — redirecionando…')
       // Forçar redirect mesmo em caso de erro
-      window.location.href = '/'
+      setTimeout(() => { window.location.href = '/' }, 1500)
     }
   }
 
