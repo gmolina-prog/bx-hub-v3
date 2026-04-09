@@ -172,11 +172,19 @@ export default function Dashboard() {
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map)
       leafletMapRef.current = map
 
-      const office = [-23.5951, -46.6872]
+      const office = [-23.6195, -46.6988] // Av. Dr. Chucri Zaidan 1550, Vila Cordeiro
       const positioned = []
 
       // Marcar escritório
       L.circle(office, { radius: 200, color: BLUE, fillColor: BLUE, fillOpacity: 0.15 }).addTo(map)
+
+      // Offset deterministico por user_id (sem Math.random — posição consistente)
+      function deterministicOffset(uid, scale) {
+        let h1 = 0, h2 = 0
+        for (let i = 0; i < uid.length; i++) { h1 = ((h1 << 5) - h1) + uid.charCodeAt(i); h1 |= 0 }
+        for (let i = uid.length - 1; i >= 0; i--) { h2 = ((h2 << 5) - h2) + uid.charCodeAt(i); h2 |= 0 }
+        return [(h1 / 0x7fffffff) * scale, (h2 / 0x7fffffff) * scale]
+      }
 
       // Markers por check-in
       data.checkins.forEach(ci => {
@@ -186,9 +194,12 @@ export default function Dashboard() {
         const color = prof.avatar_color || VL
         const s = (ci.status || '').toLowerCase()
         let lat, lng
-        if (ci.latitude && ci.longitude) { lat = parseFloat(ci.latitude); lng = parseFloat(ci.longitude) }
-        else if (s === 'escritorio') { lat = office[0] + (Math.random() - 0.5) * 0.003; lng = office[1] + (Math.random() - 0.5) * 0.003 }
-        else { lat = office[0] + (Math.random() - 0.5) * 0.02; lng = office[1] + (Math.random() - 0.5) * 0.02 }
+        if (ci.latitude && ci.longitude) {
+          lat = parseFloat(ci.latitude); lng = parseFloat(ci.longitude)
+        } else {
+          const [dLat, dLng] = deterministicOffset(ci.user_id, 0.004)
+          lat = office[0] + dLat; lng = office[1] + dLng
+        }
         positioned.push([lat, lng])
 
         const icon = L.divIcon({
@@ -200,11 +211,12 @@ export default function Dashboard() {
           .bindPopup(`<b style="font-family:Montserrat">${prof.full_name}</b><br>${typeInfo.icon} ${typeInfo.label}<br>${ci.location || ''}`)
       })
 
-      // Membros sem check-in
+      // Membros sem check-in — posição determinística no entorno do escritório
       data.profiles.filter(p => !data.checkins.find(c => c.user_id === p.id)).forEach(p => {
         const initials = p.initials || p.full_name?.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() || '?'
-        const lat = office[0] + (Math.random() - 0.5) * 0.04
-        const lng = office[1] + (Math.random() - 0.5) * 0.04
+        const [dLat, dLng] = deterministicOffset(p.id, 0.008)
+        const lat = office[0] + dLat
+        const lng = office[1] + dLng
         positioned.push([lat, lng])
         const icon = L.divIcon({
           html: `<div style="background:#9CA3AF;color:white;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;font-family:Montserrat,sans-serif;border:2px solid white;opacity:0.6">${initials}</div>`,

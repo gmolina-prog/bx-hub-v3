@@ -201,6 +201,7 @@ export default function CRM() {
         type: interactionForm.type,
         content: interactionForm.notes.trim(),
         date: new Date().toISOString().slice(0, 10),
+        created_by: profile.id,  // B-06: necessário para RLS e NOT NULL
       }
       const { error: iErr } = await supabase.from('client_interactions').insert([payload])
       if (iErr) throw iErr
@@ -209,6 +210,7 @@ export default function CRM() {
       await loadAll()
       showSuccess('Interação registrada')
     } catch (err) {
+      console.error('[CRM] client_interactions:', err)
       alert('Erro ao registrar interação: ' + err.message)
     } finally {
       setSubmitting(false)

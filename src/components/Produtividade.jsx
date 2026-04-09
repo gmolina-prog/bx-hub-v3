@@ -189,13 +189,38 @@ export default function Produtividade() {
       u.breakdown.routines += SCORE_WEIGHTS.routineCompleted
     })
 
-    // Check-ins
+    // Check-ins + streak
     checkins.forEach(c => {
       if (!scores.has(c.user_id)) return
       const u = scores.get(c.user_id)
       u.checkIns++
       u.score += SCORE_WEIGHTS.checkInDay
       u.breakdown.checkins += SCORE_WEIGHTS.checkInDay
+    })
+
+    // Streak: dias consecutivos com check-in (calcula por usuário)
+    const ciByUser = {}
+    checkins.forEach(c => {
+      if (!ciByUser[c.user_id]) ciByUser[c.user_id] = new Set()
+      ciByUser[c.user_id].add(c.date)
+    })
+    Object.entries(ciByUser).forEach(([uid, dates]) => {
+      if (!scores.has(uid)) return
+      const u = scores.get(uid)
+      const sorted = Array.from(dates).sort().reverse()
+      let streak = 0
+      let cursor = new Date(); cursor.setHours(0,0,0,0)
+      for (let i = 0; i < 60; i++) {
+        const d = cursor.toISOString().slice(0,10)
+        if (sorted.includes(d)) { streak++ } else { break }
+        cursor.setDate(cursor.getDate() - 1)
+      }
+      u.streak = streak
+      if (streak >= 3) {
+        const bonus = Math.min(streak, 14) * SCORE_WEIGHTS.streakBonus
+        u.score += bonus
+        u.breakdown.bonus += bonus
+      }
     })
 
     return Array.from(scores.values()).sort((a, b) => b.score - a.score)
@@ -490,6 +515,9 @@ export default function Produtividade() {
                       <td className="px-4 py-3 text-center font-bold text-emerald-700">{u.tasksDone}</td>
                       <td className="px-4 py-3 text-center font-bold text-rose-700">{u.tasksLate || '0'}</td>
                       <td className="px-4 py-3 text-center text-violet-700 font-semibold">{u.checkIns}</td>
+                      <td className="px-4 py-3 text-center">
+                        {u.streak >= 3 ? <span className="text-sm font-bold text-amber-600">🔥 {u.streak}d</span> : <span className="text-xs text-zinc-400">{u.streak || 0}d</span>}
+                      </td>
                     </tr>
                   )
                 })}

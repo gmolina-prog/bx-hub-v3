@@ -26,7 +26,6 @@ export default function Configuracoes() {
   const [error, setError] = useState(null)
   const [fullName, setFullName] = useState('')
   const [initials, setInitials] = useState('')
-  const [role, setRole] = useState('')
   const [email, setEmail] = useState('')
   const [avatarColor, setAvatarColor] = useState(VL)
   const [location, setLocation] = useState('escritorio')
@@ -42,7 +41,6 @@ export default function Configuracoes() {
     if (!profile) return
     setFullName(profile.full_name || '')
     setInitials(profile.initials || '')
-    setRole(profile.role || '')
     setEmail(profile.email || '')
     setAvatarColor(profile.avatar_color || VL)
     setLocation(profile.location || 'escritorio')
@@ -60,7 +58,8 @@ export default function Configuracoes() {
     const { error: err } = await supabase.from('profiles').update({
       full_name: fullName,
       initials: initials || autoInitials(fullName),
-      role, avatar_color: avatarColor, location,
+      // 'role' removido: apenas admin pode alterar via /admin
+      avatar_color: avatarColor, location,
     }).eq('id', profile.id)
     if (err) { feedback(err.message, true) } else { await refreshProfile(); feedback('Perfil atualizado com sucesso.') }
     setSaving(false)
@@ -129,9 +128,12 @@ export default function Configuracoes() {
                   <input className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500 uppercase" maxLength={2} value={initials} onChange={e => setInitials(e.target.value.toUpperCase())} placeholder={autoInitials(fullName)} />
                 </div>
                 <div>
-                  <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Cargo</label>
-                  <input className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500" value={role} onChange={e => setRole(e.target.value)} />
+                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Nível de acesso</label>
+                <div className="w-full border border-zinc-100 rounded-lg px-3 py-2.5 text-sm bg-zinc-50 text-zinc-500 flex items-center gap-2">
+                  <span className="text-[11px] font-bold px-2 py-0.5 rounded" style={{ background: '#EEF2FF', color: '#5452C1' }}>{profile?.role || '—'}</span>
+                  <span className="text-xs text-zinc-400">Só admin pode alterar</span>
                 </div>
+              </div>
                 <div>
                   <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">E-mail</label>
                   <input className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm bg-zinc-50 text-zinc-500" value={email} readOnly />
