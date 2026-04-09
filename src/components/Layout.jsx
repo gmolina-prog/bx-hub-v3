@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { Settings, Bell, MapPin, X, Check, CheckCheck, LogOut, ChevronRight } from 'lucide-react'
 import Sidebar from './Sidebar'
 import { supabase } from '../lib/supabase'
+import { toast } from './Toast'
 import { useData } from '../contexts/DataContext'
 
 const CH = '#2D2E39', VL = '#5452C1'
@@ -192,27 +193,35 @@ function CheckInPanel({ profile, onClose }) {
   async function doCheckIn() {
     if (!selectedType) return
     setSaving(true)
-    // Fechar check-ins abertos do dia
-    const today = new Date().toISOString().split('T')[0]
-    await supabase.from('check_ins').update({ check_out_time: new Date().toISOString() })
-      .eq('user_id', profile.id).eq('org_id', profile.org_id).eq('date', today).is('check_out_time', null)
+    try {
+      // Fechar check-ins abertos do dia
+      const today = new Date().toISOString().split('T')[0]
+      await supabase.from('check_ins').update({ check_out_time: new Date().toISOString() })
+        .eq('user_id', profile.id).eq('org_id', profile.org_id).eq('date', today).is('check_out_time', null)
 
-    const payload = {
-      org_id: profile.org_id,
-      user_id: profile.id,
-      status: selectedType,
-      date: today,
-      check_in_time: new Date().toISOString(),
-      activity: clientName || null,
-      location: location || null,
-      latitude: gps?.lat || null,
-      longitude: gps?.lng || null,
+      const payload = {
+        org_id: profile.org_id,
+        user_id: profile.id,
+        status: selectedType,
+        date: today,
+        check_in_time: new Date().toISOString(),
+        activity: clientName || null,
+        location: location || null,
+        latitude: gps?.lat || null,
+        longitude: gps?.lng || null,
+      }
+      const { data, error } = await supabase.from('check_ins').insert(payload).select().single()
+      if (error) throw error
+      setCurrentCI(data)
+      setSelectedType(null)
+      setClientName('')
+    } catch (err) {
+      console.error('[CheckIn]', err.message)
+      // toast não disponível aqui (componente isolado) — usar alert mínimo
+      toast.error('Erro ao registrar check-in: ' + err.message)
+    } finally {
+      setSaving(false)
     }
-    const { data } = await supabase.from('check_ins').insert(payload).select().single()
-    setCurrentCI(data)
-    setSelectedType(null)
-    setClientName('')
-    setSaving(false)
   }
 
   async function doCheckOut() {

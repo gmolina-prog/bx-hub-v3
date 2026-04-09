@@ -277,7 +277,8 @@ export default function Notas() {
       type, title, content_html: content_html || '', project_id, company_id,
       pinned: false, status: 'draft', meeting_data: meeting_data || null, tags: [],
     }).select().single()
-    if (!error && data) {
+    if (error) { toast.error('Erro ao criar nota: ' + error.message); return }
+    if (data) {
       setNotes(prev => [data, ...prev])
       setSelectedId(data.id)
       setShowNew(false)

@@ -551,6 +551,17 @@ export default function Captacao() {
                               {aging.label}
                             </div>
                           </div>
+                          {/* B-74: botões de mover de stage */}
+                          <div className="flex gap-1 mt-2 pt-2 border-t border-zinc-100">
+                            {STAGES.filter(s => s.id !== item.stage).map(s => (
+                              <button key={s.id}
+                                onClick={e => { e.stopPropagation(); moveItem(item.id, s.id) }}
+                                className="flex-1 text-[9px] font-bold py-1 rounded border border-zinc-200 hover:border-violet-400 hover:text-violet-600 hover:bg-violet-50 text-zinc-500 transition-all truncate"
+                                title={`Mover para ${s.label}`}>
+                                → {s.label}
+                              </button>
+                            ))}
+                          </div>
                         </div>
                       )
                     })

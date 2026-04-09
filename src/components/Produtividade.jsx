@@ -524,6 +524,43 @@ export default function Produtividade() {
               </tbody>
             </table>
           </div>
+          {/* B-75: Total de horas registradas */}
+          <div className="bg-white border border-zinc-200 rounded-xl p-5 md:col-span-2">
+            <h2 className="text-sm font-bold text-zinc-800 mb-4 flex items-center gap-2">
+              <Clock className="w-4 h-4 text-violet-600" />
+              Horas registradas no período
+            </h2>
+            <div className="flex items-center gap-6 flex-wrap">
+              <div>
+                <div className="text-4xl font-bold text-violet-700">{analytics.totalHours.toFixed(1)}h</div>
+                <div className="text-xs text-zinc-500 mt-1">total do time</div>
+              </div>
+              {userScores.length > 0 && (
+                <div className="flex-1 space-y-2">
+                  {userScores
+                    .map(u => ({
+                      ...u,
+                      hours: tasks.filter(t => t.assigned_to === u.profile.id && t.hours_logged).reduce((s, t) => s + (parseFloat(t.hours_logged) || 0), 0)
+                    }))
+                    .filter(u => u.hours > 0)
+                    .sort((a, b) => b.hours - a.hours)
+                    .slice(0, 5)
+                    .map(u => {
+                      const pct = analytics.totalHours > 0 ? (u.hours / analytics.totalHours) * 100 : 0
+                      return (
+                        <div key={u.profile.id} className="flex items-center gap-3">
+                          <div className="text-xs font-semibold text-zinc-700 w-28 truncate">{u.profile.full_name?.split(' ')[0]}</div>
+                          <div className="flex-1 h-2 bg-zinc-100 rounded-full overflow-hidden">
+                            <div className="h-full bg-violet-500" style={{ width: `${pct}%` }} />
+                          </div>
+                          <div className="text-xs font-bold text-zinc-700 w-12 text-right">{u.hours.toFixed(1)}h</div>
+                        </div>
+                      )
+                    })}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
 

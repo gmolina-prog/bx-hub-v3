@@ -76,8 +76,16 @@ export default function Reembolsos() {
 
   async function deleteReport(id) {
     if (!await confirm('Excluir este relatório?', { danger: true, confirmLabel: 'Excluir', cancelLabel: 'Cancelar' })) return
-    await supabase.from('expense_items').delete().eq('report_id', id)
-    await supabase.from('expense_reports').delete().eq('id', id).eq('org_id', profile.org_id); await load()
+    try {
+      const { error: e1 } = await supabase.from('expense_items').delete().eq('report_id', id)
+      if (e1) throw e1
+      const { error: e2 } = await supabase.from('expense_reports').delete().eq('id', id).eq('org_id', profile.org_id)
+      if (e2) throw e2
+      await load()
+      toast.success('Relatório excluído')
+    } catch (err) {
+      toast.error('Erro ao excluir relatório: ' + err.message)
+    }
   }
 
   async function addItem(reportId) {

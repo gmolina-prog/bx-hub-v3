@@ -41,15 +41,17 @@ const ICONS = {
 
 function ToastItem({ toast: t, onRemove }) {
   const [visible, setVisible] = useState(false)
+  const mountedRef = React.useRef(true)
 
   useEffect(() => {
-    // Slide in
-    requestAnimationFrame(() => setVisible(true))
+    mountedRef.current = true
+    requestAnimationFrame(() => { if (mountedRef.current) setVisible(true) })
     const timer = setTimeout(() => {
+      if (!mountedRef.current) return
       setVisible(false)
-      setTimeout(() => onRemove(t.id), 300)
+      setTimeout(() => { if (mountedRef.current) onRemove(t.id) }, 300)
     }, t.duration || 3500)
-    return () => clearTimeout(timer)
+    return () => { mountedRef.current = false; clearTimeout(timer) }
   }, [])
 
   const cfg = ICONS[t.type] || ICONS.success
@@ -68,7 +70,7 @@ function ToastItem({ toast: t, onRemove }) {
     >
       <Icon className="w-4 h-4 shrink-0 mt-0.5" style={{ color: cfg.color }} />
       <p className="flex-1 text-sm font-semibold" style={{ color: '#2D2E39' }}>{t.message}</p>
-      <button onClick={() => { setVisible(false); setTimeout(() => onRemove(t.id), 300) }}
+      <button onClick={() => { setVisible(false); setTimeout(() => { if (mountedRef.current) onRemove(t.id) }, 300) }}
         className="shrink-0 hover:opacity-70 transition-opacity">
         <X className="w-3.5 h-3.5 text-zinc-400" />
       </button>
