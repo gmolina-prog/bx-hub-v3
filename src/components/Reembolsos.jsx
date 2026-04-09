@@ -14,8 +14,8 @@ const STATUS = {
   pago:      { label: 'Pago',      color: '#3B82F6', bg: '#EFF6FF', next: null },
   rejeitado: { label: 'Rejeitado', color: '#EF4444', bg: '#FEF2F2', next: null },
 }
-const CATS = ['transporte','refeicao','material','hospedagem','outros']
-const CAT_LABELS = { transporte:'Transporte', refeicao:'Refeição', material:'Material', hospedagem:'Hospedagem', outros:'Outros' }
+const CATS = ['transporte','km','refeicao','material','hospedagem','outros']
+const CAT_LABELS = { transporte:'Transporte', km:'Transporte por KM', refeicao:'Refeição', material:'Material', hospedagem:'Hospedagem', outros:'Outros' }
 
 function fmtBRL(v) { return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(v) || 0) }
 
@@ -32,7 +32,7 @@ export default function Reembolsos() {
   const [showNew, setShowNew] = useState(false)
   const [newTitle, setNewTitle] = useState('')
   const [addingItem, setAddingItem] = useState(null)
-  const [newItem, setNewItem] = useState({ category: 'refeicao', description: '', value: '', date: '' })
+  const [newItem, setNewItem] = useState({ category: 'refeicao', description: '', value: '', date: '', km: '', km_rate: '0.60' })
 
   const load = useCallback(async () => {
     if (!profile) return
@@ -111,7 +111,7 @@ export default function Reembolsos() {
       const repItems = [...(items[reportId] || []), { amount: val }]
       const total = repItems.reduce((s, it) => s + (parseFloat(it.amount) || 0), 0)
       await supabase.from('expense_reports').update({ total_amount: total }).eq('id', reportId).eq('org_id', profile.org_id)
-      setAddingItem(null); setNewItem({ category: 'refeicao', description: '', value: '', date: '' })
+      setAddingItem(null); setNewItem({ category: 'refeicao', description: '', value: '', date: '', km: '', km_rate: '0.60' })
       await load()
     } catch (err) {
       toast.error('Erro ao adicionar item: ' + err.message)
@@ -254,7 +254,27 @@ export default function Reembolsos() {
                           </select>
                           <input className="col-span-2 border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500" placeholder="Descrição *" value={newItem.description} onChange={e => setNewItem(p => ({...p, description: e.target.value}))} />
                           <input type="date" className="border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500" value={newItem.date} onChange={e => setNewItem(p => ({...p, date: e.target.value}))} />
-                          <input className="border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500" placeholder="Valor (R$) *" value={newItem.value} onChange={e => setNewItem(p => ({...p, value: e.target.value}))} />
+                          {newItem.category === 'km' ? (
+                            <>
+                              <input type="number" min="0" step="0.1"
+                                className="border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500"
+                                placeholder="Distância (km) *"
+                                value={newItem.km} onChange={e => setNewItem(p => ({...p, km: e.target.value}))} />
+                              <div className="flex items-center gap-1">
+                                <input type="number" min="0" step="0.01"
+                                  className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500"
+                                  placeholder="R$/km"
+                                  value={newItem.km_rate} onChange={e => setNewItem(p => ({...p, km_rate: e.target.value}))} />
+                              </div>
+                              {newItem.km && newItem.km_rate && (
+                                <div className="col-span-2 text-xs text-violet-700 font-semibold bg-violet-50 px-3 py-1.5 rounded-lg">
+                                  Total: {fmtBRL(parseFloat(newItem.km || 0) * parseFloat(newItem.km_rate || 0.60))}
+                                </div>
+                              )}
+                            </>
+                          ) : (
+                            <input className="border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500" placeholder="Valor (R$) *" value={newItem.value} onChange={e => setNewItem(p => ({...p, value: e.target.value}))} />
+                          )}
                         </div>
                         <div className="flex gap-3">
                           <button onClick={() => addItem(report.id)} disabled={saving || !newItem.description.trim() || !newItem.value}

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
-import { Plus, X, Save, Trash2, Search, AlertCircle, Check, Clock, User, FolderOpen, Flag, MessageSquare, CheckSquare, MoreHorizontal, Archive } from 'lucide-react'
+import { Plus, X, Save, Trash2, Search, AlertCircle, Check, Clock, User, FolderOpen, Flag, MessageSquare, CheckSquare, MoreHorizontal, Archive, RefreshCw } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { logActivity } from '../lib/activityLog'
 import { isLeaderRole } from '../lib/roles'
@@ -349,11 +349,36 @@ export default function Kanban() {
   const [dragging, setDragging] = useState(null)
   const [dragOver, setDragOver] = useState(null)
 
+  function exportCSV() {
+    const rows = [
+      ['Título','Status','Prioridade','Responsável','Projeto','Vencimento','Horas'],
+      ...tasks.map(t => {
+        const prof = profMap[t.assigned_to]
+        const proj = projMap[t.project_id]
+        const col  = { todo: 'A Fazer', doing: 'Executando', review: 'Revisão', done: 'Concluído' }
+        return [
+          `"${(t.title || '').replace(/"/g,'""')}"`,
+          col[t.column_id] || t.column_id,
+          t.priority || '',
+          prof?.full_name || '',
+          proj?.name || '',
+          t.due_date ? t.due_date.slice(0,10) : '',
+          t.hours_logged || '',
+        ].join(',')
+      })
+    ]
+    const blob = new Blob([rows.join('\n')], { type: 'text/csv;charset=utf-8;' })
+    const url  = URL.createObjectURL(blob)
+    const a    = document.createElement('a')
+    a.href = url; a.download = `kanban_${new Date().toISOString().slice(0,10)}.csv`
+    a.click(); URL.revokeObjectURL(url)
+  }
+
   const load = useCallback(async () => {
     if (!profile) return
     setLoading(true)
     const [tasksR, projR, profR] = await Promise.allSettled([
-      supabase.from('tasks').select('*').eq('org_id', profile.org_id).is('deleted_at', null).order('created_at', { ascending: false }).limit(500),
+      supabase.from('tasks').select('*').eq('org_id', profile.org_id).is('deleted_at', null).eq('is_archived', false).order('created_at', { ascending: false }).limit(500),
       supabase.from('projects').select('id,name').eq('org_id', profile.org_id).order('name'),
       supabase.from('profiles').select('id,full_name,initials,avatar_color').eq('org_id', profile.org_id).order('full_name'),
     ])
@@ -364,6 +389,12 @@ export default function Kanban() {
   }, [profile])
 
   useEffect(() => { load() }, [load])
+
+  // B-147: polling a cada 90s para colaboração em tempo real
+  useEffect(() => {
+    const interval = setInterval(() => { load() }, 90 * 1000)
+    return () => clearInterval(interval)
+  }, [load])
 
   const filtered = tasks.filter(t => {
     const matchSearch  = !search || t.title?.toLowerCase().includes(search.toLowerCase())
@@ -649,6 +680,13 @@ export default function Kanban() {
             <X className="w-3 h-3" /> Limpar filtros
           </button>
         )}
+        <button onClick={load} title="Atualizar" className="p-2 border border-zinc-200 rounded-lg hover:bg-zinc-50 transition-colors">
+          <RefreshCw className="w-4 h-4 text-zinc-500" />
+        </button>
+        <button onClick={exportCSV} title="Exportar CSV"
+          className="flex items-center gap-1.5 text-xs font-semibold text-zinc-600 border border-zinc-200 px-3 py-2 rounded-lg hover:bg-zinc-50 transition-colors">
+          ↓ CSV
+        </button>
         <button onClick={() => openNew()} className="flex items-center gap-2 bg-violet-600 text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-violet-700 transition-colors">
           <Plus className="w-4 h-4" /> Nova tarefa
         </button>
@@ -658,7 +696,7 @@ export default function Kanban() {
       {(filterProject !== 'all' || filterPriority !== 'all' || filterAssignee !== 'all' || search) && (
         <div className="flex items-center gap-2 px-1 mb-2">
           <span className="text-xs text-zinc-500">
-            Exibindo <span className="font-bold text-violet-700">{filtered.length}</span> de {tasks.filter(t => !t.is_archived).length} tarefas
+            Exibindo <span className="font-bold text-violet-700">{filtered.length}</span> de {tasks.length} tarefas
           </span>
           {filtered.length === 0 && (
             <span className="text-xs text-amber-600 font-semibold">
