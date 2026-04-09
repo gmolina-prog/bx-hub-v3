@@ -80,7 +80,8 @@ function TaskModal({ task, projects, profiles, onClose, onSave, onDelete, onArch
 
   async function handleSave() {
     setSaving(true)
-    await onSave({ ...form, checklist: subtasks, id: task.id, _prevEmergency: task.is_emergency, _prevAssignedTo: task.assigned_to })
+    const { _newTag: _nt, ...cleanForm } = form
+    await onSave({ ...cleanForm, checklist: subtasks, id: task.id, _prevEmergency: task.is_emergency, _prevAssignedTo: task.assigned_to })
     setSaving(false)
   }
 
@@ -226,6 +227,67 @@ function TaskModal({ task, projects, profiles, onClose, onSave, onDelete, onArch
                   className={`w-12 h-6 rounded-full transition-colors relative ${form.is_emergency ? 'bg-red-500' : 'bg-zinc-300'}`}>
                   <div className={`w-5 h-5 bg-white rounded-full shadow absolute top-0.5 transition-all ${form.is_emergency ? 'left-6' : 'left-0.5'}`} />
                 </button>
+              </div>
+
+              {/* ── PERSONALIZAÇÃO (cor, tags, favorito) ── */}
+              <div className="border-t border-zinc-100 pt-3 space-y-3">
+                {/* is_starred toggle */}
+                <div className="flex items-center justify-between">
+                  <div className="text-xs font-semibold text-zinc-700 flex items-center gap-1.5">
+                    ⭐ Favoritar tarefa
+                  </div>
+                  <button onClick={() => setForm(p => ({ ...p, is_starred: !p.is_starred }))}
+                    className={`w-10 h-5 rounded-full transition-colors relative ${form.is_starred ? 'bg-amber-400' : 'bg-zinc-200'}`}>
+                    <div className={`w-4 h-4 bg-white rounded-full shadow absolute top-0.5 transition-all ${form.is_starred ? 'left-5' : 'left-0.5'}`} />
+                  </button>
+                </div>
+
+                {/* cover_color */}
+                <div>
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1.5">Cor do card</div>
+                  <div className="flex gap-1.5 flex-wrap">
+                    {['#5452C1','#10B981','#F59E0B','#EF4444','#3B82F6','#8B5CF6','#EC4899','#6B7280','#2D2E39'].map(col => (
+                      <button key={col}
+                        onClick={() => setForm(p => ({ ...p, cover_color: p.cover_color === col ? '' : col }))}
+                        className={`w-6 h-6 rounded-full ring-offset-1 transition-all ${form.cover_color === col ? 'ring-2 ring-zinc-500 scale-110' : 'hover:scale-110'}`}
+                        style={{ background: col }} />
+                    ))}
+                    {form.cover_color && (
+                      <button onClick={() => setForm(p => ({ ...p, cover_color: '' }))}
+                        className="text-[10px] text-zinc-400 hover:text-zinc-600 px-1">limpar</button>
+                    )}
+                  </div>
+                </div>
+
+                {/* tags */}
+                <div>
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1.5">Tags</div>
+                  <div className="flex flex-wrap gap-1 mb-1.5">
+                    {(form.tags || []).map((tag, i) => (
+                      <span key={i} className="inline-flex items-center gap-1 text-[10px] font-bold bg-violet-100 text-violet-700 px-2 py-0.5 rounded-full">
+                        {tag}
+                        <button onClick={() => setForm(p => ({ ...p, tags: p.tags.filter((_, j) => j !== i) }))} className="hover:text-red-600">×</button>
+                      </span>
+                    ))}
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      className="flex-1 border border-zinc-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-violet-500"
+                      placeholder="Nova tag… (Enter)"
+                      value={form._newTag || ''}
+                      onChange={e => setForm(p => ({ ...p, _newTag: e.target.value }))}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter' && form._newTag?.trim()) {
+                          setForm(p => ({ ...p, tags: [...(p.tags || []), p._newTag.trim()], _newTag: '' }))
+                        }
+                      }} />
+                    <button
+                      onClick={() => { if (form._newTag?.trim()) setForm(p => ({ ...p, tags: [...(p.tags || []), p._newTag.trim()], _newTag: '' })) }}
+                      className="px-2 py-1.5 bg-violet-600 text-white text-xs rounded-lg hover:bg-violet-500">
+                      + Tag
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           )}
