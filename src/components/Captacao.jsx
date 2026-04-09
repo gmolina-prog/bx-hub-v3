@@ -693,9 +693,24 @@ function DealModal({ item, stages, stageProbabilities, profiles, companies, inst
   const [newContact, setNewContact] = useState('')
 
   // Histórico de contato simulado a partir das notas + last_contact
+  // B-87: parsear notes para extrair entradas de histórico no formato "[DD/MM/AAAA] texto"
   const contacts = []
-  if (item.last_contact) contacts.push({ date: item.last_contact, text: 'Último contato registrado', type: 'phone' })
-  if (item.next_action) contacts.push({ date: item.expected_close || new Date().toISOString(), text: `Próxima ação: ${item.next_action}`, type: 'action' })
+  if (form.notes) {
+    const lines = form.notes.split('\n').filter(Boolean)
+    lines.forEach(line => {
+      const m = line.match(/^\[([\d/]+)\]\s*(.+)/)
+      if (m) {
+        // Converter data BR para ISO para comparação
+        const parts = m[1].split('/')
+        const dateISO = parts.length === 3 ? `${parts[2]}-${parts[1]}-${parts[0]}` : null
+        contacts.push({ date: dateISO, text: m[2], type: 'note' })
+      } else if (line.trim()) {
+        contacts.push({ date: null, text: line.trim(), type: 'note' })
+      }
+    })
+  }
+  if (item.last_contact && contacts.length === 0) contacts.push({ date: item.last_contact, text: 'Último contato registrado', type: 'phone' })
+  if (item.next_action) contacts.push({ date: item.expected_close || null, text: `Próxima ação: ${item.next_action}`, type: 'action' })
 
   async function save() {
     setSaving(true)
@@ -884,7 +899,7 @@ function DealModal({ item, stages, stageProbabilities, profiles, companies, inst
                   {contacts.map((c, i) => (
                     <div key={i} className="flex gap-3 p-3 bg-zinc-50 rounded-lg">
                       <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0" style={{ background: '#EEF2FF' }}>
-                        {c.type === 'phone' ? <Phone className="w-4 h-4" style={{ color: VL }} /> : <Edit3 className="w-4 h-4" style={{ color: AMBER }} />}
+                        {c.type === 'phone' ? <Phone className="w-4 h-4" style={{ color: VL }} /> : c.type === 'action' ? <Edit3 className="w-4 h-4" style={{ color: AMBER }} /> : <MessageSquare className="w-4 h-4" style={{ color: VL }} />}
                       </div>
                       <div>
                         <div className="text-sm font-semibold text-zinc-800">{c.text}</div>
@@ -900,12 +915,17 @@ function DealModal({ item, stages, stageProbabilities, profiles, companies, inst
                   <input className="flex-1 border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-400"
                     value={newContact} onChange={e => setNewContact(e.target.value)} placeholder="Descreva o contato…"
                     onKeyDown={e => { if (e.key === 'Enter' && newContact.trim()) { setForm(p => ({ ...p, notes: `[${new Date().toLocaleDateString('pt-BR')}] ${newContact}\n` + (p.notes || '') })); setNewContact('') } }} />
-                  <button onClick={() => { if (newContact.trim()) { setForm(p => ({ ...p, notes: `[${new Date().toLocaleDateString('pt-BR')}] ${newContact}\n` + (p.notes || '') })); setNewContact('') } }}
+                  <button onClick={() => {
+                    if (!newContact.trim()) return
+                    const entry = `[${new Date().toLocaleDateString('pt-BR')}] ${newContact}\n`
+                    setForm(p => ({ ...p, notes: entry + (p.notes || '') }))
+                    setNewContact('')
+                  }}
                     className="px-3 py-2 text-white text-xs font-bold rounded-lg" style={{ background: VL }}>
                     + Log
                   </button>
                 </div>
-                <div className="text-[10px] text-zinc-400 mt-1">Registrado nas Notas · Enter para salvar</div>
+                <div className="text-[10px] text-zinc-400 mt-1">Salvo nas Notas · Enter para adicionar</div>
               </div>
             </div>
           )}

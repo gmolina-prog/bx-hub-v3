@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { toast } from './Toast'
 import { useEscapeKey } from '../hooks/useEscapeKey'
@@ -80,7 +81,7 @@ const CRITICALITY_META = {
 
 export default function Cadastro() {
   const { profile } = useData()
-  useEscapeKey(() => { setShowNewCompany(false); setShowNewProfile(false) }, !!(showNewCompany || showNewProfile))
+  useEscapeKey(() => { setShowNewCompany(false); setShowNewProfile(false); setShowNewLabel(false); setShowNewInstitution(false) }, !!(showNewCompany || showNewProfile || showNewLabel || showNewInstitution))
   const [activeTab, setActiveTab] = useState('companies')
   const [companies, setCompanies] = useState([])
   const [profiles, setProfiles] = useState([])
@@ -98,7 +99,13 @@ export default function Cadastro() {
   const [showNewProfile, setShowNewProfile] = useState(false)
   const [newCompanyForm, setNewCompanyForm] = useState({ name: '', cnpj: '', segment: '', criticality: 'medio', status: 'ativo', notes: '' })
   const [newProfileForm, setNewProfileForm] = useState({ full_name: '', email: '', role: 'analyst', cargo: '', phone: '' })
-  const [saving, setSaving] = useState(false)
+  const [saving,        setSaving]        = useState(false)
+  const navigate = useNavigate()
+  // Modais de criação
+  const [showNewLabel, setShowNewLabel]             = useState(false)
+  const [showNewInstitution, setShowNewInstitution] = useState(false)
+  const [newLabelForm, setNewLabelForm]             = useState({ name: '', color: '#5452C1' })
+  const [newInstForm,  setNewInstForm]              = useState({ name: '', type: 'Banco Comercial', contact_name: '', contact_email: '', contact_phone: '', notes: '' })
 
   useEffect(() => {
     if (profile?.org_id) loadAll()
@@ -140,6 +147,47 @@ export default function Cadastro() {
       console.warn(`Tabela ${tableName} nao acessivel:`, err.message)
       setter([])
     }
+  }
+
+  async function createLabel() {
+    if (!newLabelForm.name.trim()) { toast.warning('Preencha o nome da etiqueta'); return }
+    setSaving(true)
+    const { error } = await supabase.from('labels').insert({
+      org_id: profile.org_id,
+      name: newLabelForm.name.trim(),
+      color: newLabelForm.color || '#5452C1',
+    })
+    if (error) { toast.error('Erro ao criar etiqueta: ' + error.message) }
+    else {
+      setNewLabelForm({ name: '', color: '#5452C1' })
+      setShowNewLabel(false)
+      await loadAll()
+      toast.success('Etiqueta criada')
+    }
+    setSaving(false)
+  }
+
+  async function createInstitution() {
+    if (!newInstForm.name.trim()) { toast.warning('Preencha o nome da instituição'); return }
+    setSaving(true)
+    const { error } = await supabase.from('institutions').insert({
+      org_id: profile.org_id,
+      name: newInstForm.name.trim(),
+      type: newInstForm.type,
+      contact_name:  newInstForm.contact_name?.trim()  || null,
+      contact_email: newInstForm.contact_email?.trim() || null,
+      contact_phone: newInstForm.contact_phone?.trim() || null,
+      notes:         newInstForm.notes?.trim()         || null,
+      is_active: true,
+    })
+    if (error) { toast.error('Erro ao criar instituição: ' + error.message) }
+    else {
+      setNewInstForm({ name: '', type: 'Banco Comercial', contact_name: '', contact_email: '', contact_phone: '', notes: '' })
+      setShowNewInstitution(false)
+      await loadAll()
+      toast.success('Instituição cadastrada')
+    }
+    setSaving(false)
   }
 
   async function createCompany() {
@@ -310,11 +358,22 @@ export default function Cadastro() {
               </button>
             )}
             <button
-              onClick={() => { if (activeTab === 'companies') setShowNewCompany(true); else if (activeTab === 'profiles') setShowNewProfile(true) }}
+              onClick={() => {
+                if (activeTab === 'companies')    setShowNewCompany(true)
+                else if (activeTab === 'profiles')     setShowNewProfile(true)
+                else if (activeTab === 'labels')       setShowNewLabel(true)
+                else if (activeTab === 'institutions') setShowNewInstitution(true)
+                else if (activeTab === 'projects')     navigate('/timeline')
+              }}
               className="px-4 py-2 bg-violet-600 hover:bg-violet-500 rounded-lg text-sm font-semibold flex items-center gap-2"
             >
               <Plus className="w-4 h-4" />
-              {activeTab === 'companies' ? 'Nova Empresa' : activeTab === 'profiles' ? 'Novo Colaborador' : 'Novo'}
+              {activeTab === 'companies' ? 'Nova Empresa'
+               : activeTab === 'profiles' ? 'Novo Colaborador'
+               : activeTab === 'labels' ? 'Nova Etiqueta'
+               : activeTab === 'institutions' ? 'Nova Instituição'
+               : activeTab === 'projects' ? 'Novo Projeto →'
+               : 'Novo'}
             </button>
           </div>
         </div>
@@ -626,7 +685,7 @@ export default function Cadastro() {
                       ? 'w-9 h-9 rounded-full text-white flex items-center justify-center font-bold text-xs flex-shrink-0'
                       : 'w-9 h-9 rounded-full bg-gradient-to-br from-violet-500 to-violet-700 text-white flex items-center justify-center font-bold text-xs flex-shrink-0'
                     return (
-                      <tr key={p.id} className="hover:bg-zinc-50">
+                      <tr key={p.id} onClick={() => navigate('/timeline')} className="hover:bg-zinc-50 cursor-pointer hover:bg-violet-50 transition-colors" title="Ver na Timeline">
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-3">
                             <div className={avatarClass} style={avatarStyle}>{initials}</div>
@@ -700,10 +759,10 @@ export default function Cadastro() {
                 </thead>
                 <tbody className="divide-y divide-zinc-100">
                   {projects.map(p => (
-                    <tr key={p.id} className="hover:bg-zinc-50">
+                    <tr key={p.id} onClick={() => navigate('/timeline')} className="hover:bg-zinc-50 cursor-pointer hover:bg-violet-50 transition-colors" title="Ver na Timeline">
                       <td className="px-4 py-3 font-bold text-zinc-800">{p.name || p.title || '—'}</td>
                       <td className="px-4 py-3 text-zinc-600">{p.type || p.project_type || '—'}</td>
-                      <td className="px-4 py-3 text-zinc-600">{p.deadline || p.due_date || p.end_date || '—'}</td>
+                      <td className="px-4 py-3 text-zinc-600">{p.deadline ? new Date(p.deadline).toLocaleDateString('pt-BR') : p.due_date ? new Date(p.due_date).toLocaleDateString('pt-BR') : '—'}</td>
                       <td className="px-4 py-3">
                         {p.status && (
                           <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 uppercase tracking-wide">
@@ -848,6 +907,126 @@ export default function Cadastro() {
                 {saving ? 'Salvando…' : 'Criar Empresa'}
               </button>
               <button onClick={() => setShowNewCompany(false)} className="px-4 text-sm text-zinc-500 hover:text-zinc-700">Cancelar</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* ── Modal Nova Etiqueta ── */}
+    {showNewLabel && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.45)' }}
+        onClick={e => e.target === e.currentTarget && setShowNewLabel(false)}>
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+          <div className="flex items-center justify-between mb-5">
+            <h3 className="text-base font-bold text-zinc-800">Nova Etiqueta</h3>
+            <button onClick={() => setShowNewLabel(false)} className="text-zinc-400 hover:text-zinc-600">
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+          </div>
+          <div className="space-y-3">
+            <div>
+              <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Nome *</label>
+              <input autoFocus className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                value={newLabelForm.name} onChange={e => setNewLabelForm(p => ({...p, name: e.target.value}))} placeholder="Ex: Urgente, RJ, M&A..." />
+            </div>
+            <div>
+              <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Cor</label>
+              <div className="flex items-center gap-3">
+                <input type="color" className="w-10 h-10 rounded-lg border border-zinc-200 cursor-pointer"
+                  value={newLabelForm.color} onChange={e => setNewLabelForm(p => ({...p, color: e.target.value}))} />
+                <div className="flex gap-2 flex-wrap">
+                  {['#5452C1','#EF4444','#F59E0B','#10B981','#3B82F6','#8B5CF6','#EC4899','#2D2E39'].map(col => (
+                    <button key={col} onClick={() => setNewLabelForm(p => ({...p, color: col}))}
+                      className="w-7 h-7 rounded-full ring-offset-1 transition-all"
+                      style={{ background: col, outline: newLabelForm.color === col ? `2px solid ${col}` : 'none', outlineOffset: 2 }} />
+                  ))}
+                </div>
+              </div>
+              {newLabelForm.name && (
+                <div className="mt-2">
+                  <span className="inline-flex items-center gap-2 text-sm font-semibold px-3 py-1 rounded-full"
+                    style={{ background: `${newLabelForm.color}20`, color: newLabelForm.color, border: `1px solid ${newLabelForm.color}40` }}>
+                    <span className="w-2 h-2 rounded-full" style={{ background: newLabelForm.color }} />
+                    {newLabelForm.name}
+                  </span>
+                </div>
+              )}
+            </div>
+            <div className="flex gap-3 pt-2">
+              <button onClick={createLabel} disabled={saving || !newLabelForm.name.trim()}
+                className="flex-1 py-2.5 text-sm font-bold text-white rounded-xl hover:opacity-90 disabled:opacity-50"
+                style={{ background: '#5452C1' }}>
+                {saving ? 'Salvando…' : 'Criar Etiqueta'}
+              </button>
+              <button onClick={() => setShowNewLabel(false)} className="px-4 text-sm text-zinc-500 hover:text-zinc-700">Cancelar</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* ── Modal Nova Instituição ── */}
+    {showNewInstitution && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.45)' }}
+        onClick={e => e.target === e.currentTarget && setShowNewInstitution(false)}>
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+          <div className="flex items-center justify-between mb-5">
+            <h3 className="text-base font-bold text-zinc-800">Nova Instituição</h3>
+            <button onClick={() => setShowNewInstitution(false)} className="text-zinc-400 hover:text-zinc-600">
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+          </div>
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Nome *</label>
+                <input autoFocus className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                  value={newInstForm.name} onChange={e => setNewInstForm(p => ({...p, name: e.target.value}))} placeholder="Ex: Itaú BBA, BNDES..." />
+              </div>
+              <div>
+                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Tipo</label>
+                <select className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                  value={newInstForm.type} onChange={e => setNewInstForm(p => ({...p, type: e.target.value}))}>
+                  <option>Banco Comercial</option>
+                  <option>Banco de Investimento</option>
+                  <option>Fomento</option>
+                  <option>Cooperativa</option>
+                  <option>Fintech</option>
+                  <option>Fundo</option>
+                  <option>Outro</option>
+                </select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Contato</label>
+                <input className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                  value={newInstForm.contact_name} onChange={e => setNewInstForm(p => ({...p, contact_name: e.target.value}))} placeholder="Nome do contato..." />
+              </div>
+              <div>
+                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Telefone</label>
+                <input className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                  value={newInstForm.contact_phone} onChange={e => setNewInstForm(p => ({...p, contact_phone: e.target.value}))} placeholder="+55 11..." />
+              </div>
+            </div>
+            <div>
+              <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">E-mail</label>
+              <input type="email" className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                value={newInstForm.contact_email} onChange={e => setNewInstForm(p => ({...p, contact_email: e.target.value}))} placeholder="contato@banco.com.br" />
+            </div>
+            <div>
+              <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Observações</label>
+              <textarea rows={2} className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500 resize-none"
+                value={newInstForm.notes} onChange={e => setNewInstForm(p => ({...p, notes: e.target.value}))} placeholder="Linhas disponíveis, condições, contatos..." />
+            </div>
+            <div className="flex gap-3 pt-2">
+              <button onClick={createInstitution} disabled={saving || !newInstForm.name.trim()}
+                className="flex-1 py-2.5 text-sm font-bold text-white rounded-xl hover:opacity-90 disabled:opacity-50"
+                style={{ background: '#5452C1' }}>
+                {saving ? 'Salvando…' : 'Cadastrar Instituição'}
+              </button>
+              <button onClick={() => setShowNewInstitution(false)} className="px-4 text-sm text-zinc-500 hover:text-zinc-700">Cancelar</button>
             </div>
           </div>
         </div>

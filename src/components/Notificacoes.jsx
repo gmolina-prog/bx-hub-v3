@@ -77,8 +77,16 @@ export default function Notificacoes() {
   async function clearAll() {
     if (!await confirm('Limpar todas as notificações?', { danger: true, confirmLabel: 'Excluir', cancelLabel: 'Cancelar' })) return
     setActing(true)
-    await supabase.from('notifications').delete().eq('user_id', profile.id).eq('org_id', profile.org_id)
-    setNotifs([]); setActing(false)
+    try {
+      const { error } = await supabase.from('notifications')
+        .delete().eq('user_id', profile.id).eq('org_id', profile.org_id)
+      if (error) throw error
+      setNotifs([])
+    } catch (err) {
+      toast.error('Erro ao limpar notificações: ' + err.message)
+    } finally {
+      setActing(false)
+    }
   }
 
   const filtered = notifs.filter(n => {
