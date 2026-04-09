@@ -50,14 +50,19 @@ export default function Timeline() {
   async function openEdit(p) {
     setEditingProject(p)
     setEditForm({
-      name:       p.name || '',
-      type:       p.type || 'Diagnóstico',
-      status:     p.status || 'Planejamento',
-      company_id: p.company_id || '',
-      analyst_id: p.analyst_id || '',
-      deadline:   p.deadline ? p.deadline.slice(0, 10) : '',
-      priority:   p.priority || 'medium',
-      progress:   p.progress ?? 0,
+      name:          p.name || '',
+      type:          p.type || 'Diagnóstico',
+      status:        p.status || 'Planejamento',
+      company_id:    p.company_id || '',
+      analyst_id:    p.analyst_id || '',
+      associate_id:  p.associate_id || '',
+      executive_id:  p.executive_id || '',
+      deadline:      p.deadline ? p.deadline.slice(0, 10) : '',
+      priority:      p.priority || 'medium',
+      progress:      p.progress ?? 0,
+      budget:        p.budget || '',
+      observacoes:   p.observacoes || '',
+      historico:     p.historico || '',
     })
   }
 
@@ -81,14 +86,19 @@ export default function Timeline() {
     if (!editForm.name?.trim()) { toast.warning('Nome obrigatório'); return }
     setSavingProj(true)
     const { error } = await supabase.from('projects').update({
-      name:       editForm.name.trim(),
-      type:       editForm.type,
-      status:     editForm.status,
-      company_id: editForm.company_id || null,
-      analyst_id: editForm.analyst_id || null,
-      deadline:   editForm.deadline || null,
-      priority:   editForm.priority,
-      progress:   parseInt(editForm.progress) || 0,
+      name:          editForm.name.trim(),
+      type:          editForm.type,
+      status:        editForm.status,
+      company_id:    editForm.company_id || null,
+      analyst_id:    editForm.analyst_id || null,
+      associate_id:  editForm.associate_id || null,
+      executive_id:  editForm.executive_id || null,
+      deadline:      editForm.deadline || null,
+      priority:      editForm.priority,
+      progress:      parseInt(editForm.progress) || 0,
+      budget:        parseFloat(editForm.budget) || null,
+      observacoes:   editForm.observacoes?.trim() || null,
+      historico:     editForm.historico?.trim() || null,
     }).eq('id', editingProject.id).eq('org_id', profile.org_id)
     if (error) { toast.error('Erro ao atualizar: ' + error.message); setSavingProj(false); return }
     setEditingProject(null)
@@ -443,6 +453,45 @@ export default function Timeline() {
                 <input type="date" className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
                   value={form.deadline || ''} onChange={e => setForm(p => ({...p, deadline: e.target.value}))} />
               </div>
+
+              {/* Sócio Responsável + Executivo */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Sócio Responsável</label>
+                  <select className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                    value={form.associate_id || ''} onChange={e => setForm(p => ({...p, associate_id: e.target.value}))}>
+                    <option value="">— nenhum —</option>
+                    {profilesList.filter(p => ['owner','gerente','Gerente'].includes(p.role)).map(p => (
+                      <option key={p.id} value={p.id}>{p.full_name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Executivo</label>
+                  <select className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                    value={form.executive_id || ''} onChange={e => setForm(p => ({...p, executive_id: e.target.value}))}>
+                    <option value="">— nenhum —</option>
+                    {profilesList.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              {/* Orçamento */}
+              <div>
+                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Orçamento (R$)</label>
+                <input type="number" min="0" step="1000" className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                  placeholder="Ex: 50000"
+                  value={form.budget || ''} onChange={e => setForm(p => ({...p, budget: e.target.value}))} />
+              </div>
+
+              {/* Observações */}
+              <div>
+                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Observações</label>
+                <textarea rows={2} className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500 resize-none"
+                  placeholder="Contexto, condições especiais, riscos..."
+                  value={form.observacoes || ''} onChange={e => setForm(p => ({...p, observacoes: e.target.value}))} />
+              </div>
+
               {isEdit && (
                 <div>
                   <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">

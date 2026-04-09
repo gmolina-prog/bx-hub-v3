@@ -224,9 +224,15 @@ export default function CRM() {
   async function updateProposalStage(proposalId, newStatus) {
     try {
       const updates = { status: newStatus }
-      // Se mudou pra enviada e nao tinha sent_date, registra
+      // Se mudou pra enviada, registra data
       if (newStatus === 'enviada') {
         updates.sent_date = new Date().toISOString().slice(0, 10)
+      }
+      // B-172: se perdida, coletar motivo
+      if (newStatus === 'perdida') {
+        const reason = window.prompt('Motivo da perda (opcional):')
+        if (reason === null) return // cancelou
+        if (reason.trim()) updates.loss_reason = reason.trim()
       }
       const { error: uErr } = await supabase
         .from('proposals')

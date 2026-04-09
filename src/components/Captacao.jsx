@@ -781,6 +781,7 @@ function DealModal({ item, stages, stageProbabilities, profiles, companies, inst
     cover_color:      item.cover_color || '',
     tags:             Array.isArray(item.tags) ? item.tags : [],
     checklist:        Array.isArray(item.checklist) ? item.checklist : [],
+    company_id:       item.company_id || '',
   })
   const [newTag,          setNewTag]          = useState('')
   const [newCheckItem,    setNewCheckItem]    = useState('')
@@ -952,6 +953,13 @@ function DealModal({ item, stages, stageProbabilities, profiles, companies, inst
                   <select className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-400" value={form.assigned_to || ''} onChange={e => setForm(p => ({ ...p, assigned_to: e.target.value }))}>
                     <option value="">— nenhum —</option>
                     {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Empresa (Cadastro)</label>
+                  <select className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-400" value={form.company_id || ''} onChange={e => setForm(p => ({ ...p, company_id: e.target.value }))}>
+                    <option value="">— nenhuma —</option>
+                    {companies.map(co => <option key={co.id} value={co.id}>{co.name}</option>)}
                   </select>
                 </div>
                 <div>
