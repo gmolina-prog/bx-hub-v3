@@ -99,14 +99,14 @@ export default function Riscos() {
     }
     const { error: err } = isNew
       ? await supabase.from('risks').insert({ ...safe, org_id: profile.org_id })
-      : await supabase.from('risks').update(safe).eq('id', selected.id)
+      : await supabase.from('risks').update(safe).eq('id', selected.id).eq('org_id', profile.org_id)
     if (err) { setError(err.message); setSaving(false); return }
     await load(); setSelected(null); setIsNew(false); setSaving(false)
   }
 
   async function deleteRisk(id) {
     if (!await confirm('Excluir este risco?', { danger: true, confirmLabel: 'Excluir', cancelLabel: 'Cancelar' })) return
-    await supabase.from('risks').delete().eq('id', id)
+    await supabase.from('risks').delete().eq('id', id).eq('org_id', profile.org_id)
     setSelected(null); await load()
   }
 

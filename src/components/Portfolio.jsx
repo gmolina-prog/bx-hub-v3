@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import { useData } from '../contexts/DataContext'
+import { useNavigate } from 'react-router-dom'
 import {
   Building2,
   Search,
@@ -26,6 +27,7 @@ import {
 
 export default function Portfolio() {
   const { profile } = useData()
+  const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
@@ -443,9 +445,11 @@ export default function Portfolio() {
                   <div className="space-y-2">
                     {selectedCompany.projects.map(function (p) {
                       return (
-                        <div key={p.id} className="p-3 bg-zinc-50 rounded-lg border border-zinc-100">
+                        <div key={p.id}
+                          onClick={() => navigate('/kanban')}
+                          className="p-3 bg-zinc-50 rounded-lg border border-zinc-100 cursor-pointer hover:border-violet-300 hover:bg-violet-50/40 transition-all group">
                           <div className="flex items-start justify-between gap-2 mb-1">
-                            <div className="text-xs font-semibold text-zinc-800 flex-1 min-w-0 truncate">
+                            <div className="text-xs font-semibold text-zinc-800 flex-1 min-w-0 truncate group-hover:text-violet-700">
                               {p.name || 'Sem nome'}
                             </div>
                             {p.priority && (
@@ -454,8 +458,9 @@ export default function Portfolio() {
                               </span>
                             )}
                           </div>
-                          <div className="text-[10px] text-zinc-500">
-                            {p.status || 'Sem status'}
+                          <div className="text-[10px] text-zinc-500 flex items-center justify-between">
+                            <span>{p.status || 'Sem status'}</span>
+                            <span className="text-violet-400 opacity-0 group-hover:opacity-100 text-[9px] font-bold">Ver tarefas →</span>
                           </div>
                         </div>
                       )

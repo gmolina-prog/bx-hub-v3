@@ -381,7 +381,7 @@ export default function Kanban() {
     // Optimistic
     setTasks(t => t.map(x => x.id === dragging.id ? { ...x, column_id: colId } : x))
     setDragging(null); setDragOver(null)
-    const { error: err } = await supabase.from('tasks').update({ column_id: colId }).eq('id', dragging.id)
+    const { error: err } = await supabase.from('tasks').update({ column_id: colId }).eq('id', dragging.id).eq('org_id', profile.org_id)
     if (err) {
       setTasks(t => t.map(x => x.id === dragging.id ? { ...x, column_id: prev } : x))
       setError('Erro ao mover tarefa.')
@@ -408,7 +408,7 @@ export default function Kanban() {
         project_id: form.project_id || null,
         due_date: form.due_date || null, hours_logged: form.hours_logged ? parseFloat(form.hours_logged) : null,
         is_emergency: form.is_emergency || false, checklist: form.checklist || [],
-      }).eq('id', form.id)
+      }).eq('id', form.id).eq('org_id', profile.org_id)
       if (err) { setError(err.message); return }
     }
     await load()

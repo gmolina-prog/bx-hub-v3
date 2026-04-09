@@ -70,7 +70,7 @@ export default function Reembolsos() {
   async function deleteReport(id) {
     if (!await confirm('Excluir este relatório?', { danger: true, confirmLabel: 'Excluir', cancelLabel: 'Cancelar' })) return
     await supabase.from('expense_items').delete().eq('report_id', id)
-    await supabase.from('expense_reports').delete().eq('id', id); await load()
+    await supabase.from('expense_reports').delete().eq('id', id).eq('org_id', profile.org_id); await load()
   }
 
   async function addItem(reportId) {

@@ -240,7 +240,7 @@ export default function CRM() {
   async function deleteProposal(proposalId) {
     if (!confirm('Excluir esta proposta? Esta ação não pode ser desfeita.')) return
     try {
-      const { error: dErr } = await supabase.from('proposals').delete().eq('id', proposalId)
+      const { error: dErr } = await supabase.from('proposals').delete().eq('id', proposalId).eq('org_id', profile.org_id)
       if (dErr) throw dErr
       await loadAll()
       showSuccess('Proposta excluída')

@@ -291,7 +291,7 @@ export default function Notas() {
       setSaveStatus('Salvando...')
       const { error } = await supabase.from('notes').update({
         title, content_html: currentHtml, updated_at: new Date().toISOString()
-      }).eq('id', id)
+      }).eq('id', id).eq('org_id', profile.org_id)
       if (!error) {
         // Atualizar state APENAS após save confirmado — sem re-render durante digitação
         setNotes(prev => prev.map(n =>
@@ -305,7 +305,7 @@ export default function Notas() {
   }
 
   async function archiveNote(id) {
-    await supabase.from('notes').update({ status: 'archived' }).eq('id', id)
+    await supabase.from('notes').update({ status: 'archived' }).eq('id', id).eq('org_id', profile.org_id)
     setNotes(prev => prev.filter(n => n.id !== id))
     setSelectedId(null)
   }
@@ -313,7 +313,7 @@ export default function Notas() {
   async function togglePin(id) {
     const n = notes.find(x => x.id === id)
     if (!n) return
-    await supabase.from('notes').update({ pinned: !n.pinned }).eq('id', id)
+    await supabase.from('notes').update({ pinned: !n.pinned }).eq('id', id).eq('org_id', profile.org_id)
     setNotes(prev => prev.map(x => x.id === id ? { ...x, pinned: !x.pinned } : x))
   }
 
