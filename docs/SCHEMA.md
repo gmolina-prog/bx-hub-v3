@@ -152,3 +152,18 @@ id, expense_report_id, category, value, description, date
 - `check_ins` INSERT precisa `user_id = auth.uid()` E `org_id = profile.org_id`
 - `profiles` UPDATE só do próprio usuário (exceto owner/Gerente)
 - `activity_log` INSERT via trigger (não client direto)
+
+### `chat_channels` (1 row real)
+```
+id, org_id, name, icon, description, is_general, project_id, created_at
+```
+Canal "Grupro Essere" existe. Criar canais adicionais via modal no Chat.
+
+### `chat_messages` (rows reais)
+```
+id, org_id, channel_id, sender_id, content, reactions (jsonb),
+reply_to, is_pinned, mentions (array uuid), read_by (array uuid),
+created_at, updated_at
+```
+**Atenção:** tabela é `chat_messages`, NÃO `project_messages`.
+`reactions` = { "emoji": [user_id, ...] }
