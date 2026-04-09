@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { Hash, Send, Plus, X, Search, Bell, BellOff, Pin, Reply, Smile, MoreHorizontal, Users, Check, CheckCheck, Circle, ChevronDown, AlertCircle, Paperclip, AtSign } from 'lucide-react'
 import { toast } from './Toast'
 import { supabase } from '../lib/supabase'
+import { useEscapeKey } from '../hooks/useEscapeKey'
 import { useData } from '../contexts/DataContext'
 import { useNavigate } from 'react-router-dom'
 
@@ -236,7 +237,7 @@ function Message({ msg, mine, author, allProfiles, onReact, onReply, onPin, repl
 
 // ─── Main Chat ────────────────────────────────────────────────────────────────
 export default function Chat() {
-  const { profile } = useData()
+  const { profile, setUnreadChat } = useData()
   const navigate = useNavigate()
   const [channels, setChannels] = useState([])
   const [activeChannel, setActiveChannel] = useState(null)
@@ -494,6 +495,8 @@ export default function Chat() {
 
   const pinnedMessages = messages.filter(m => m.is_pinned)
   const totalUnread = Object.values(unreadByChannel).reduce((a, b) => a + b, 0)
+  // B-52: sincronizar badge da Sidebar com contagem real
+  React.useEffect(() => { setUnreadChat(totalUnread) }, [totalUnread])
   const onlineIds = new Set(todayCheckins.map(c => c.user_id))
   const onlineCount = profiles.filter(p => onlineIds.has(p.id)).length
 

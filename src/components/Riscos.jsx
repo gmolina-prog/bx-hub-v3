@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { AlertTriangle, Plus, X, Save, Trash2, AlertCircle } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import { useEscapeKey } from '../hooks/useEscapeKey'
 import { useData } from '../contexts/DataContext'
 import { toast, confirm } from './Toast'
 
@@ -37,6 +38,7 @@ function heatColor(score) {
 
 export default function Riscos() {
   const { profile } = useData()
+  useEscapeKey(() => { setSelected(null); setIsNew(false) }, !!(selected))
   const [risks, setRisks] = useState([])
   const [projects, setProjects] = useState([])
   const [profiles, setProfiles] = useState([])

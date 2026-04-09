@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { Plus, X, Save, Trash2, Search, AlertCircle, Check, Clock, User, FolderOpen, Flag, MessageSquare, CheckSquare, MoreHorizontal, Archive } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import { useEscapeKey } from '../hooks/useEscapeKey'
 import { useData } from '../contexts/DataContext'
 import { toast, confirm } from './Toast'
 
@@ -61,6 +62,7 @@ function TaskModal({ task, projects, profiles, onClose, onSave, onDelete, onArch
   const [saving, setSaving] = useState(false)
   const [loadingComments, setLoadingComments] = useState(false)
   const { profile } = useData()
+  useEscapeKey(() => { setModalTask(null) }, !!(modalTask))
 
   // Load comments
   useEffect(() => {

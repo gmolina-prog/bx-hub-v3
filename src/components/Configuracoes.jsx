@@ -60,7 +60,7 @@ export default function Configuracoes() {
       initials: initials || autoInitials(fullName),
       // 'role' removido: apenas admin pode alterar via /admin
       avatar_color: avatarColor, location,
-    }).eq('id', profile.id)
+    }).eq('id', profile.id).eq('org_id', profile.org_id)
     if (err) { feedback(err.message, true) } else { await refreshProfile(); feedback('Perfil atualizado com sucesso.') }
     setSaving(false)
   }

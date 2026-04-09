@@ -1,6 +1,7 @@
 // src/components/Intakes.jsx
 import React, { useEffect, useState, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
+import { useEscapeKey } from '../hooks/useEscapeKey'
 import { useData } from '../contexts/DataContext'
 import { toast, confirm } from './Toast'
 import {
@@ -77,6 +78,7 @@ const SORT_OPTIONS = [
 
 export default function Intakes() {
   const { profile } = useData()
+  useEscapeKey(() => { setSelectedIntake(null) }, !!(selectedIntake))
   const [intakes, setIntakes] = useState([])
   const [companies, setCompanies] = useState([])
   const [loading, setLoading] = useState(false)

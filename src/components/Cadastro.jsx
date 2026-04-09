@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import { toast } from './Toast'
+import { useEscapeKey } from '../hooks/useEscapeKey'
 import { useData } from '../contexts/DataContext'
 import {
   FolderOpen,
@@ -79,6 +80,7 @@ const CRITICALITY_META = {
 
 export default function Cadastro() {
   const { profile } = useData()
+  useEscapeKey(() => { setShowNewCompany(false); setShowNewProfile(false) }, !!(showNewCompany || showNewProfile))
   const [activeTab, setActiveTab] = useState('companies')
   const [companies, setCompanies] = useState([])
   const [profiles, setProfiles] = useState([])

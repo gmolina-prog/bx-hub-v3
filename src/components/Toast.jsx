@@ -81,10 +81,14 @@ function ConfirmDialog({ state, onClose }) {
   if (!state) return null
   const { message, title, confirmLabel, cancelLabel, danger, resolve } = state
 
-  function handle(result) {
-    resolve(result)
-    onClose()
-  }
+  function handle(result) { resolve(result); onClose() }
+
+  // ESC = cancelar (false)
+  React.useEffect(() => {
+    function onKey(e) { if (e.key === 'Escape') handle(false) }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [state])
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4"

@@ -1,6 +1,7 @@
 // src/components/Captacao.jsx
 import React, { useEffect, useState, useMemo, useRef } from 'react'
 import { supabase } from '../lib/supabase'
+import { useEscapeKey } from '../hooks/useEscapeKey'
 import { useData } from '../contexts/DataContext'
 import { toast, confirm } from './Toast'
 import {
@@ -83,6 +84,7 @@ const AGING_THRESHOLDS = {
 
 export default function Captacao() {
   const { profile } = useData()
+  useEscapeKey(() => { setSelectedItem(null) }, !!(selectedItem))
   const [items, setItems] = useState([])
   const [institutions, setInstitutions] = useState([])
   const [profiles, setProfiles] = useState([])

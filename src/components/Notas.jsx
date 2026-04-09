@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
+import { useEscapeKey } from '../hooks/useEscapeKey'
 import { useData } from '../contexts/DataContext'
 
 /* ─── helpers ─── */
@@ -211,6 +212,7 @@ function NewNoteModal({ projects, companies, onCreate, onClose }) {
 /* ─── Main Component ─── */
 export default function Notas() {
   const { profile } = useData()
+  useEscapeKey(() => { setStep('type') }, !!(step !== 'notes' && step !== 'type'))
   const [notes, setNotes] = useState([])
   const [projects, setProjects] = useState([])
   const [companies, setCompanies] = useState([])

@@ -14,6 +14,7 @@ export function DataProvider({ children }) {
   const [session, setSession]           = useState(null)
   const [loading, setLoading]           = useState(true)
   const [unreadNotif, setUnreadNotif]   = useState(0)  // B-14: fonte única de verdade
+  const [unreadChat,  setUnreadChat]    = useState(0)  // B-52: badge Chat na Sidebar
 
   async function loadProfile(user) {
     if (!user) { setProfile(null); return }
@@ -105,6 +106,7 @@ export function DataProvider({ children }) {
     <DataContext.Provider value={{
       profile, session, loading,
       unreadNotif, clearUnread, decrementUnread,
+      unreadChat, setUnreadChat,
       refreshProfile,
     }}>
       {children}

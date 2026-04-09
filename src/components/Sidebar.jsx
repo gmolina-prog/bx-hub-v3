@@ -57,8 +57,7 @@ const SECTIONS = [
 
 export default function Sidebar() {
   const location = useLocation()
-  const { profile, unreadNotif } = useData()
-  const [unreadChat, setUnreadChat] = useState(0)
+  const { profile, unreadNotif, unreadChat } = useData()
 
 
 

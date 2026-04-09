@@ -131,13 +131,16 @@ export default function Dashboard() {
 
     const recentActivity = [...tasks].sort((a, b) => new Date(b.updated_at || 0) - new Date(a.updated_at || 0)).slice(0, 5)
 
-    let health = 50
-    health -= overdue * 5
-    health += doneWeek * 2
-    if (pipeTotal > 1000000) health += 15
-    else if (pipeTotal > 500000) health += 8
+    // Saúde do hub: base 100, descontos por problemas, bônus por resultados
+    let health = 100
+    health -= overdue * 8                            // cada tarefa vencida -8
+    health -= Math.max(0, (doing + todo) - 10) * 2  // excesso de WIP -2 por item
+    health += Math.min(20, doneWeek * 3)             // tarefas entregues esta semana (máx +20)
+    if (pipeTotal > 1000000) health += 10
+    else if (pipeTotal > 500000) health += 5
     const ciPct = profiles.length > 0 ? checkins.length / profiles.length : 0
-    if (ciPct > 0.5) health += 10
+    if (ciPct >= 0.8) health += 5                    // +5 se 80%+ da equipe fez check-in
+    else if (ciPct < 0.3 && profiles.length > 2) health -= 5  // equipe sem check-in
     health = Math.max(0, Math.min(100, Math.round(health)))
 
     const statusIcon = overdue >= 3 ? '🔴' : overdue >= 1 ? '🟡' : '🟢'
