@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Settings, User, Bell, Palette, Shield, Save, Eye, EyeOff, CheckCircle, AlertCircle, X, Key } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import { CARGO_OPTIONS, ROLES } from '../lib/roles'
 import { useData } from '../contexts/DataContext'
 
 const CH = '#2D2E39', VL = '#5452C1'
@@ -25,6 +26,7 @@ export default function Configuracoes() {
   const [success, setSuccess] = useState(null)
   const [error, setError] = useState(null)
   const [fullName, setFullName] = useState('')
+  const [cargo,    setCargo]    = useState('')
   const [initials, setInitials] = useState('')
   const [email, setEmail] = useState('')
   const [avatarColor, setAvatarColor] = useState(VL)
@@ -44,6 +46,7 @@ export default function Configuracoes() {
     setEmail(profile.email || '')
     setAvatarColor(profile.avatar_color || VL)
     setLocation(profile.location || 'escritorio')
+    setCargo(profile.cargo || '')
   }, [profile])
 
   function feedback(msg, isError = false) {
@@ -60,6 +63,7 @@ export default function Configuracoes() {
       initials: initials || autoInitials(fullName),
       // 'role' removido: apenas admin pode alterar via /admin
       avatar_color: avatarColor, location,
+      cargo: cargo?.trim() || null,
     }).eq('id', profile.id).eq('org_id', profile.org_id)
     if (err) { feedback(err.message, true) } else { await refreshProfile(); feedback('Perfil atualizado com sucesso.') }
     setSaving(false)
@@ -130,7 +134,9 @@ export default function Configuracoes() {
                 <div>
                 <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Nível de acesso</label>
                 <div className="w-full border border-zinc-100 rounded-lg px-3 py-2.5 text-sm bg-zinc-50 text-zinc-500 flex items-center gap-2">
-                  <span className="text-[11px] font-bold px-2 py-0.5 rounded" style={{ background: '#EEF2FF', color: '#5452C1' }}>{profile?.role || '—'}</span>
+                  <span className="text-[11px] font-bold px-2 py-0.5 rounded" style={{ background: '#EEF2FF', color: '#5452C1' }}>
+                    {ROLES.find(r => r.value === profile?.role)?.label || profile?.role || '—'}
+                  </span>
                   <span className="text-xs text-zinc-400">Só admin pode alterar</span>
                 </div>
               </div>
@@ -144,6 +150,19 @@ export default function Configuracoes() {
                   <select className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500" value={location} onChange={e => setLocation(e.target.value)}>
                     {LOCATIONS.map(l => <option key={l.value} value={l.value}>{l.label}</option>)}
                   </select>
+                </div>
+                <div>
+                  <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Cargo profissional</label>
+                  <select className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500 bg-white"
+                    value={CARGO_OPTIONS.includes(cargo) ? cargo : (cargo ? 'Outro' : '')}
+                    onChange={e => setCargo(e.target.value === 'Outro' ? '' : e.target.value)}>
+                    <option value="">— selecione —</option>
+                    {CARGO_OPTIONS.map(co => <option key={co} value={co}>{co}</option>)}
+                  </select>
+                  {cargo && !CARGO_OPTIONS.includes(cargo) && (
+                    <input className="w-full mt-1 border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500"
+                      value={cargo} onChange={e => setCargo(e.target.value)} placeholder="Cargo personalizado..." />
+                  )}
                 </div>
               </div>
               <div>

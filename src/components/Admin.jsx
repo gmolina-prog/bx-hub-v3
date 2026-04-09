@@ -46,14 +46,7 @@ const TABS = [
 // Roles reais do banco (valores em PT mistos):
 //   owner, Gerente (capitalizado!), analyst
 // Mantemos admin/senior/viewer como opcoes extras pra evolucao futura.
-const ROLES = [
-  { value: 'owner', label: 'Owner', color: 'bg-violet-100 text-violet-700' },
-  { value: 'admin', label: 'Admin', color: 'bg-rose-100 text-rose-700' },
-  { value: 'Gerente', label: 'Gerente', color: 'bg-amber-100 text-amber-700' },
-  { value: 'senior', label: 'Sênior', color: 'bg-emerald-100 text-emerald-700' },
-  { value: 'analyst', label: 'Analista', color: 'bg-sky-100 text-sky-700' },
-  { value: 'viewer', label: 'Viewer', color: 'bg-zinc-100 text-zinc-600' },
-]
+// ROLES e CARGO_OPTIONS vêm de src/lib/roles.js (fonte única)
 
 // Known integrations catalog (real config comes from `integrations` table if exists)
 const INTEGRATIONS_CATALOG = [
@@ -83,10 +76,10 @@ export default function Admin() {
   const [editingProfile,  setEditingProfile]  = useState(null)
   const [editProfileForm, setEditProfileForm] = useState({})
   const [savingProfile,   setSavingProfile]   = useState(false)
-  const [inviteData, setInviteData] = useState({ email: '', full_name: '', role: 'analyst' })
+  const [inviteData, setInviteData] = useState({ email: '', full_name: '', role: 'analyst', cargo: '' })
   const [inviting, setInviting] = useState(false)
 
-  const isOwner = profile?.role === 'owner' || profile?.role === 'admin'
+  const isOwner   = profile?.role === 'owner'
 
   useEffect(() => {
     if (!profile?.org_id) return
@@ -163,6 +156,7 @@ export default function Admin() {
     setEditingProfile(p)
     setEditProfileForm({
       full_name: p.full_name || '',
+      role:      p.role || 'analyst',
       cargo:     p.cargo || '',
       phone:     p.phone || '',
       location:  p.location || '',
@@ -173,13 +167,17 @@ export default function Admin() {
     if (!editProfileForm.full_name?.trim()) { toast.warning('Nome obrigatório'); return }
     setSavingProfile(true)
     const initials = editProfileForm.full_name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0,2)
-    const { error } = await supabase.from('profiles').update({
+    const updatePayload = {
       full_name: editProfileForm.full_name.trim(),
       initials,
       cargo:    editProfileForm.cargo?.trim() || null,
       phone:    editProfileForm.phone?.trim() || null,
       location: editProfileForm.location?.trim() || null,
-    }).eq('id', editingProfile.id).eq('org_id', profile.org_id)
+    }
+    // Só owner pode alterar role de outros
+    if (isOwner && editProfileForm.role) updatePayload.role = editProfileForm.role
+    const { error } = await supabase.from('profiles').update(updatePayload)
+      .eq('id', editingProfile.id).eq('org_id', profile.org_id)
     if (error) { toast.error('Erro ao atualizar: ' + error.message); setSavingProfile(false); return }
     setEditingProfile(null)
     await loadProfiles()
@@ -189,7 +187,11 @@ export default function Admin() {
 
   async function updateRole(profileId, newRole) {
     if (!isOwner) {
-      toast.warning('Apenas owners/admins podem alterar roles')
+      toast.warning('Apenas owners podem alterar permissões')
+      return
+    }
+    if (!ROLES.find(r => r.value === newRole)) {
+      toast.error('Permissão inválida')
       return
     }
     try {
@@ -229,11 +231,12 @@ export default function Admin() {
           email: inviteData.email.trim(),
           full_name: inviteData.full_name.trim(),
           role: inviteData.role,
+          cargo: inviteData.cargo?.trim() || null,
           initials,
           is_active: true,
         }])
       if (iErr) throw iErr
-      setInviteData({ email: '', full_name: '', role: 'analyst' })
+      setInviteData({ email: '', full_name: '', role: 'analyst', cargo: '' })
       setShowInviteForm(false)
       await loadProfiles()
       showSuccess('Convite registrado. Envie o link de acesso separadamente.')
@@ -356,30 +359,48 @@ export default function Admin() {
                   <X className="w-4 h-4 text-zinc-500" />
                 </button>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-2">
                 <input
                   type="text"
-                  placeholder="Nome completo"
+                  placeholder="Nome completo *"
                   value={inviteData.full_name}
                   onChange={(e) => setInviteData({ ...inviteData, full_name: e.target.value })}
                   className="px-3 py-2 text-sm border border-zinc-200 rounded-lg focus:border-violet-500 focus:outline-none"
                 />
                 <input
                   type="email"
-                  placeholder="email@bxgroup.com.br"
+                  placeholder="email@bxgroup.com.br *"
                   value={inviteData.email}
                   onChange={(e) => setInviteData({ ...inviteData, email: e.target.value })}
                   className="px-3 py-2 text-sm border border-zinc-200 rounded-lg focus:border-violet-500 focus:outline-none"
                 />
-                <select
-                  value={inviteData.role}
-                  onChange={(e) => setInviteData({ ...inviteData, role: e.target.value })}
-                  className="px-3 py-2 text-sm border border-zinc-200 rounded-lg focus:border-violet-500 focus:outline-none bg-white"
-                >
-                  {ROLES.map(r => (
-                    <option key={r.value} value={r.value}>{r.label}</option>
-                  ))}
-                </select>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+                <div>
+                  <select
+                    value={inviteData.role}
+                    onChange={(e) => setInviteData({ ...inviteData, role: e.target.value })}
+                    className="w-full px-3 py-2 text-sm border border-zinc-200 rounded-lg focus:border-violet-500 focus:outline-none bg-white"
+                  >
+                    {ROLES.map(r => (
+                      <option key={r.value} value={r.value}>{r.label}</option>
+                    ))}
+                  </select>
+                  <p className="text-[10px] text-zinc-400 mt-1">
+                    {ROLES.find(r => r.value === inviteData.role)?.desc}
+                  </p>
+                </div>
+                <div>
+                  <select
+                    value={inviteData.cargo}
+                    onChange={(e) => setInviteData({ ...inviteData, cargo: e.target.value })}
+                    className="w-full px-3 py-2 text-sm border border-zinc-200 rounded-lg focus:border-violet-500 focus:outline-none bg-white"
+                  >
+                    <option value="">Cargo profissional (opcional)</option>
+                    {CARGO_OPTIONS.map(co => <option key={co} value={co}>{co}</option>)}
+                  </select>
+                  <p className="text-[10px] text-zinc-400 mt-1">Título exibido no perfil e relatórios</p>
+                </div>
               </div>
               <div className="flex gap-2 justify-end">
                 <button
@@ -444,7 +465,10 @@ export default function Admin() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="text-sm font-bold text-zinc-800 truncate">{p.full_name || '—'}</div>
-                        <div className="text-xs text-zinc-500 truncate">{p.email}</div>
+                        <div className="text-xs text-zinc-500 truncate">
+                          {p.cargo && <span className="text-violet-600 font-semibold">{p.cargo} · </span>}
+                          {p.email}
+                        </div>
                       </div>
                       {isOwner ? (
                         <select
@@ -657,23 +681,52 @@ export default function Admin() {
               <input autoFocus className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
                 value={editProfileForm.full_name || ''} onChange={e => setEditProfileForm(p => ({...p, full_name: e.target.value}))} />
             </div>
-            <div className="grid grid-cols-2 gap-3">
+
+            {/* Permissão de acesso — só owner pode alterar */}
+            {isOwner && (
               <div>
-                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Cargo</label>
-                <input className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
-                  value={editProfileForm.cargo || ''} onChange={e => setEditProfileForm(p => ({...p, cargo: e.target.value}))} placeholder="Analista, Consultor..." />
+                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">
+                  Permissão de acesso
+                </label>
+                <select className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500 bg-white"
+                  value={editProfileForm.role || 'analyst'}
+                  onChange={e => setEditProfileForm(p => ({...p, role: e.target.value}))}>
+                  {ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+                </select>
+                <p className="text-[10px] text-zinc-400 mt-1">
+                  {ROLES.find(r => r.value === editProfileForm.role)?.desc}
+                </p>
               </div>
+            )}
+
+            <div>
+              <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Cargo profissional</label>
+              <select className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500 bg-white"
+                value={CARGO_OPTIONS.includes(editProfileForm.cargo) ? editProfileForm.cargo : (editProfileForm.cargo ? 'Outro' : '')}
+                onChange={e => setEditProfileForm(p => ({...p, cargo: e.target.value === 'Outro' ? '' : e.target.value}))}>
+                <option value="">— selecione —</option>
+                {CARGO_OPTIONS.map(co => <option key={co} value={co}>{co}</option>)}
+              </select>
+              {(!CARGO_OPTIONS.includes(editProfileForm.cargo) && editProfileForm.cargo !== '' && editProfileForm.cargo != null) && (
+                <input className="w-full mt-1 border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500"
+                  value={editProfileForm.cargo || ''} onChange={e => setEditProfileForm(p => ({...p, cargo: e.target.value}))}
+                  placeholder="Cargo personalizado..." />
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Telefone</label>
                 <input className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
                   value={editProfileForm.phone || ''} onChange={e => setEditProfileForm(p => ({...p, phone: e.target.value}))} placeholder="+55 11..." />
               </div>
+              <div>
+                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Localização</label>
+                <input className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                  value={editProfileForm.location || ''} onChange={e => setEditProfileForm(p => ({...p, location: e.target.value}))} placeholder="São Paulo, SP..." />
+              </div>
             </div>
-            <div>
-              <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Localização</label>
-              <input className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
-                value={editProfileForm.location || ''} onChange={e => setEditProfileForm(p => ({...p, location: e.target.value}))} placeholder="São Paulo, SP..." />
-            </div>
+
             <div className="flex gap-3 pt-2">
               <button onClick={saveProfile} disabled={savingProfile || !editProfileForm.full_name?.trim()}
                 className="flex-1 py-2.5 text-sm font-bold text-white rounded-xl hover:opacity-90 disabled:opacity-50"
@@ -727,23 +780,52 @@ function Kpi({ label, value, sub, accent }) {
               <input autoFocus className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
                 value={editProfileForm.full_name || ''} onChange={e => setEditProfileForm(p => ({...p, full_name: e.target.value}))} />
             </div>
-            <div className="grid grid-cols-2 gap-3">
+
+            {/* Permissão de acesso — só owner pode alterar */}
+            {isOwner && (
               <div>
-                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Cargo</label>
-                <input className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
-                  value={editProfileForm.cargo || ''} onChange={e => setEditProfileForm(p => ({...p, cargo: e.target.value}))} placeholder="Analista, Consultor..." />
+                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">
+                  Permissão de acesso
+                </label>
+                <select className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500 bg-white"
+                  value={editProfileForm.role || 'analyst'}
+                  onChange={e => setEditProfileForm(p => ({...p, role: e.target.value}))}>
+                  {ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+                </select>
+                <p className="text-[10px] text-zinc-400 mt-1">
+                  {ROLES.find(r => r.value === editProfileForm.role)?.desc}
+                </p>
               </div>
+            )}
+
+            <div>
+              <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Cargo profissional</label>
+              <select className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500 bg-white"
+                value={CARGO_OPTIONS.includes(editProfileForm.cargo) ? editProfileForm.cargo : (editProfileForm.cargo ? 'Outro' : '')}
+                onChange={e => setEditProfileForm(p => ({...p, cargo: e.target.value === 'Outro' ? '' : e.target.value}))}>
+                <option value="">— selecione —</option>
+                {CARGO_OPTIONS.map(co => <option key={co} value={co}>{co}</option>)}
+              </select>
+              {(!CARGO_OPTIONS.includes(editProfileForm.cargo) && editProfileForm.cargo !== '' && editProfileForm.cargo != null) && (
+                <input className="w-full mt-1 border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500"
+                  value={editProfileForm.cargo || ''} onChange={e => setEditProfileForm(p => ({...p, cargo: e.target.value}))}
+                  placeholder="Cargo personalizado..." />
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Telefone</label>
                 <input className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
                   value={editProfileForm.phone || ''} onChange={e => setEditProfileForm(p => ({...p, phone: e.target.value}))} placeholder="+55 11..." />
               </div>
+              <div>
+                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Localização</label>
+                <input className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                  value={editProfileForm.location || ''} onChange={e => setEditProfileForm(p => ({...p, location: e.target.value}))} placeholder="São Paulo, SP..." />
+              </div>
             </div>
-            <div>
-              <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Localização</label>
-              <input className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
-                value={editProfileForm.location || ''} onChange={e => setEditProfileForm(p => ({...p, location: e.target.value}))} placeholder="São Paulo, SP..." />
-            </div>
+
             <div className="flex gap-3 pt-2">
               <button onClick={saveProfile} disabled={savingProfile || !editProfileForm.full_name?.trim()}
                 className="flex-1 py-2.5 text-sm font-bold text-white rounded-xl hover:opacity-90 disabled:opacity-50"
@@ -796,23 +878,52 @@ function SystemCard({ icon: Icon, title, value, sub, color }) {
               <input autoFocus className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
                 value={editProfileForm.full_name || ''} onChange={e => setEditProfileForm(p => ({...p, full_name: e.target.value}))} />
             </div>
-            <div className="grid grid-cols-2 gap-3">
+
+            {/* Permissão de acesso — só owner pode alterar */}
+            {isOwner && (
               <div>
-                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Cargo</label>
-                <input className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
-                  value={editProfileForm.cargo || ''} onChange={e => setEditProfileForm(p => ({...p, cargo: e.target.value}))} placeholder="Analista, Consultor..." />
+                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">
+                  Permissão de acesso
+                </label>
+                <select className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500 bg-white"
+                  value={editProfileForm.role || 'analyst'}
+                  onChange={e => setEditProfileForm(p => ({...p, role: e.target.value}))}>
+                  {ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+                </select>
+                <p className="text-[10px] text-zinc-400 mt-1">
+                  {ROLES.find(r => r.value === editProfileForm.role)?.desc}
+                </p>
               </div>
+            )}
+
+            <div>
+              <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Cargo profissional</label>
+              <select className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500 bg-white"
+                value={CARGO_OPTIONS.includes(editProfileForm.cargo) ? editProfileForm.cargo : (editProfileForm.cargo ? 'Outro' : '')}
+                onChange={e => setEditProfileForm(p => ({...p, cargo: e.target.value === 'Outro' ? '' : e.target.value}))}>
+                <option value="">— selecione —</option>
+                {CARGO_OPTIONS.map(co => <option key={co} value={co}>{co}</option>)}
+              </select>
+              {(!CARGO_OPTIONS.includes(editProfileForm.cargo) && editProfileForm.cargo !== '' && editProfileForm.cargo != null) && (
+                <input className="w-full mt-1 border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500"
+                  value={editProfileForm.cargo || ''} onChange={e => setEditProfileForm(p => ({...p, cargo: e.target.value}))}
+                  placeholder="Cargo personalizado..." />
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Telefone</label>
                 <input className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
                   value={editProfileForm.phone || ''} onChange={e => setEditProfileForm(p => ({...p, phone: e.target.value}))} placeholder="+55 11..." />
               </div>
+              <div>
+                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Localização</label>
+                <input className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                  value={editProfileForm.location || ''} onChange={e => setEditProfileForm(p => ({...p, location: e.target.value}))} placeholder="São Paulo, SP..." />
+              </div>
             </div>
-            <div>
-              <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Localização</label>
-              <input className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
-                value={editProfileForm.location || ''} onChange={e => setEditProfileForm(p => ({...p, location: e.target.value}))} placeholder="São Paulo, SP..." />
-            </div>
+
             <div className="flex gap-3 pt-2">
               <button onClick={saveProfile} disabled={savingProfile || !editProfileForm.full_name?.trim()}
                 className="flex-1 py-2.5 text-sm font-bold text-white rounded-xl hover:opacity-90 disabled:opacity-50"

@@ -1,6 +1,7 @@
 // src/components/Time.jsx
 import React, { useEffect, useState, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
+import { ROLES } from '../lib/roles'
 import { useData } from '../contexts/DataContext'
 import { toast, confirm } from './Toast'
 import {
@@ -46,12 +47,7 @@ const TABS = [
 ]
 
 // Roles reais do banco: analyst, Gerente, owner (com extras pra futuro)
-const ROLES = [
-  { value: 'all',     label: 'Todos',    color: 'bg-zinc-100 text-zinc-700' },
-  { value: 'owner',   label: 'Owner',    color: 'bg-violet-100 text-violet-700' },
-  { value: 'Gerente', label: 'Gerente',  color: 'bg-amber-100 text-amber-700' },
-  { value: 'analyst', label: 'Analista', color: 'bg-sky-100 text-sky-700' },
-]
+
 
 const KUDOS_CATEGORIES = [
   { id: 'teamwork',    label: 'Trabalho em equipe', emoji: '🤝' },
@@ -408,6 +404,7 @@ export default function Time() {
                 onChange={(e) => setFilterRole(e.target.value)}
                 className="px-3 py-2 text-sm border border-zinc-200 rounded-lg bg-white"
               >
+                <option value="all">Todas as permissões</option>
                 {ROLES.map(r => (
                   <option key={r.value} value={r.value}>{r.label}</option>
                 ))}
@@ -446,7 +443,7 @@ export default function Time() {
                         <div className={avatarClass} style={avatarStyle}>{initials}</div>
                         <div className="flex-1 min-w-0">
                           <div className="font-bold text-zinc-800 truncate">{p.full_name || '—'}</div>
-                          <div className="text-xs text-zinc-500 truncate">{p.role || ''}</div>
+                          <div className="text-xs text-zinc-500 truncate">{p.cargo || p.role || ''}</div>
                         </div>
                         <div className="text-right text-[10px] text-zinc-400 font-semibold">
                           <div>{stats.tasksDone || 0}/{stats.tasksTotal || 0}</div>

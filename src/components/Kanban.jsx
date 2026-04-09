@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { Plus, X, Save, Trash2, Search, AlertCircle, Check, Clock, User, FolderOpen, Flag, MessageSquare, CheckSquare, MoreHorizontal, Archive } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { logActivity } from '../lib/activityLog'
+import { isLeaderRole } from '../lib/roles'
 import { useEscapeKey } from '../hooks/useEscapeKey'
 import { useData } from '../contexts/DataContext'
 import { toast, confirm } from './Toast'
@@ -441,11 +442,13 @@ export default function Kanban() {
   async function fireEmergencyAlert(form) {
     try {
       // 1. Buscar sócios e gerentes da org
-      const { data: leaders } = await supabase
+      // Buscar todos os profiles e filtrar por isLeaderRole (aceita legado e novo padrão)
+      const { data: allProfiles } = await supabase
         .from('profiles')
         .select('id,full_name,role')
         .eq('org_id', profile.org_id)
-        .in('role', ['owner', 'Gerente'])
+        .eq('is_active', true)
+      const leaders = (allProfiles || []).filter(p => isLeaderRole(p.role))
 
       const sender = profile.full_name || 'Alguém'
       const taskTitle = form.title || 'Tarefa sem título'

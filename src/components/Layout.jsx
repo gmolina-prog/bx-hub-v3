@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { Settings, Bell, MapPin, X, Check, CheckCheck, LogOut, ChevronRight } from 'lucide-react'
 import Sidebar from './Sidebar'
 import { supabase } from '../lib/supabase'
+import { isLeaderRole } from '../lib/roles'
 import { toast } from './Toast'
 import { useData } from '../contexts/DataContext'
 
@@ -113,7 +114,7 @@ function SettingsPanel({ profile, onClose }) {
     { icon: '🔔', label: 'Notificações',      path: '/notificacoes',  desc: 'Central de notificações' },
     { icon: '⚙️', label: 'Configurações',     path: '/configuracoes', desc: 'Preferências do sistema' },
   ]
-  const adminItems = ['owner', 'admin', 'Gerente'].includes(profile?.role) ? [
+  const adminItems = isLeaderRole(profile?.role) ? [
     { icon: '🔐', label: 'Admin',             path: '/admin',    desc: 'Usuários e permissões' },
     { icon: '📝', label: 'Logs de Atividade', path: '/logs',     desc: 'Auditoria do sistema' },
     { icon: '⚡', label: 'Automações',        path: '/automacoes', desc: 'Regras e workflows' },
@@ -129,7 +130,7 @@ function SettingsPanel({ profile, onClose }) {
         </div>
         <div className="flex-1 min-w-0">
           <div className="text-sm font-bold text-zinc-800 truncate">{profile?.full_name}</div>
-          <div className="text-xs text-zinc-500 truncate">{profile?.role} · {profile?.email}</div>
+          <div className="text-xs text-zinc-500 truncate">{profile?.cargo || profile?.role} · {profile?.email}</div>
         </div>
         <button onClick={onClose} className="text-zinc-400 hover:text-zinc-600 shrink-0"><X className="w-4 h-4" /></button>
       </div>

@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { ROLES, CARGO_OPTIONS } from '../lib/roles'
 import { toast } from './Toast'
 import { useEscapeKey } from '../hooks/useEscapeKey'
 import { useData } from '../contexts/DataContext'
@@ -59,16 +60,6 @@ const TABS = [
   { id: 'projects',      label: 'Projetos',      icon: Briefcase, emoji: '📁' },
   { id: 'institutions',  label: 'Instituições',  icon: Landmark,  emoji: '🏦' },
   { id: 'archived',      label: 'Arquivados',    icon: Archive,   emoji: '📦' },
-]
-
-// Roles reais do banco: analyst, Gerente, owner (com extras pra futuro)
-const ROLES = [
-  { value: 'owner',   label: 'Owner',    color: 'bg-violet-100 text-violet-700' },
-  { value: 'admin',   label: 'Admin',    color: 'bg-rose-100 text-rose-700' },
-  { value: 'Gerente', label: 'Gerente',  color: 'bg-amber-100 text-amber-700' },
-  { value: 'senior',  label: 'Sênior',   color: 'bg-emerald-100 text-emerald-700' },
-  { value: 'analyst', label: 'Analista', color: 'bg-sky-100 text-sky-700' },
-  { value: 'viewer',  label: 'Viewer',   color: 'bg-zinc-100 text-zinc-600' },
 ]
 
 // Criticality real: alto, critico (extras assumidos)
@@ -1082,17 +1073,21 @@ export default function Cadastro() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Cargo / Função</label>
-                <input className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
-                  value={newProfileForm.cargo} onChange={e => setNewProfileForm(p => ({...p, cargo: e.target.value}))} placeholder="Analista, Consultor..." />
+                <select className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500 bg-white"
+                  value={newProfileForm.cargo} onChange={e => setNewProfileForm(p => ({...p, cargo: e.target.value}))}>
+                  <option value="">— selecione —</option>
+                  {CARGO_OPTIONS.map(co => <option key={co} value={co}>{co}</option>)}
+                </select>
               </div>
               <div>
                 <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Nível de acesso</label>
-                <select className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                <select className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500 bg-white"
                   value={newProfileForm.role} onChange={e => setNewProfileForm(p => ({...p, role: e.target.value}))}>
-                  <option value="analyst">Analista</option>
-                  <option value="Gerente">Gerente</option>
-                  <option value="owner">Owner</option>
+                  {ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
                 </select>
+                <p className="text-[10px] text-zinc-400 mt-1">
+                  {ROLES.find(r => r.value === newProfileForm.role)?.desc}
+                </p>
               </div>
             </div>
             <div className="flex gap-3 pt-2">
