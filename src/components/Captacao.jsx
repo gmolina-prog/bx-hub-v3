@@ -1,6 +1,7 @@
 // src/components/Captacao.jsx
 import React, { useEffect, useState, useMemo, useRef } from 'react'
 import { supabase } from '../lib/supabase'
+import { logActivity } from '../lib/activityLog'
 import { useEscapeKey } from '../hooks/useEscapeKey'
 import { useData } from '../contexts/DataContext'
 import { toast, confirm } from './Toast'
@@ -202,6 +203,7 @@ export default function Captacao() {
         .eq('id', itemId)
         .eq('org_id', profile.org_id)
       if (uErr) throw uErr
+      logActivity(supabase, { org_id: profile.org_id, actor_id: profile.id, entity_type: 'pipeline_item', entity_id: itemId, action: 'stage_changed', module: 'captacao', metadata: { to: newStage } })
       await loadAll()
       showSuccess('Movido para ' + STAGES.find(s => s.id === newStage)?.label)
     } catch (err) {

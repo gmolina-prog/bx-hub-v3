@@ -430,6 +430,25 @@ export default function Chat() {
       read_by: [profile.id],
     })
     if (error) { console.error(error); setInput(text) }
+    else if (mentions.length > 0) {
+      // B-92: criar notificações para usuários mencionados
+      const notifPayloads = mentions
+        .filter(uid => uid !== profile.id) // não notificar a si mesmo
+        .map(uid => ({
+          org_id:      profile.org_id,
+          user_id:     uid,
+          type:        'mention',
+          title:       `${profile.full_name || 'Alguém'} mencionou você`,
+          message:     `#${activeChannel.name}: ${text.slice(0, 80)}${text.length > 80 ? '…' : ''}`,
+          entity_type: 'chat_channel',
+          entity_id:   activeChannel.id,
+          is_read:     false,
+        }))
+      if (notifPayloads.length > 0) {
+        supabase.from('notifications').insert(notifPayloads)
+          .then(({ error: ne }) => { if (ne) console.warn('[Chat] notif mention:', ne.message) })
+      }
+    }
     setSending(false)
     inputRef.current?.focus()
   }

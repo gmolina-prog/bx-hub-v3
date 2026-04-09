@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { GitBranch, Building2 } from 'lucide-react'
 import { toast } from './Toast'
 import { supabase } from '../lib/supabase'
+import { logActivity } from '../lib/activityLog'
 import { useEscapeKey } from '../hooks/useEscapeKey'
 import { useData } from '../contexts/DataContext'
 
@@ -94,6 +95,7 @@ export default function Timeline() {
     setShowNewProject(false)
     setNewProj({ name:'', type:'Diagnóstico', status:'Planejamento', company_id:'', analyst_id:'', deadline:'', priority:'medium' })
     await load()
+    logActivity(supabase, { org_id: profile.org_id, actor_id: profile.id, entity_type: 'project', entity_id: newProj.name, action: 'created', module: 'timeline', metadata: { name: newProj.name, type: newProj.type } })
     toast.success('Projeto criado')
     setSavingProj(false)
   }
@@ -216,7 +218,14 @@ export default function Timeline() {
               <div className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-white" style={{ background: CH }}>Projeto</div>
               {filtered.map(p => (
                 <div key={p.id} className="px-4 py-3 border-b border-zinc-100 h-14 flex flex-col justify-center">
-                  <div className="text-xs font-bold text-zinc-800 truncate">{p.name}</div>
+                  <div className="flex items-center gap-1 group">
+                    <div className="text-xs font-bold text-zinc-800 truncate flex-1">{p.name}</div>
+                    <button onClick={e => { e.stopPropagation(); openEdit(p) }}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity text-zinc-400 hover:text-violet-600 shrink-0"
+                      title="Editar projeto">
+                      ✏️
+                    </button>
+                  </div>
                   {compMap[p.company_id] && <div className="text-[10px] text-zinc-500 flex items-center gap-1 mt-0.5"><Building2 className="w-2.5 h-2.5" />{compMap[p.company_id].name}</div>}
                 </div>
               ))}

@@ -715,7 +715,14 @@ export default function Cadastro() {
           {loading ? (
             <LoadingState />
           ) : labels.length === 0 ? (
-            <EmptyState icon={Tag} title="Nenhuma etiqueta" message="Cadastre etiquetas para classificar projetos e tarefas." />
+            <div className="text-center py-16">
+              <Tag className="w-12 h-12 text-zinc-200 mx-auto mb-3" />
+              <p className="text-sm font-semibold text-zinc-500 mb-1">Nenhuma etiqueta cadastrada</p>
+              <p className="text-xs text-zinc-400 mb-4">Etiquetas classificam projetos e tarefas.</p>
+              <button onClick={() => setShowNewLabel(true)} className="px-4 py-2 bg-violet-600 hover:bg-violet-500 text-white text-sm font-bold rounded-lg">
+                + Nova Etiqueta
+              </button>
+            </div>
           ) : (
             <div className="bg-white border border-zinc-200 rounded-xl p-6">
               <div className="flex flex-wrap gap-2">
@@ -745,7 +752,14 @@ export default function Cadastro() {
           {loading ? (
             <LoadingState />
           ) : projects.length === 0 ? (
-            <EmptyState icon={Briefcase} title="Nenhum projeto" message="Crie projetos para começar." />
+            <div className="text-center py-16">
+              <Briefcase className="w-12 h-12 text-zinc-200 mx-auto mb-3" />
+              <p className="text-sm font-semibold text-zinc-500 mb-1">Nenhum projeto cadastrado</p>
+              <p className="text-xs text-zinc-400 mb-4">Crie projetos na Timeline para começar.</p>
+              <button onClick={() => navigate('/timeline')} className="px-4 py-2 bg-violet-600 hover:bg-violet-500 text-white text-sm font-bold rounded-lg">
+                → Ir para Timeline
+              </button>
+            </div>
           ) : (
             <div className="bg-white border border-zinc-200 rounded-xl overflow-hidden">
               <table className="w-full text-sm">
@@ -785,11 +799,14 @@ export default function Cadastro() {
           {loading ? (
             <LoadingState />
           ) : institutions.length === 0 ? (
-            <EmptyState
-              icon={Landmark}
-              title="Nenhuma instituição cadastrada"
-              message='Cadastre bancos e instituições financeiras (Itaú BBA, Bradesco, BNDES…) para usar no módulo Captação.'
-            />
+            <div className="text-center py-16">
+              <Landmark className="w-12 h-12 text-zinc-200 mx-auto mb-3" />
+              <p className="text-sm font-semibold text-zinc-500 mb-1">Nenhuma instituição cadastrada</p>
+              <p className="text-xs text-zinc-400 mb-4">Cadastre bancos e instituições para usar no módulo Captação.</p>
+              <button onClick={() => setShowNewInstitution(true)} className="px-4 py-2 bg-violet-600 hover:bg-violet-500 text-white text-sm font-bold rounded-lg">
+                + Nova Instituição
+              </button>
+            </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {institutions.map(i => (

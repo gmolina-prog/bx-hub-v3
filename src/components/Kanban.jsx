@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { Plus, X, Save, Trash2, Search, AlertCircle, Check, Clock, User, FolderOpen, Flag, MessageSquare, CheckSquare, MoreHorizontal, Archive } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import { logActivity } from '../lib/activityLog'
 import { useEscapeKey } from '../hooks/useEscapeKey'
 import { useData } from '../contexts/DataContext'
 import { toast, confirm } from './Toast'
@@ -365,7 +366,15 @@ export default function Kanban() {
   })
 
   function getColTasks(colId) {
-    return filtered.filter(t => t.column_id === colId)
+    return [...filtered.filter(t => t.column_id === colId)]
+      .sort((a, b) => {
+        // B-96: emergências sempre no topo
+        if (a.is_emergency && !b.is_emergency) return -1
+        if (!a.is_emergency && b.is_emergency) return 1
+        // Urgentes antes de altas
+        const ord = { urgent: 0, high: 1, medium: 2, low: 3 }
+        return (ord[a.priority] ?? 2) - (ord[b.priority] ?? 2)
+      })
   }
 
   // Drag & Drop
@@ -386,6 +395,7 @@ export default function Kanban() {
     setTasks(t => t.map(x => x.id === dragging.id ? { ...x, column_id: colId } : x))
     setDragging(null); setDragOver(null)
     const { error: err } = await supabase.from('tasks').update({ column_id: colId }).eq('id', dragging.id).eq('org_id', profile.org_id)
+    if (!err) logActivity(supabase, { org_id: profile.org_id, actor_id: profile.id, entity_type: 'task', entity_id: dragging.id, action: colId === 'done' ? 'completed' : 'moved', module: 'kanban', metadata: { to: colId } })
     if (err) {
       setTasks(t => t.map(x => x.id === dragging.id ? { ...x, column_id: prev } : x))
       setError('Erro ao mover tarefa.')
@@ -545,7 +555,7 @@ export default function Kanban() {
                         onDragEnd={onDragEnd}
                         onClick={() => setModalTask(t)}
                         className="bg-white rounded-xl shadow-sm border border-zinc-100 cursor-pointer hover:shadow-md hover:-translate-y-0.5 transition-all select-none"
-                        style={{ borderLeft: `4px solid ${pr.color}`, opacity: dragging?.id === t.id ? 0.5 : 1 }}>
+                        style={{ borderLeft: t.is_emergency ? '4px solid #DC2626' : `4px solid ${pr.color}`, opacity: dragging?.id === t.id ? 0.5 : 1, background: t.is_emergency ? '#FFF5F5' : 'white' }}>
                         {/* Emergency badge */}
                         {t.is_emergency && <div className="px-3 pt-2.5 flex"><span className="text-[9px] font-bold bg-red-100 text-red-600 px-2 py-0.5 rounded-full">🚨 EMERGÊNCIA</span></div>}
                         <div className="p-3">
