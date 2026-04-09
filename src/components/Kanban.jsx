@@ -76,7 +76,7 @@ function TaskModal({ task, projects, profiles, onClose, onSave, onDelete, onArch
 
   async function handleSave() {
     setSaving(true)
-    await onSave({ ...form, checklist: subtasks, id: task.id })
+    await onSave({ ...form, checklist: subtasks, id: task.id, _prevEmergency: task.is_emergency })
     setSaving(false)
   }
 
@@ -209,10 +209,14 @@ function TaskModal({ task, projects, profiles, onClose, onSave, onDelete, onArch
                 </div>
               </div>
               {/* Emergência toggle */}
-              <div className="flex items-center justify-between p-3 bg-red-50 rounded-xl border border-red-100">
+              <div className={`flex items-center justify-between p-3 rounded-xl border transition-all ${form.is_emergency ? 'bg-red-50 border-red-300' : 'bg-zinc-50 border-zinc-100'}`}>
                 <div>
                   <div className="text-sm font-semibold text-zinc-800 flex items-center gap-2">🚨 Emergência</div>
-                  <div className="text-xs text-zinc-500 mt-0.5">Marcar como tarefa urgente de emergência</div>
+                  <div className={`text-xs mt-0.5 ${form.is_emergency ? 'text-red-600 font-semibold' : 'text-zinc-500'}`}>
+                    {form.is_emergency
+                      ? '⚡ Alerta será enviado para sócios e liderança'
+                      : 'Ativa alerta imediato para sócios via chat e notificação'}
+                  </div>
                 </div>
                 <button onClick={() => setForm(p => ({ ...p, is_emergency: !p.is_emergency }))}
                   className={`w-12 h-6 rounded-full transition-colors relative ${form.is_emergency ? 'bg-red-500' : 'bg-zinc-300'}`}>
@@ -425,8 +429,93 @@ export default function Kanban() {
       }).eq('id', form.id).eq('org_id', profile.org_id)
       if (err) { setError(err.message); return }
     }
+    // B-emergency: disparar alerta SÓ quando is_emergency MUDA para true
+    if (form.is_emergency && !form._prevEmergency) {
+      fireEmergencyAlert(form)
+    }
     await load()
     setModalTask(null)
+  }
+
+  // Dispara notificações + post no chat ao ativar emergência
+  async function fireEmergencyAlert(form) {
+    try {
+      // 1. Buscar sócios e gerentes da org
+      const { data: leaders } = await supabase
+        .from('profiles')
+        .select('id,full_name,role')
+        .eq('org_id', profile.org_id)
+        .in('role', ['owner', 'Gerente'])
+
+      const sender = profile.full_name || 'Alguém'
+      const taskTitle = form.title || 'Tarefa sem título'
+      const msg = `🚨 EMERGÊNCIA — "${taskTitle}" marcada por ${sender}`
+
+      // 2. Criar notificações para todos os líderes (exceto quem disparou)
+      const notifs = (leaders || [])
+        .filter(l => l.id !== profile.id)
+        .map(l => ({
+          org_id:      profile.org_id,
+          user_id:     l.id,
+          type:        'emergency',
+          title:       '🚨 Alerta de Emergência',
+          message:     msg,
+          entity_type: 'task',
+          entity_id:   form.id !== 'new' ? form.id : null,
+          is_read:     false,
+        }))
+
+      if (notifs.length > 0) {
+        await supabase.from('notifications').insert(notifs)
+      }
+
+      // 3. Postar no canal de chat (geral ou primeiro disponível)
+      const { data: channels } = await supabase
+        .from('chat_channels')
+        .select('id,name,is_general')
+        .eq('org_id', profile.org_id)
+        .order('is_general', { ascending: false }) // geral primeiro
+        .limit(5)
+
+      let targetChannel = channels?.find(ch => ch.is_general) || channels?.[0]
+
+      // Se não houver canal, criar #emergências
+      if (!targetChannel) {
+        const { data: newCh } = await supabase
+          .from('chat_channels')
+          .insert({
+            org_id: profile.org_id,
+            name: 'emergências',
+            icon: '🚨',
+            description: 'Canal automático para alertas de emergência',
+            is_general: false,
+          })
+          .select().single()
+        targetChannel = newCh
+      }
+
+      if (targetChannel) {
+        await supabase.from('chat_messages').insert({
+          org_id:     profile.org_id,
+          channel_id: targetChannel.id,
+          sender_id:  profile.id,
+          content:    `🚨 *EMERGÊNCIA*
+
+**Tarefa:** ${taskTitle}
+**Acionado por:** ${sender}
+**Prioridade:** MÁXIMA — ação imediata necessária.`,
+          reactions:  {},
+          read_by:    [profile.id],
+          mentions:   (leaders || []).map(l => l.id), // menciona todos os líderes
+        })
+      }
+
+      toast.success('🚨 Alerta de emergência enviado para a liderança', 6000)
+
+    } catch (err) {
+      console.error('[Emergency]', err.message)
+      // Não bloquear — alerta é best-effort
+    }
   }
 
   async function deleteTask(id) {
