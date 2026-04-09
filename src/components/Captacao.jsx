@@ -650,10 +650,16 @@ export default function Captacao() {
             showSuccess('Oportunidade salva')
           }}
           onArchive={async () => {
-            await supabase.from('pipeline_items').update({ is_archived: true }).eq('id', selectedItem.id).eq('org_id', profile.org_id)
-            await loadAll()
-            setSelectedItem(null)
-            showSuccess('Oportunidade arquivada')
+            try {
+              const { error } = await supabase.from('pipeline_items')
+                .update({ is_archived: true }).eq('id', selectedItem.id).eq('org_id', profile.org_id)
+              if (error) throw error
+              await loadAll()
+              setSelectedItem(null)
+              toast.success('Oportunidade arquivada')
+            } catch (err) {
+              toast.error('Erro ao arquivar: ' + err.message)
+            }
           }}
           onDelete={async () => {
             if (!await confirm('Excluir esta oportunidade permanentemente?', { danger: true, confirmLabel: 'Excluir', cancelLabel: 'Cancelar' })) return

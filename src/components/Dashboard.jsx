@@ -89,16 +89,18 @@ export default function Dashboard() {
     if (!profile) return
     setLoading(true)
     const today = new Date().toISOString().split('T')[0]
-    const [tasksR, pipeR, projR, ciR, profR, routR] = await Promise.allSettled([
-      supabase.from('tasks').select('id,column_id,priority,assigned_to,due_date,title,project_id,updated_at').eq('org_id', profile.org_id).is('deleted_at', null),
-      supabase.from('pipeline_items').select('id,stage,value,probability,name').eq('org_id', profile.org_id).eq('is_archived', false),
+    const [tasksR, pipeR, projR, ciR, profR, routR, actR] = await Promise.allSettled([
+      supabase.from('tasks').select('id,column_id,priority,assigned_to,due_date,title,project_id,updated_at').eq('org_id', profile.org_id).is('deleted_at', null).limit(500),
+      supabase.from('pipeline_items').select('id,stage,value,probability,name').eq('org_id', profile.org_id).eq('is_archived', false).limit(200),
       supabase.from('projects').select('id,name,status,deadline').eq('org_id', profile.org_id),
       supabase.from('check_ins').select('id,user_id,date,status,location,latitude,longitude').eq('org_id', profile.org_id).eq('date', today),
-      supabase.from('profiles').select('id,full_name,initials,avatar_color,role').eq('org_id', profile.org_id).order('full_name'),
+      supabase.from('profiles').select('id,full_name,initials,avatar_color,role,cargo').eq('org_id', profile.org_id).order('full_name'),
       supabase.from('routines').select('id,is_active,frequency').eq('org_id', profile.org_id).eq('is_active', true),
+      supabase.from('activity_log').select('id,actor_id,entity_type,action,metadata,created_at,module').eq('org_id', profile.org_id).order('created_at', { ascending: false }).limit(10),
     ])
 
-    const tasks = tasksR.status === 'fulfilled' && !tasksR.value.error ? tasksR.value.data || [] : []
+    const tasks    = tasksR.status === 'fulfilled' && !tasksR.value.error ? tasksR.value.data || [] : []
+    const actLog   = actR.status   === 'fulfilled' && !actR.value.error   ? actR.value.data  || [] : []
     const pipeline = pipeR.status === 'fulfilled' && !pipeR.value.error ? pipeR.value.data || [] : []
     const projects = projR.status === 'fulfilled' && !projR.value.error ? projR.value.data || [] : []
     const checkins = ciR.status === 'fulfilled' && !ciR.value.error ? ciR.value.data || [] : []
@@ -109,7 +111,10 @@ export default function Dashboard() {
     const todo = tasks.filter(t => t.column_id === 'todo' || t.column_id === 'backlog').length
     const doing = tasks.filter(t => t.column_id === 'doing').length
     const done = tasks.filter(t => t.column_id === 'done').length
-    const overdue = tasks.filter(t => t.due_date && new Date(t.due_date) < now && t.column_id !== 'done').length
+    const overdue  = tasks.filter(t => t.due_date && new Date(t.due_date) < now && t.column_id !== 'done').length
+    const tomorrow = new Date(now); tomorrow.setDate(tomorrow.getDate() + 2)
+    const dueSoon  = tasks.filter(t => t.due_date && t.column_id !== 'done' && new Date(t.due_date) >= now && new Date(t.due_date) < tomorrow)
+      .sort((a, b) => new Date(a.due_date) - new Date(b.due_date)).slice(0, 5)
     const doneWeek = tasks.filter(t => t.column_id === 'done' && t.updated_at && (now - new Date(t.updated_at)) < 604800000).length
 
     const pipeTotal = pipeline.reduce((s, p) => s + (p.value || 0), 0)
@@ -129,7 +134,9 @@ export default function Dashboard() {
     })
     const memberLoadArr = Object.entries(memberLoad).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count)
 
-    const recentActivity = [...tasks].sort((a, b) => new Date(b.updated_at || 0) - new Date(a.updated_at || 0)).slice(0, 5)
+    // B-105: usar activity_log se disponível, fallback para tasks recentes
+    const recentActivity = actLog.length > 0 ? actLog : [...tasks]
+      .sort((a, b) => new Date(b.updated_at || 0) - new Date(a.updated_at || 0)).slice(0, 5)
 
     // Saúde do hub: base 100, descontos por problemas, bônus por resultados
     let health = 100
@@ -158,7 +165,7 @@ export default function Dashboard() {
 
     const firstName = profile.full_name?.split(' ')[0] || 'Gabriel'
 
-    setData({ tasks, pipeline, projects, checkins, profiles, routines, todo, doing, done, overdue, doneWeek, pipeTotal, pipeWeighted, activeProjs, profMap, ciByStatus, memberLoadArr, recentActivity, health, statusIcon, statusText, pipeStages, firstName, ciPct })
+    setData({ tasks, pipeline, projects, checkins, profiles, routines, todo, doing, done, overdue, doneWeek, pipeTotal, pipeWeighted, activeProjs, profMap, ciByStatus, memberLoadArr, recentActivity, health, statusIcon, statusText, pipeStages, firstName, ciPct, dueSoon, actLog })
     setLoading(false)
   }, [profile])
 
@@ -246,7 +253,7 @@ export default function Dashboard() {
   if (loading) return <div className="p-6 text-center text-sm text-zinc-400">Carregando…</div>
   if (!data) return null
 
-  const { todo, doing, done, overdue, pipeTotal, pipeWeighted, activeProjs, profiles, checkins, ciByStatus, memberLoadArr, recentActivity, health, statusIcon, statusText, pipeStages, firstName, ciPct } = data
+  const { todo, doing, done, overdue, pipeTotal, pipeWeighted, activeProjs, profiles, checkins, ciByStatus, memberLoadArr, recentActivity, health, statusIcon, statusText, pipeStages, firstName, ciPct, dueSoon = [], actLog = [] } = data
   const gr = greeting()
   const dateStr = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
 
@@ -425,26 +432,87 @@ export default function Dashboard() {
           })}
         </div>
 
-        {/* Atividade recente */}
+        {/* Atividade recente — usa activity_log se disponível */}
         <div className="bg-white border border-zinc-200 rounded-xl p-5">
           <h3 className="text-sm font-bold text-zinc-800 mb-4">Atividade Recente</h3>
           {recentActivity.length === 0 ? (
             <p className="text-xs text-zinc-400 text-center py-6">Nenhuma atividade</p>
-          ) : recentActivity.map(t => {
-            const sColor = t.column_id === 'done' ? GREEN : t.column_id === 'doing' ? BLUE : AMBER
-            const sLabel = t.column_id === 'done' ? 'Concluído' : t.column_id === 'doing' ? 'Executando' : t.column_id === 'review' ? 'Revisão' : 'A Fazer'
-            return (
-              <div key={t.id} className="border-b border-zinc-50 pb-2 mb-2 last:border-0">
-                <p className="text-xs font-medium text-zinc-800 truncate mb-1">{(t.title || 'Sem título').slice(0, 45)}</p>
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: `${sColor}18`, color: sColor }}>{sLabel}</span>
-                  <span className="text-[10px] text-zinc-400">{relTime(t.updated_at)}</span>
+          ) : actLog.length > 0 ? (
+            // B-105: mostrar activity_log com ações reais
+            actLog.slice(0, 5).map(ev => {
+              const actor = data.profMap?.[ev.actor_id]
+              const ENTITY_PT = { task: '📋', project: '📁', pipeline_item: '💰', note: '📒', company: '🏢' }
+              const icon = ENTITY_PT[ev.entity_type] || '⚡'
+              const meta = ev.metadata && typeof ev.metadata === 'object' ? ev.metadata : {}
+              const desc = ev.action === 'created' ? `criou ${ev.entity_type === 'task' ? 'tarefa' : ev.entity_type || 'item'}${meta.title ? ` "${meta.title}"` : ''}`
+                : ev.action === 'completed' ? `concluiu tarefa${meta.title ? ` "${meta.title}"` : ''}`
+                : ev.action === 'moved' ? `moveu para ${meta.to || '?'}`
+                : ev.action === 'stage_changed' ? `avançou deal para "${meta.to || '?'}"`
+                : ev.action || 'ação'
+              return (
+                <div key={ev.id} className="border-b border-zinc-50 pb-2 mb-2 last:border-0 flex items-start gap-2">
+                  <span className="text-base mt-0.5">{icon}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs text-zinc-800 truncate">
+                      <span className="font-semibold">{actor?.full_name?.split(' ')[0] || '—'}</span> {desc}
+                    </p>
+                    <span className="text-[10px] text-zinc-400">{relTime(ev.created_at)}</span>
+                  </div>
                 </div>
-              </div>
-            )
-          })}
+              )
+            })
+          ) : (
+            // Fallback: tasks recentes
+            recentActivity.map(t => {
+              const sColor = t.column_id === 'done' ? GREEN : t.column_id === 'doing' ? BLUE : AMBER
+              const sLabel = t.column_id === 'done' ? 'Concluído' : t.column_id === 'doing' ? 'Executando' : 'A Fazer'
+              return (
+                <div key={t.id} className="border-b border-zinc-50 pb-2 mb-2 last:border-0">
+                  <p className="text-xs font-medium text-zinc-800 truncate mb-1">{(t.title || 'Sem título').slice(0, 45)}</p>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: `${sColor}18`, color: sColor }}>{sLabel}</span>
+                    <span className="text-[10px] text-zinc-400">{relTime(t.updated_at)}</span>
+                  </div>
+                </div>
+              )
+            })
+          )}
         </div>
       </div>
+
+      {/* ── VENCENDO EM BREVE ── */}
+      {dueSoon.length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-5">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-bold text-amber-800 flex items-center gap-2">
+              ⏰ Vencendo Hoje / Amanhã
+            </h3>
+            <button onClick={() => navigate('/kanban')} className="text-xs font-semibold text-amber-700 hover:text-amber-900">Ver no Kanban →</button>
+          </div>
+          <div className="space-y-2">
+            {dueSoon.map(t => {
+              const due = new Date(t.due_date)
+              const isToday = due.toDateString() === new Date().toDateString()
+              const assignee = data.profMap?.[t.assigned_to]
+              return (
+                <div key={t.id} className="flex items-center gap-3 bg-white rounded-lg px-3 py-2 border border-amber-100">
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${isToday ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
+                    {isToday ? 'HOJE' : 'AMANHÃ'}
+                  </span>
+                  <span className="text-xs font-semibold text-zinc-800 truncate flex-1">{t.title || '—'}</span>
+                  {assignee && (
+                    <div className="w-6 h-6 rounded-full text-white text-[9px] font-bold flex items-center justify-center shrink-0"
+                      style={{ background: assignee.avatar_color || '#5452C1' }}
+                      title={assignee.full_name}>
+                      {assignee.initials || assignee.full_name?.slice(0, 2)}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {/* ── PROJETOS ── */}
       <div className="bg-white border border-zinc-200 rounded-xl p-5">

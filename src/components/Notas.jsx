@@ -236,7 +236,7 @@ export default function Notas() {
     if (!profile) return
     setLoading(true)
     const [notesR, projR, compR] = await Promise.allSettled([
-      supabase.from('notes').select('*').eq('org_id', profile.org_id).neq('status', 'archived').order('pinned', { ascending: false }).order('updated_at', { ascending: false }),
+      supabase.from('notes').select('*').eq('org_id', profile.org_id).neq('status', 'archived').order('pinned', { ascending: false }).order('updated_at', { ascending: false }).limit(200),
       supabase.from('projects').select('id,name').eq('org_id', profile.org_id).order('name'),
       supabase.from('companies').select('id,name').eq('org_id', profile.org_id).order('name'),
     ])

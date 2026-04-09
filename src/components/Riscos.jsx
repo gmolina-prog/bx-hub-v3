@@ -56,7 +56,7 @@ export default function Riscos() {
     if (!profile) return
     setLoading(true)
     const [risksR, projR, profR] = await Promise.allSettled([
-      supabase.from('risks').select('*').eq('org_id', profile.org_id).order('created_at', { ascending: false }),
+      supabase.from('risks').select('*').eq('org_id', profile.org_id).order('created_at', { ascending: false }).limit(200),
       supabase.from('projects').select('id,name').eq('org_id', profile.org_id).order('name'),
       supabase.from('profiles').select('id,full_name').eq('org_id', profile.org_id).order('full_name'),
     ])

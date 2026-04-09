@@ -294,7 +294,17 @@ export default function Chat() {
       .eq('org_id', profile.org_id).eq('channel_id', activeChannel.id)
       .order('created_at', { ascending: true }).limit(200)
       .then(({ data }) => {
-        setMessages(data || [])
+        // B-104: merge com msgs que possam ter chegado via realtime antes deste then()
+        // usar setter funcional para combinar sem duplicatas
+        setMessages(prev => {
+          const loaded = data || []
+          if (prev.length === 0) return loaded
+          const ids = new Set(loaded.map(m => m.id))
+          const extras = prev.filter(m => !ids.has(m.id))
+          return [...loaded, ...extras].sort((a, b) =>
+            new Date(a.created_at) - new Date(b.created_at)
+          )
+        })
         setLoadingMsgs(false)
         // Mark as read
         markChannelRead(activeChannel.id)

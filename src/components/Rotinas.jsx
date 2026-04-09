@@ -34,7 +34,7 @@ export default function Rotinas() {
     const since = new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0]
     const [routR, compR, projR, profR] = await Promise.allSettled([
       supabase.from('routines').select('*').eq('org_id', profile.org_id).eq('is_active', true).order('title'),
-      supabase.from('routine_completions').select('*').eq('org_id', profile.org_id).or(`reference_date.gte.${since},completed_at.gte.${new Date(Date.now() - 30 * 86400000).toISOString()}`),
+      supabase.from('routine_completions').select('*').eq('org_id', profile.org_id).or(`reference_date.gte.${since},completed_at.gte.${new Date(Date.now() - 30 * 86400000).toISOString()}`).limit(500),
       supabase.from('projects').select('id,name').eq('org_id', profile.org_id).order('name'),
       supabase.from('profiles').select('id,full_name,initials,avatar_color').eq('org_id', profile.org_id).order('full_name'),
     ])
