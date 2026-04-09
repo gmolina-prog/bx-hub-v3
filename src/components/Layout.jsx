@@ -225,7 +225,7 @@ function CheckInPanel({ profile, onClose }) {
           ? (companies.find(c => c.id === selectedCompany)?.name || clientName || null)
           : (clientName || null),
         activity:    clientName || null,
-        location:    location || null,
+        location:    location || '',
         latitude:    gps?.lat || null,
         longitude:   gps?.lng || null,
       }
