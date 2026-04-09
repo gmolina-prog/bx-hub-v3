@@ -57,37 +57,10 @@ const SECTIONS = [
 
 export default function Sidebar() {
   const location = useLocation()
-  const { profile } = useData()
-  const [unreadNotif, setUnreadNotif] = useState(0)
+  const { profile, unreadNotif } = useData()
   const [unreadChat, setUnreadChat] = useState(0)
 
-  // Carregar contagens de badges
-  useEffect(() => {
-    if (!profile) return
-    let mounted = true
 
-    async function loadBadges() {
-      const [notifR] = await Promise.allSettled([
-        supabase.from('notifications').select('id', { count: 'exact', head: true }).eq('org_id', profile.org_id).eq('user_id', profile.id).eq('is_read', false),
-      ])
-      if (!mounted) return
-      if (notifR.status === 'fulfilled' && !notifR.value.error) {
-        setUnreadNotif(notifR.value.count || 0)
-      }
-    }
-
-    loadBadges()
-
-    // Realtime para notificações
-    const ch = supabase.channel('sidebar-notif')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${profile.id}` },
-        () => { setUnreadNotif(p => p + 1) })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'notifications', filter: `user_id=eq.${profile.id}` },
-        () => loadBadges())
-      .subscribe()
-
-    return () => { mounted = false; supabase.removeChannel(ch) }
-  }, [profile])
 
   function getBadge(badgeKey) {
     if (badgeKey === 'notif') return unreadNotif

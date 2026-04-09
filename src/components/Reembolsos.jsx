@@ -9,7 +9,7 @@ const STATUS = {
   submetido: { label: 'Submetido', color: '#D97706', bg: '#FFFBEB', next: 'aprovado' },
   aprovado:  { label: 'Aprovado',  color: '#059669', bg: '#ECFDF5', next: 'pago' },
   pago:      { label: 'Pago',      color: '#3B82F6', bg: '#EFF6FF', next: null },
-  reprovado: { label: 'Reprovado', color: '#EF4444', bg: '#FEF2F2', next: null },
+  rejeitado: { label: 'Rejeitado', color: '#EF4444', bg: '#FEF2F2', next: null },
 }
 const CATS = ['transporte','refeicao','material','hospedagem','outros']
 const CAT_LABELS = { transporte:'Transporte', refeicao:'Refeição', material:'Material', hospedagem:'Hospedagem', outros:'Outros' }

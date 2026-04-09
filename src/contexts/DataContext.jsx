@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react'
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 
 const DataContext = createContext(null)
@@ -10,56 +10,62 @@ export function useData() {
 }
 
 export function DataProvider({ children }) {
-  const [profile, setProfile] = useState(null)
-  const [session, setSession] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const [profile, setProfile]           = useState(null)
+  const [session, setSession]           = useState(null)
+  const [loading, setLoading]           = useState(true)
+  const [unreadNotif, setUnreadNotif]   = useState(0)  // B-14: fonte única de verdade
 
   async function loadProfile(user) {
     if (!user) { setProfile(null); return }
     try {
       const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', user.id)
-        .single()
+        .from('profiles').select('*').eq('id', user.id).single()
       if (error) throw error
       setProfile(data)
     } catch (err) {
-      console.error('[DataContext] Erro ao carregar profile:', err.message)
+      console.error('[DataContext] profile:', err.message)
       setProfile(null)
     }
   }
+
+  // B-14: carregar count de notificações não lidas
+  const loadUnread = useCallback(async (prof) => {
+    if (!prof) return
+    const { count } = await supabase
+      .from('notifications')
+      .select('id', { count: 'exact', head: true })
+      .eq('org_id', prof.org_id)
+      .eq('user_id', prof.id)
+      .eq('is_read', false)
+    setUnreadNotif(count || 0)
+  }, [])
 
   async function refreshProfile() {
     const { data: { user } } = await supabase.auth.getUser()
     await loadProfile(user)
   }
 
+  // Expor função para marcar todas como lidas (chamada por Layout e Notificacoes)
+  function clearUnread() { setUnreadNotif(0) }
+  function decrementUnread() { setUnreadNotif(p => Math.max(0, p - 1)) }
+
   useEffect(() => {
     let mounted = true
 
-    // Timeout de segurança — garante que o loading nunca fica infinito
     const safetyTimeout = setTimeout(() => {
-      if (mounted) {
-        console.warn('[DataContext] Safety timeout — liberando loading após 5s')
-        setLoading(false)
-      }
+      if (mounted) setLoading(false)
     }, 5000)
 
     async function init() {
       try {
-        const { data: { session: s }, error } = await supabase.auth.getSession()
-        if (error) console.error('[DataContext] getSession error:', error.message)
+        const { data: { session: s } } = await supabase.auth.getSession()
         if (!mounted) return
         setSession(s)
         if (s?.user) await loadProfile(s.user)
       } catch (err) {
-        console.error('[DataContext] Init crash:', err.message)
+        console.error('[DataContext] init:', err.message)
       } finally {
-        if (mounted) {
-          clearTimeout(safetyTimeout)
-          setLoading(false)
-        }
+        if (mounted) { clearTimeout(safetyTimeout); setLoading(false) }
       }
     }
 
@@ -69,18 +75,38 @@ export function DataProvider({ children }) {
       if (!mounted) return
       setSession(s)
       if (s?.user) loadProfile(s.user)
-      else setProfile(null)
+      else { setProfile(null); setUnreadNotif(0) }
     })
 
-    return () => {
-      mounted = false
-      clearTimeout(safetyTimeout)
-      subscription?.unsubscribe()
-    }
+    return () => { mounted = false; clearTimeout(safetyTimeout); subscription?.unsubscribe() }
   }, [])
 
+  // Carregar unread quando profile muda
+  useEffect(() => {
+    if (!profile) return
+    loadUnread(profile)
+
+    // B-14: UM ÚNICO channel de notificações — no DataContext, não em Sidebar/Layout
+    const ch = supabase.channel('global-notif-count')
+      .on('postgres_changes', {
+        event: 'INSERT', schema: 'public', table: 'notifications',
+        filter: `user_id=eq.${profile.id}`,
+      }, () => setUnreadNotif(p => p + 1))
+      .on('postgres_changes', {
+        event: 'UPDATE', schema: 'public', table: 'notifications',
+        filter: `user_id=eq.${profile.id}`,
+      }, () => loadUnread(profile))
+      .subscribe()
+
+    return () => supabase.removeChannel(ch)
+  }, [profile?.id])
+
   return (
-    <DataContext.Provider value={{ profile, session, loading, refreshProfile }}>
+    <DataContext.Provider value={{
+      profile, session, loading,
+      unreadNotif, clearUnread, decrementUnread,
+      refreshProfile,
+    }}>
       {children}
     </DataContext.Provider>
   )

@@ -299,10 +299,9 @@ function CheckInPanel({ profile, onClose }) {
 
 // ─── Layout Principal ─────────────────────────────────────────────────────────
 export default function Layout({ children }) {
-  const { profile } = useData()
+  const { profile, unreadNotif, clearUnread } = useData()
   const location = useLocation()
   const [openPanel, setOpenPanel] = useState(null) // 'notif' | 'settings' | 'checkin'
-  const [unreadCount, setUnreadCount] = useState(0)
   const [checkinStatus, setCheckinStatus] = useState(null) // status do check-in ativo
   const headerRef = useRef(null)
 
@@ -315,20 +314,12 @@ export default function Layout({ children }) {
       supabase.from('notifications').select('id', { count: 'exact', head: true }).eq('org_id', profile.org_id).eq('user_id', profile.id).eq('is_read', false),
       supabase.from('check_ins').select('status').eq('user_id', profile.id).eq('org_id', profile.org_id).eq('date', today).is('check_out_time', null).limit(1),
     ]).then(([notifR, ciR]) => {
-      if (notifR.status === 'fulfilled' && !notifR.value.error) setUnreadCount(notifR.value.count || 0)
       if (ciR.status === 'fulfilled' && !ciR.value.error) {
         setCheckinStatus(ciR.value.data?.[0]?.status || null)
       }
     })
 
     // Realtime notificações
-    const ch = supabase.channel('layout-notif')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${profile.id}` },
-        () => setUnreadCount(p => p + 1))
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'notifications', filter: `user_id=eq.${profile.id}` },
-        () => supabase.from('notifications').select('id', { count: 'exact', head: true }).eq('org_id', profile.org_id).eq('user_id', profile.id).eq('is_read', false).then(({ count }) => setUnreadCount(count || 0)))
-      .subscribe()
-
     return () => supabase.removeChannel(ch)
   }, [profile])
 
@@ -415,9 +406,9 @@ export default function Layout({ children }) {
                 title="Notificações"
                 className="relative w-9 h-9 flex items-center justify-center rounded-lg hover:bg-zinc-100 transition-colors">
                 <Bell className="w-4.5 h-4.5 text-zinc-500" />
-                {unreadCount > 0 && (
+                {unreadNotif > 0 && (
                   <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center px-0.5">
-                    {unreadCount > 99 ? '99+' : unreadCount}
+                    {unreadNotif > 99 ? '99+' : unreadNotif}
                   </span>
                 )}
               </button>
@@ -426,7 +417,7 @@ export default function Layout({ children }) {
                   profile={profile}
                   onClose={() => {
                     setOpenPanel(null)
-                    setUnreadCount(0)
+                    clearUnread()
                   }}
                 />
               )}

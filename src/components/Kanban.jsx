@@ -52,7 +52,7 @@ function TaskModal({ task, projects, profiles, onClose, onSave, onDelete, onArch
     hours_logged: task.hours_logged || '',
     is_emergency: task.is_emergency || false,
   })
-  const [subtasks, setSubtasks] = useState(task.subtasks || [])
+  const [subtasks, setSubtasks] = useState(Array.isArray(task.checklist) ? task.checklist : [])
   const [newSubtask, setNewSubtask] = useState('')
   const [comments, setComments] = useState([])
   const [newComment, setNewComment] = useState('')
@@ -72,7 +72,7 @@ function TaskModal({ task, projects, profiles, onClose, onSave, onDelete, onArch
 
   async function handleSave() {
     setSaving(true)
-    await onSave({ ...form, subtasks, id: task.id })
+    await onSave({ ...form, checklist: subtasks, id: task.id })
     setSaving(false)
   }
 
@@ -397,7 +397,7 @@ export default function Kanban() {
         column_id: form.column_id, assigned_to: form.assigned_to || null,
         project_id: form.project_id || null,
         due_date: form.due_date || null, hours_logged: form.hours_logged ? parseFloat(form.hours_logged) : null,
-        is_emergency: form.is_emergency || false, subtasks: form.subtasks || [],
+        is_emergency: form.is_emergency || false, checklist: form.checklist || [],
       })
       if (err) { setError(err.message); return }
     } else {
@@ -406,7 +406,7 @@ export default function Kanban() {
         column_id: form.column_id, assigned_to: form.assigned_to || null,
         project_id: form.project_id || null,
         due_date: form.due_date || null, hours_logged: form.hours_logged ? parseFloat(form.hours_logged) : null,
-        is_emergency: form.is_emergency || false, subtasks: form.subtasks || [],
+        is_emergency: form.is_emergency || false, checklist: form.checklist || [],
       }).eq('id', form.id)
       if (err) { setError(err.message); return }
     }
@@ -525,7 +525,7 @@ export default function Kanban() {
                     const prof = profMap[t.assigned_to]
                     const proj = projMap[t.project_id]
                     const pr = PRIORITY[t.priority] || PRIORITY.medium
-                    const subtasks = Array.isArray(t.subtasks) ? t.subtasks : []
+                    const subtasks = Array.isArray(t.checklist) ? t.checklist : []
                     const subDone = subtasks.filter(s => s.done).length
                     return (
                       <div key={t.id}

@@ -54,7 +54,7 @@ export default function Portfolio() {
       const [cRes, prRes, tRes] = await Promise.all([
         supabase.from('companies').select('*').eq('org_id', orgId),
         supabase.from('projects').select('*').eq('org_id', orgId),
-        supabase.from('tasks').select('*').eq('org_id', orgId),
+        supabase.from('tasks').select('*').eq('org_id', orgId).is('deleted_at', null).eq('is_archived', false),
       ])
 
       if (cRes.error) throw cRes.error
