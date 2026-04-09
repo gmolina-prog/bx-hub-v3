@@ -152,12 +152,16 @@ export default function Time() {
         category: kudoForm.category,
         message: kudoForm.message.trim(),
       }
-      const { error: iErr } = await supabase.from('kudos').insert([payload])
+      const { data: kudoData, error: iErr } = await supabase
+        .from('kudos').insert([payload]).select().single()
       if (iErr) throw iErr
+      // B-145: atualizar estado imediatamente sem esperar loadAll
+      if (kudoData) setKudos(prev => [kudoData, ...prev])
       setKudoForm({ to_user: '', category: 'teamwork', message: '' })
       setShowKudoForm(false)
-      await loadAll()
       toast.success('Kudo enviado! 🎉')
+      // Recarregar em background para sincronizar demais dados
+      loadAll()
     } catch (err) {
       toast.error(`Erro ao enviar kudo: ` + err.message)
     } finally {

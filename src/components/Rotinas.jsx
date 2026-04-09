@@ -28,6 +28,7 @@ export default function Rotinas() {
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ title: '', frequency: 'semanal', assigned_to: '', project_id: '' })
   const [filterFreq, setFilterFreq] = useState('all')
+  const [search,     setSearch]     = useState('')
   const [viewDashboard, setViewDashboard] = useState(false)
 
   const load = useCallback(async () => {
@@ -122,7 +123,13 @@ export default function Rotinas() {
     await load()
   }
 
-  const filtered = filterFreq === 'all' ? routines : routines.filter(r => r.frequency === filterFreq)
+  const filtered = routines.filter(r => {
+    const matchFreq   = filterFreq === 'all' || r.frequency === filterFreq
+    const matchSearch = !search.trim() ||
+      (r.title       || '').toLowerCase().includes(search.toLowerCase()) ||
+      (r.description || '').toLowerCase().includes(search.toLowerCase())
+    return matchFreq && matchSearch
+  })
   const doneToday = filtered.filter(r => isDoneToday(r.id)).length
   const overdue = filtered.filter(r => !isDoneToday(r.id) && isOverdue(r)).length
   const compliance = filtered.length > 0 ? Math.round(doneToday / filtered.length * 100) : 0
@@ -219,6 +226,13 @@ export default function Rotinas() {
 
       {/* Controls */}
       <div className="flex items-center gap-3 mb-4 flex-wrap">
+        <input
+          type="text"
+          placeholder="Buscar rotina…"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          className="px-3 py-2 text-sm border border-zinc-200 rounded-lg focus:outline-none focus:border-violet-500 w-48"
+        />
         <select className="text-sm border border-zinc-200 rounded-lg px-3 py-2 bg-white" value={filterFreq} onChange={e => setFilterFreq(e.target.value)}>
           <option value="all">Todas as frequências</option>
           {Object.entries(FREQ).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}

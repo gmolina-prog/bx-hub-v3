@@ -631,6 +631,16 @@ export default function Kanban() {
           <option value="all">Todos responsáveis</option>
           {profilesList.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
         </select>
+        <button
+          onClick={() => setFilterAssignee(filterAssignee === profile?.id ? 'all' : profile?.id)}
+          className={`flex items-center gap-1.5 text-xs font-semibold border px-3 py-2 rounded-lg transition-all whitespace-nowrap ${
+            filterAssignee === profile?.id
+              ? 'bg-violet-600 text-white border-violet-600'
+              : 'text-zinc-600 border-zinc-200 hover:border-violet-300 hover:text-violet-700'
+          }`}
+        >
+          👤 Minhas tarefas
+        </button>
         {(filterProject !== 'all' || filterPriority !== 'all' || filterAssignee !== 'all' || search) && (
           <button
             onClick={() => { setFilterProject('all'); setFilterPriority('all'); setFilterAssignee('all'); setSearch('') }}
@@ -643,6 +653,20 @@ export default function Kanban() {
           <Plus className="w-4 h-4" /> Nova tarefa
         </button>
       </div>
+
+      {/* Indicador de filtros ativos */}
+      {(filterProject !== 'all' || filterPriority !== 'all' || filterAssignee !== 'all' || search) && (
+        <div className="flex items-center gap-2 px-1 mb-2">
+          <span className="text-xs text-zinc-500">
+            Exibindo <span className="font-bold text-violet-700">{filtered.length}</span> de {tasks.filter(t => !t.is_archived).length} tarefas
+          </span>
+          {filtered.length === 0 && (
+            <span className="text-xs text-amber-600 font-semibold">
+              · Nenhuma tarefa encontrada com esses filtros
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Board */}
       {loading ? (
