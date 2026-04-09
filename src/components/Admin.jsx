@@ -78,7 +78,8 @@ export default function Admin() {
   const [editingProfile,  setEditingProfile]  = useState(null)
   const [editProfileForm, setEditProfileForm] = useState({})
   const [savingProfile,   setSavingProfile]   = useState(false)
-  const [inviteData, setInviteData] = useState({ email: '', full_name: '', role: 'analyst', cargo: '' })
+  const [inviteData,    setInviteData]    = useState({ email: '', full_name: '', role: 'analyst', cargo: '' })
+  const [profileSearch, setProfileSearch] = useState('')
   const [inviting, setInviting] = useState(false)
 
   const isOwner   = profile?.role === 'owner'
@@ -446,7 +447,12 @@ export default function Admin() {
               <div className="p-8 text-center text-sm text-zinc-400">Nenhum usuário encontrado</div>
             ) : (
               <div className="divide-y divide-zinc-100">
-                {profiles.map(p => {
+                {profiles
+                  .filter(p => !profileSearch.trim() ||
+                    (p.full_name || '').toLowerCase().includes(profileSearch.toLowerCase()) ||
+                    (p.email || '').toLowerCase().includes(profileSearch.toLowerCase()) ||
+                    (p.cargo || '').toLowerCase().includes(profileSearch.toLowerCase()))
+                  .map(p => {
                   const role = ROLES.find(r => r.value === p.role) || ROLES[ROLES.length - 1]
                   // Usar initials do banco se existir, senao calcular
                   const initials = p.initials || (p.full_name || p.email || '?').split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase()

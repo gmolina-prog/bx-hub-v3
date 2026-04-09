@@ -86,6 +86,7 @@ export default function CRM() {
   const { profile } = useData()
   usePageTitle('CRM')
   const [activeTab, setActiveTab] = useState('overview')
+  const [clientSearch, setClientSearch] = useState('')
   const [companies, setCompanies] = useState([])
   const [proposals, setProposals] = useState([])
   const [interactions, setInteractions] = useState([])
@@ -122,14 +123,14 @@ export default function CRM() {
     setError(null)
     try {
       // Tabela real e `client_interactions` (nao crm_interactions)
-      const [companiesRes, proposalsRes, interactionsRes] = await Promise.all([
+      const [companiesRes, proposalsRes, interactionsRes] = await Promise.allSettled([
         loadTable('companies'),
         loadTable('proposals'),
         loadTable('client_interactions'),
       ])
-      setCompanies(companiesRes)
-      setProposals(proposalsRes)
-      setInteractions(interactionsRes)
+      if (companiesRes.status    === 'fulfilled') setCompanies(companiesRes.value    || [])
+      if (proposalsRes.status    === 'fulfilled') setProposals(proposalsRes.value    || [])
+      if (interactionsRes.status === 'fulfilled') setInteractions(interactionsRes.value || [])
     } catch (err) {
       console.error('Error loading CRM data:', err)
       setError(err.message)
@@ -634,48 +635,68 @@ export default function CRM() {
       {/* TAB: Clientes */}
       {!loading && activeTab === 'clients' && (
         <div className="bg-white border border-zinc-200 rounded-xl overflow-hidden">
-          <div className="px-5 py-4 border-b border-zinc-200 bg-zinc-50 flex items-center justify-between">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-200 bg-zinc-50">
             <h2 className="text-sm font-bold text-zinc-800 flex items-center gap-2">
-              <Users className="w-4 h-4 text-violet-600" />
+              <Building2 className="w-4 h-4 text-violet-600" />
               Clientes
               <span className="ml-2 text-xs text-zinc-500 font-semibold">{companies.length}</span>
             </h2>
+            <input
+              type="text"
+              placeholder="Buscar por nome ou CNPJ…"
+              value={clientSearch}
+              onChange={e => setClientSearch(e.target.value)}
+              className="px-3 py-1.5 text-sm border border-zinc-200 rounded-lg focus:outline-none focus:border-violet-500 w-56"
+            />
           </div>
-          {companies.length === 0 ? (
-            <div className="p-12 text-center text-sm text-zinc-400">Nenhum cliente cadastrado</div>
-          ) : (
-            <div className="divide-y divide-zinc-100">
-              {companies.map(c => {
-                const clientProposals = proposals.filter(p => p.company_id === c.id)
-                const clientInteractions = interactions.filter(i => i.company_id === c.id)
-                const totalValue = clientProposals.reduce((s, p) => s + (parseFloat(p.value) || 0), 0)
-                const initials = (c.name || c.full_name || '?').split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase()
-                return (
-                  <div key={c.id} className="px-5 py-4 hover:bg-zinc-50 grid grid-cols-[48px_2fr_1fr_1fr_1fr] gap-4 items-center">
-                    <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-violet-500 to-violet-700 text-white flex items-center justify-center font-bold">
-                      {initials}
+          {(() => {
+            const filteredClients = clientSearch.trim()
+              ? companies.filter(co => {
+                  const q = clientSearch.toLowerCase()
+                  return (co.name || '').toLowerCase().includes(q) ||
+                         (co.cnpj || '').toLowerCase().includes(q) ||
+                         (co.segment || '').toLowerCase().includes(q)
+                })
+              : companies
+            if (filteredClients.length === 0) return (
+              <div className="p-12 text-center text-sm text-zinc-400">
+                {clientSearch ? `Nenhum cliente encontrado para "${clientSearch}"` : 'Nenhum cliente cadastrado'}
+              </div>
+            )
+            return (
+              <div className="divide-y divide-zinc-100">
+                {filteredClients.map(co => {
+                  const clientProposals = proposals.filter(p => p.company_id === co.id)
+                  const clientInteractions = interactions.filter(i => i.company_id === co.id)
+                  const totalValue = clientProposals.reduce((s, p) => s + (parseFloat(p.value) || 0), 0)
+                  const initials = (co.name || '?').split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase()
+                  return (
+                    <div key={co.id} className="px-5 py-4 hover:bg-zinc-50 grid grid-cols-[48px_2fr_1fr_1fr_1fr] gap-4 items-center">
+                      <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-violet-500 to-violet-700 text-white flex items-center justify-center font-bold">
+                        {initials}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-sm font-bold text-zinc-800 truncate">{co.name || '—'}</div>
+                        <div className="text-xs text-zinc-500 truncate">{co.segment || co.cnpj || '—'}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-zinc-500">Propostas</div>
+                        <div className="text-sm font-bold text-zinc-800">{clientProposals.length}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-zinc-500">Interações</div>
+                        <div className="text-sm font-bold text-zinc-800">{clientInteractions.length}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-zinc-500">Pipeline</div>
+                        <div className="text-sm font-bold text-violet-700">{formatCurrency(totalValue)}</div>
+                      </div>
                     </div>
-                    <div className="min-w-0">
-                      <div className="text-sm font-bold text-zinc-800 truncate">{c.name || c.full_name || c.id}</div>
-                      <div className="text-xs text-zinc-500 truncate">{c.industry || c.cnpj || '—'}</div>
-                    </div>
-                    <div>
-                      <div className="text-xs text-zinc-500">Propostas</div>
-                      <div className="text-sm font-bold text-zinc-800">{clientProposals.length}</div>
-                    </div>
-                    <div>
-                      <div className="text-xs text-zinc-500">Interações</div>
-                      <div className="text-sm font-bold text-zinc-800">{clientInteractions.length}</div>
-                    </div>
-                    <div>
-                      <div className="text-xs text-zinc-500">Pipeline</div>
-                      <div className="text-sm font-bold text-violet-700">{formatCurrency(totalValue)}</div>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
+                  )
+                })}
+              </div>
+            )
+          })()}
         </div>
       )}
 

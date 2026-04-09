@@ -91,6 +91,9 @@ export default function Intakes() {
   const [sortBy, setSortBy] = useState('recent')
   const [showForm, setShowForm] = useState(false)
   const [selectedIntake, setSelectedIntake] = useState(null)
+  const [editingIntake, setEditingIntake] = useState(false)
+  const [editForm, setEditForm] = useState({})
+  const [savingEdit, setSavingEdit] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [form, setForm] = useState({
     company_name: '',
@@ -576,11 +579,61 @@ export default function Intakes() {
                 <h2 className="text-xl font-bold text-zinc-800">{selectedIntake.company_name}</h2>
                 {selectedIntake.cnpj && <div className="text-sm font-mono text-zinc-500 mt-1">{selectedIntake.cnpj}</div>}
               </div>
-              <button onClick={() => setSelectedIntake(null)} className="p-1 hover:bg-zinc-100 rounded">
-                <X className="w-5 h-5 text-zinc-500" />
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => editingIntake ? setEditingIntake(false) : openEditIntake(selectedIntake)}
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors ${
+                    editingIntake
+                      ? 'border-zinc-200 text-zinc-600 hover:bg-zinc-50'
+                      : 'border-violet-200 text-violet-700 bg-violet-50 hover:bg-violet-100'
+                  }`}
+                >
+                  {editingIntake ? 'Cancelar' : '✏️ Editar'}
+                </button>
+                <button onClick={() => setSelectedIntake(null)} className="p-1 hover:bg-zinc-100 rounded">
+                  <X className="w-5 h-5 text-zinc-500" />
+                </button>
+              </div>
             </div>
             <div className="p-6 space-y-4">
+              {editingIntake && (
+                <div className="bg-violet-50 border border-violet-100 rounded-xl p-4 space-y-3">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-violet-700">Editar lead</h4>
+                  <div className="grid grid-cols-2 gap-3">
+                    <input className="col-span-2 px-3 py-2 text-sm border border-zinc-200 rounded-lg focus:outline-none focus:border-violet-500"
+                      placeholder="Empresa *" value={editForm.company_name}
+                      onChange={e => setEditForm(p => ({...p, company_name: e.target.value}))} />
+                    <input className="px-3 py-2 text-sm border border-zinc-200 rounded-lg focus:outline-none focus:border-violet-500"
+                      placeholder="CNPJ" value={editForm.cnpj}
+                      onChange={e => setEditForm(p => ({...p, cnpj: e.target.value}))} />
+                    <input className="px-3 py-2 text-sm border border-zinc-200 rounded-lg focus:outline-none focus:border-violet-500"
+                      placeholder="Contato" value={editForm.contact_name}
+                      onChange={e => setEditForm(p => ({...p, contact_name: e.target.value}))} />
+                    <input className="px-3 py-2 text-sm border border-zinc-200 rounded-lg focus:outline-none focus:border-violet-500"
+                      placeholder="E-mail" value={editForm.email}
+                      onChange={e => setEditForm(p => ({...p, email: e.target.value}))} />
+                    <input className="px-3 py-2 text-sm border border-zinc-200 rounded-lg focus:outline-none focus:border-violet-500"
+                      placeholder="Telefone" value={editForm.phone}
+                      onChange={e => setEditForm(p => ({...p, phone: e.target.value}))} />
+                    <input type="number" className="px-3 py-2 text-sm border border-zinc-200 rounded-lg focus:outline-none focus:border-violet-500"
+                      placeholder="Valor estimado" value={editForm.estimated_value}
+                      onChange={e => setEditForm(p => ({...p, estimated_value: e.target.value}))} />
+                    <input type="date" className="px-3 py-2 text-sm border border-zinc-200 rounded-lg focus:outline-none focus:border-violet-500"
+                      placeholder="Próximo contato" value={editForm.next_contact_date}
+                      onChange={e => setEditForm(p => ({...p, next_contact_date: e.target.value}))} />
+                    <input className="col-span-2 px-3 py-2 text-sm border border-zinc-200 rounded-lg focus:outline-none focus:border-violet-500"
+                      placeholder="Próximo passo" value={editForm.next_step}
+                      onChange={e => setEditForm(p => ({...p, next_step: e.target.value}))} />
+                    <textarea rows={3} className="col-span-2 px-3 py-2 text-sm border border-zinc-200 rounded-lg focus:outline-none focus:border-violet-500 resize-none"
+                      placeholder="Notas" value={editForm.notes}
+                      onChange={e => setEditForm(p => ({...p, notes: e.target.value}))} />
+                  </div>
+                  <button onClick={saveEditIntake} disabled={savingEdit}
+                    className="w-full py-2 text-sm font-bold text-white bg-violet-600 hover:bg-violet-500 rounded-lg disabled:opacity-50">
+                    {savingEdit ? 'Salvando…' : 'Salvar alterações'}
+                  </button>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-3">
                 <DetailRow icon={Layers} label="Status">
                   <select
