@@ -571,15 +571,105 @@ export default function Time() {
       )}
 
       {/* ============== TAB: ANIVERSÁRIOS ============== */}
-      {!loading && activeTab === 'birthdays' && (
-        <div className="bg-white border border-zinc-200 rounded-xl p-12 text-center">
-          <Cake className="w-12 h-12 text-zinc-300 mx-auto mb-3" />
-          <div className="text-sm font-bold text-zinc-700">Aniversários ainda não cadastrados</div>
-          <div className="text-xs text-zinc-500 mt-1 max-w-md mx-auto">
-            Para ver os aniversários da equipe aqui, adicione uma coluna <code className="bg-zinc-100 px-1 rounded">birth_date</code> na tabela <code className="bg-zinc-100 px-1 rounded">profiles</code> e preencha as datas.
+      {!loading && activeTab === 'birthdays' && (() => {
+        const today = new Date(); today.setHours(0,0,0,0)
+        const thisYear = today.getFullYear()
+
+        // Calcular próximo aniversário para cada pessoa com birth_date
+        const withBirthday = profiles
+          .filter(p => p.birth_date)
+          .map(p => {
+            const bd = new Date(p.birth_date + 'T00:00:00')
+            // Próximo aniversário no ano corrente ou seguinte
+            let next = new Date(thisYear, bd.getMonth(), bd.getDate())
+            if (next < today) next = new Date(thisYear + 1, bd.getMonth(), bd.getDate())
+            const daysUntil = Math.round((next - today) / 86400000)
+            const isToday = daysUntil === 0
+            const age = thisYear - bd.getFullYear() + (next.getFullYear() > thisYear ? 0 : 0)
+            return { ...p, next, daysUntil, isToday, age }
+          })
+          .sort((a, b) => a.daysUntil - b.daysUntil)
+
+        const withoutBirthday = profiles.filter(p => !p.birth_date)
+
+        return (
+          <div className="space-y-4">
+            {/* Próximos aniversários */}
+            <div className="bg-white border border-zinc-200 rounded-xl overflow-hidden">
+              <div className="px-5 py-4 border-b border-zinc-100 bg-zinc-50 flex items-center justify-between">
+                <h2 className="text-sm font-bold text-zinc-800 flex items-center gap-2">
+                  <Cake className="w-4 h-4 text-violet-600" />
+                  Próximos aniversários
+                </h2>
+                <span className="text-xs text-zinc-500">{withBirthday.length} de {profiles.length} com data cadastrada</span>
+              </div>
+              {withBirthday.length === 0 ? (
+                <div className="p-10 text-center">
+                  <Cake className="w-10 h-10 text-zinc-200 mx-auto mb-3" />
+                  <div className="text-sm text-zinc-500">Nenhum colaborador com data de nascimento cadastrada.</div>
+                  <div className="text-xs text-zinc-400 mt-1">Adicione as datas em Cadastro → Colaboradores.</div>
+                </div>
+              ) : (
+                <div className="divide-y divide-zinc-100">
+                  {withBirthday.map(p => {
+                    const initials = p.initials || (p.full_name || '?').split(' ').map(w => w[0]).slice(0,2).join('').toUpperCase()
+                    const avatarStyle = p.avatar_color ? { background: p.avatar_color } : {}
+                    const avatarClass = p.avatar_color
+                      ? 'w-10 h-10 rounded-full text-white flex items-center justify-center font-bold text-sm flex-shrink-0'
+                      : 'w-10 h-10 rounded-full bg-gradient-to-br from-violet-500 to-violet-700 text-white flex items-center justify-center font-bold text-sm flex-shrink-0'
+                    const monthDay = new Date(p.birth_date + 'T00:00:00')
+                      .toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' })
+                    return (
+                      <div key={p.id} className={`px-5 py-4 flex items-center gap-4 ${p.isToday ? 'bg-amber-50 border-l-4 border-amber-400' : 'hover:bg-zinc-50'}`}>
+                        <div className={avatarClass} style={avatarStyle}>{initials}</div>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-bold text-zinc-800 flex items-center gap-2">
+                            {p.full_name}
+                            {p.isToday && <span className="text-xs font-bold text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full">🎂 Hoje!</span>}
+                          </div>
+                          <div className="text-xs text-zinc-500">{monthDay}</div>
+                        </div>
+                        <div className="text-right shrink-0">
+                          {p.isToday ? (
+                            <div className="text-2xl">🎉</div>
+                          ) : (
+                            <>
+                              <div className="text-lg font-bold text-violet-700">{p.daysUntil}</div>
+                              <div className="text-[10px] text-zinc-400 uppercase tracking-wider">dias</div>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Sem data cadastrada */}
+            {withoutBirthday.length > 0 && (
+              <div className="bg-white border border-zinc-200 rounded-xl p-4">
+                <div className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-3">
+                  Sem data cadastrada ({withoutBirthday.length})
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {withoutBirthday.map(p => {
+                    const initials = p.initials || (p.full_name || '?').split(' ').map(w => w[0]).slice(0,2).join('').toUpperCase()
+                    return (
+                      <div key={p.id} className="flex items-center gap-2 bg-zinc-50 rounded-lg px-3 py-1.5">
+                        <div className="w-6 h-6 rounded-full bg-zinc-200 text-zinc-500 text-[10px] font-bold flex items-center justify-center">
+                          {initials}
+                        </div>
+                        <span className="text-xs text-zinc-500">{p.full_name?.split(' ')[0]}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
           </div>
-        </div>
-      )}
+        )
+      })()}
 
       {/* ============== TAB: CARGA DE TRABALHO ============== */}
       {!loading && activeTab === 'workload' && (

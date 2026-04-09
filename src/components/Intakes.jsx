@@ -189,6 +189,7 @@ export default function Intakes() {
         .from('intakes')
         .update({ status: newStatus })
         .eq('id', intakeId)
+        .eq('org_id', profile.org_id)
       if (uErr) throw uErr
       await loadAll()
       showSuccess('Status atualizado')

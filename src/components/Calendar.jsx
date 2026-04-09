@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { useData } from '../contexts/DataContext'
 import { toast, confirm } from './Toast'
 import {
+  Plus,
   Calendar as CalendarIcon,
   MapPin,
   ChevronLeft,
@@ -86,6 +87,9 @@ const WEEKDAY_LABELS = ['SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB', 'DOM']
 export default function Calendar() {
   const { profile } = useData()
   const [activeTab, setActiveTab] = useState('checkin')
+  const [showEventForm, setShowEventForm] = useState(false)
+  const [eventForm, setEventForm] = useState({ title: '', date: '', time: '', type: 'meeting', location: '', description: '' })
+  const [submittingEvent, setSubmittingEvent] = useState(false)
   const [profiles, setProfiles] = useState([])
   const [checkins, setCheckins] = useState([])
   const [events, setEvents] = useState([])
@@ -144,7 +148,7 @@ export default function Calendar() {
           .select('*')
           .eq('org_id', profile?.org_id)
           .gte('date', formatDateISO(weekStart))
-          .lt('date', formatDateISO(addDays(weekStart, 14)))
+          .lt('date', formatDateISO(addDays(weekStart, 60)))
           .order('date', { ascending: true })
         setEvents(eventsData || [])
       } catch (e) {
@@ -189,6 +193,35 @@ export default function Calendar() {
       toast.error(`Erro ao registrar check-in: ` + err.message)
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  async function submitEvent() {
+    if (!eventForm.title.trim() || !eventForm.date) {
+      toast.warning('Preencha título e data')
+      return
+    }
+    setSubmittingEvent(true)
+    try {
+      const { error } = await supabase.from('events').insert({
+        org_id: profile.org_id,
+        title: eventForm.title.trim(),
+        date: eventForm.date,
+        time: eventForm.time || null,
+        type: eventForm.type,
+        location: eventForm.location?.trim() || null,
+        description: eventForm.description?.trim() || null,
+        created_by: profile.id,
+      })
+      if (error) throw error
+      setShowEventForm(false)
+      setEventForm({ title: '', date: '', time: '', type: 'meeting', location: '', description: '' })
+      await loadAll()
+      showSuccess('Compromisso criado')
+    } catch (err) {
+      toast.error('Erro ao criar compromisso: ' + err.message)
+    } finally {
+      setSubmittingEvent(false)
     }
   }
 
@@ -279,6 +312,13 @@ export default function Calendar() {
             >
               <MapPin className="w-4 h-4" />
               Check-in hoje
+            </button>
+            <button
+              onClick={() => setShowEventForm(true)}
+              className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-sm font-semibold flex items-center gap-2"
+            >
+              <Plus className="w-4 h-4" />
+              Novo compromisso
             </button>
           </div>
         </div>
@@ -560,6 +600,72 @@ export default function Calendar() {
       )}
 
       {/* TAB: Events */}
+      {showEventForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: 'rgba(0,0,0,0.45)' }}
+          onClick={e => e.target === e.currentTarget && setShowEventForm(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="text-base font-bold text-zinc-800">Novo Compromisso</h3>
+              <button onClick={() => setShowEventForm(false)} className="text-zinc-400 hover:text-zinc-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Título *</label>
+                <input autoFocus className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                  value={eventForm.title} onChange={e => setEventForm(p => ({...p, title: e.target.value}))} placeholder="Ex: Reunião com cliente..." />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Data *</label>
+                  <input type="date" className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                    value={eventForm.date} onChange={e => setEventForm(p => ({...p, date: e.target.value}))} />
+                </div>
+                <div>
+                  <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Horário</label>
+                  <input type="time" className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                    value={eventForm.time} onChange={e => setEventForm(p => ({...p, time: e.target.value}))} />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Tipo</label>
+                  <select className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                    value={eventForm.type} onChange={e => setEventForm(p => ({...p, type: e.target.value}))}>
+                    <option value="meeting">Reunião</option>
+                    <option value="deadline">Prazo</option>
+                    <option value="court">Audiência</option>
+                    <option value="call">Ligação</option>
+                    <option value="visit">Visita</option>
+                    <option value="other">Outro</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Local</label>
+                  <input className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                    value={eventForm.location} onChange={e => setEventForm(p => ({...p, location: e.target.value}))} placeholder="Online, escritório..." />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Descrição</label>
+                <textarea rows={2} className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500 resize-none"
+                  value={eventForm.description} onChange={e => setEventForm(p => ({...p, description: e.target.value}))} placeholder="Detalhes adicionais..." />
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button onClick={submitEvent} disabled={submittingEvent || !eventForm.title.trim() || !eventForm.date}
+                  className="flex-1 py-2.5 text-sm font-bold text-white rounded-xl hover:opacity-90 disabled:opacity-50"
+                  style={{ background: '#5452C1' }}>
+                  {submittingEvent ? 'Salvando…' : 'Criar Compromisso'}
+                </button>
+                <button onClick={() => setShowEventForm(false)} className="px-4 text-sm text-zinc-500 hover:text-zinc-700">Cancelar</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {!loading && activeTab === 'events' && (
         <div className="bg-white border border-zinc-200 rounded-xl p-5">
           <h2 className="text-sm font-bold text-zinc-800 mb-4 flex items-center gap-2">

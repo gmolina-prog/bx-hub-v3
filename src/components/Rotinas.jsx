@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { RefreshCw, Plus, X, Check, AlertCircle, User, Clock } from 'lucide-react'
+import { toast } from './Toast'
 import { supabase } from '../lib/supabase'
 import { useData } from '../contexts/DataContext'
 
@@ -88,12 +89,22 @@ export default function Rotinas() {
 
   async function createRoutine() {
     if (!form.title.trim()) return
-    await supabase.from('routines').insert({ org_id: profile.org_id, title: form.title, frequency: form.frequency, assigned_to: form.assigned_to || null, project_id: form.project_id || null, is_active: true })
-    setShowForm(false); setForm({ title: '', frequency: 'semanal', assigned_to: '', project_id: '' }); await load()
+    const { error } = await supabase.from('routines').insert({
+      org_id: profile.org_id, title: form.title, frequency: form.frequency,
+      assigned_to: form.assigned_to || null, project_id: form.project_id || null, is_active: true,
+    })
+    if (error) { toast.error('Erro ao criar rotina: ' + error.message); return }
+    setShowForm(false)
+    setForm({ title: '', frequency: 'semanal', assigned_to: '', project_id: '' })
+    await load()
+    toast.success('Rotina criada')
   }
 
   async function archive(id) {
-    await supabase.from('routines').update({ is_active: false }).eq('id', id); await load()
+    const { error } = await supabase.from('routines')
+      .update({ is_active: false }).eq('id', id).eq('org_id', profile.org_id)
+    if (error) { toast.error('Erro ao arquivar rotina: ' + error.message); return }
+    await load()
   }
 
   const filtered = filterFreq === 'all' ? routines : routines.filter(r => r.frequency === filterFreq)

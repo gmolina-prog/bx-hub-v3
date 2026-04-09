@@ -162,6 +162,7 @@ export default function Automations() {
         .from('automation_rules')
         .update({ is_active: !currentStatus })
         .eq('id', ruleId)
+        .eq('org_id', profile.org_id)
       if (uErr) throw uErr
       await loadRules()
       showSuccess(currentStatus ? 'Automação desativada' : 'Automação ativada')
@@ -172,12 +173,13 @@ export default function Automations() {
   }
 
   async function deleteRule(ruleId) {
-    if (!confirm('Tem certeza que deseja excluir esta automação? Esta ação não pode ser desfeita.')) return
+    if (!await confirm('Excluir esta automação? Esta ação não pode ser desfeita.', { danger: true, confirmLabel: 'Excluir', cancelLabel: 'Cancelar' })) return
     try {
       const { error: dErr } = await supabase
         .from('automation_rules')
         .delete()
         .eq('id', ruleId)
+        .eq('org_id', profile.org_id)
       if (dErr) throw dErr
       await loadRules()
       showSuccess('Automação excluída')
