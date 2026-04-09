@@ -83,7 +83,9 @@ export default function Cadastro() {
   const [institutions, setInstitutions] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
-  const [successMsg, setSuccessMsg] = useState(null)
+  const [successMsg,      setSuccessMsg]      = useState(null)
+  const [editingCompany,  setEditingCompany]  = useState(null)
+  const [editCompanyForm, setEditCompanyForm] = useState({})
   const [search, setSearch] = useState('')
   const [filterCriticality, setFilterCriticality] = useState('all')
   const [filterStatus, setFilterStatus] = useState('all')
@@ -204,6 +206,50 @@ export default function Cadastro() {
     setSaving(false)
   }
 
+  function openEditCompany(company) {
+    setEditingCompany(company)
+    setEditCompanyForm({
+      name:         company.name         || '',
+      trading_name: company.trading_name || '',
+      cnpj:         company.cnpj         || '',
+      segment:      company.segment      || '',
+      status:       company.status       || 'ativo',
+      criticality:  company.criticality  || 'medio',
+      notes:        company.notes        || '',
+      powerbi_link: company.powerbi_link || '',
+      contact_name: company.contact_name || '',
+      contact_email:company.contact_email|| '',
+      contact_phone:company.contact_phone|| '',
+      website:      company.website      || '',
+    })
+  }
+
+  async function updateCompany() {
+    if (!editingCompany) return
+    try {
+      const { error } = await supabase.from('companies').update({
+        name:          editCompanyForm.name.trim(),
+        trading_name:  editCompanyForm.trading_name?.trim() || null,
+        cnpj:          editCompanyForm.cnpj?.trim() || null,
+        segment:       editCompanyForm.segment?.trim() || null,
+        status:        editCompanyForm.status,
+        criticality:   editCompanyForm.criticality,
+        notes:         editCompanyForm.notes?.trim() || null,
+        powerbi_link:  editCompanyForm.powerbi_link?.trim() || null,
+        contact_name:  editCompanyForm.contact_name?.trim() || null,
+        contact_email: editCompanyForm.contact_email?.trim() || null,
+        contact_phone: editCompanyForm.contact_phone?.trim() || null,
+        website:       editCompanyForm.website?.trim() || null,
+      }).eq('id', editingCompany.id).eq('org_id', profile.org_id)
+      if (error) throw error
+      setEditingCompany(null)
+      await loadAll()
+      toast.success('Empresa atualizada')
+    } catch (err) {
+      toast.error('Erro ao atualizar: ' + err.message)
+    }
+  }
+
   async function createProfile() {
     if (!newProfileForm.full_name.trim() || !newProfileForm.email.trim()) {
       toast.warning('Preencha nome e email'); return
@@ -312,8 +358,108 @@ export default function Cadastro() {
     URL.revokeObjectURL(url)
   }
 
+  const VL = '#5452C1'
+
   return (
     <>
+    {/* B-187: Modal de edição de empresa */}
+    {editingCompany && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.45)' }}
+        onClick={e => e.target === e.currentTarget && setEditingCompany(null)}>
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-100">
+            <h3 className="text-base font-bold text-zinc-800">Editar Empresa</h3>
+            <button onClick={() => setEditingCompany(null)} className="text-zinc-400 hover:text-zinc-600">✕</button>
+          </div>
+          <div className="px-6 py-4 space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="col-span-2">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Razão Social *</label>
+                <input className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500"
+                  value={editCompanyForm.name || ''} onChange={e => setEditCompanyForm(p => ({...p, name: e.target.value}))} />
+              </div>
+              <div>
+                <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Nome Fantasia</label>
+                <input className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500"
+                  value={editCompanyForm.trading_name || ''} onChange={e => setEditCompanyForm(p => ({...p, trading_name: e.target.value}))} />
+              </div>
+              <div>
+                <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1 block">CNPJ</label>
+                <input className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500"
+                  value={editCompanyForm.cnpj || ''} onChange={e => setEditCompanyForm(p => ({...p, cnpj: e.target.value}))} />
+              </div>
+              <div>
+                <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Segmento</label>
+                <input className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500"
+                  value={editCompanyForm.segment || ''} onChange={e => setEditCompanyForm(p => ({...p, segment: e.target.value}))} />
+              </div>
+              <div>
+                <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Status</label>
+                <select className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500"
+                  value={editCompanyForm.status || 'ativo'} onChange={e => setEditCompanyForm(p => ({...p, status: e.target.value}))}>
+                  <option value="ativo">Ativo</option>
+                  <option value="inativo">Inativo</option>
+                  <option value="arquivado">Arquivado</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Criticidade</label>
+                <select className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500"
+                  value={editCompanyForm.criticality || 'medio'} onChange={e => setEditCompanyForm(p => ({...p, criticality: e.target.value}))}>
+                  <option value="baixo">Baixo</option>
+                  <option value="medio">Médio</option>
+                  <option value="alto">Alto</option>
+                  <option value="critico">Crítico</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Contato</label>
+                <input className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500"
+                  value={editCompanyForm.contact_name || ''} onChange={e => setEditCompanyForm(p => ({...p, contact_name: e.target.value}))} />
+              </div>
+              <div>
+                <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1 block">E-mail</label>
+                <input type="email" className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500"
+                  value={editCompanyForm.contact_email || ''} onChange={e => setEditCompanyForm(p => ({...p, contact_email: e.target.value}))} />
+              </div>
+              <div>
+                <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Telefone</label>
+                <input className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500"
+                  value={editCompanyForm.contact_phone || ''} onChange={e => setEditCompanyForm(p => ({...p, contact_phone: e.target.value}))} />
+              </div>
+              <div>
+                <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Website</label>
+                <input className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500"
+                  placeholder="https://..."
+                  value={editCompanyForm.website || ''} onChange={e => setEditCompanyForm(p => ({...p, website: e.target.value}))} />
+              </div>
+              <div className="col-span-2">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Link Power BI</label>
+                <input className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500"
+                  placeholder="https://app.powerbi.com/..."
+                  value={editCompanyForm.powerbi_link || ''} onChange={e => setEditCompanyForm(p => ({...p, powerbi_link: e.target.value}))} />
+              </div>
+              <div className="col-span-2">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Observações</label>
+                <textarea rows={3} className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500 resize-none"
+                  value={editCompanyForm.notes || ''} onChange={e => setEditCompanyForm(p => ({...p, notes: e.target.value}))} />
+              </div>
+            </div>
+          </div>
+          <div className="flex gap-3 px-6 py-4 border-t border-zinc-100">
+            <button onClick={updateCompany}
+              className="flex-1 py-2.5 text-sm font-bold text-white rounded-xl hover:opacity-90"
+              style={{ background: VL }}>
+              Salvar Alterações
+            </button>
+            <button onClick={() => setEditingCompany(null)}
+              className="px-5 text-sm text-zinc-500 hover:text-zinc-700">
+              Cancelar
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
     <div className="p-6 max-w-[1600px] mx-auto">
       {/* Hero */}
       <div className="bg-gradient-to-br from-zinc-800 to-zinc-900 rounded-2xl p-6 mb-6 text-white">
@@ -548,7 +694,7 @@ export default function Cadastro() {
                           </td>
                           <td className="px-4 py-3">
                             <div className="flex gap-1 justify-end">
-                              <button className="p-1.5 text-zinc-500 hover:bg-zinc-100 rounded" title="Editar">
+                              <button onClick={() => openEditCompany(c)} className="p-1.5 text-zinc-500 hover:bg-zinc-100 rounded" title="Editar">
                                 <Edit3 className="w-3.5 h-3.5" />
                               </button>
                               <button className="p-1.5 text-rose-600 hover:bg-rose-50 rounded" title="Excluir">

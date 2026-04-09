@@ -32,7 +32,7 @@ export default function Reembolsos() {
   const [showNew, setShowNew] = useState(false)
   const [newTitle, setNewTitle] = useState('')
   const [addingItem, setAddingItem] = useState(null)
-  const [newItem, setNewItem] = useState({ category: 'refeicao', description: '', value: '', date: '', km: '', km_rate: '0.60' })
+  const [newItem, setNewItem] = useState({ category: 'refeicao', description: '', value: '', date: '', km: '', km_rate: '0.60', receipt_url: '' })
 
   const load = useCallback(async () => {
     if (!profile) return
@@ -111,7 +111,7 @@ export default function Reembolsos() {
       const repItems = [...(items[reportId] || []), { amount: val }]
       const total = repItems.reduce((s, it) => s + (parseFloat(it.amount) || 0), 0)
       await supabase.from('expense_reports').update({ total_amount: total }).eq('id', reportId).eq('org_id', profile.org_id)
-      setAddingItem(null); setNewItem({ category: 'refeicao', description: '', value: '', date: '', km: '', km_rate: '0.60' })
+      setAddingItem(null); setNewItem({ category: 'refeicao', description: '', value: '', date: '', km: '', km_rate: '0.60', receipt_url: '' })
       await load()
     } catch (err) {
       toast.error('Erro ao adicionar item: ' + err.message)
@@ -249,6 +249,14 @@ export default function Reembolsos() {
                               </td>
                               <td className="px-4 py-2.5 text-zinc-500 text-xs">{it.date ? new Date(it.date).toLocaleDateString('pt-BR') : '—'}</td>
                               <td className="px-4 py-2.5 text-right font-semibold text-zinc-800">{fmtBRL(it.amount)}</td>
+                              <td className="px-4 py-2.5 text-center">
+                                {it.receipt_url ? (
+                                  <a href={it.receipt_url} target="_blank" rel="noopener noreferrer"
+                                    className="text-violet-500 hover:text-violet-700 text-[10px] font-semibold">
+                                    📎 Ver
+                                  </a>
+                                ) : <span className="text-zinc-300 text-[10px]">—</span>}
+                              </td>
                               <td className="px-4 py-2.5"><button onClick={() => deleteItem(report.id, it.id)} className="text-zinc-300 hover:text-red-400"><X className="w-3.5 h-3.5" /></button></td>
                             </tr>
                           ))}
@@ -289,6 +297,11 @@ export default function Reembolsos() {
                           ) : (
                             <input className="border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500" placeholder="Valor (R$) *" value={newItem.value} onChange={e => setNewItem(p => ({...p, value: e.target.value}))} />
                           )}
+                          <input
+                            className="col-span-2 border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500"
+                            placeholder="Link do comprovante (URL) — opcional"
+                            value={newItem.receipt_url}
+                            onChange={e => setNewItem(p => ({...p, receipt_url: e.target.value}))} />
                         </div>
                         <div className="flex gap-3">
                           <button onClick={() => addItem(report.id)} disabled={saving || !newItem.description.trim() || !newItem.value}

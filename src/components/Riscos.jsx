@@ -21,7 +21,7 @@ function riskLevel(score) {
 const CATEGORIES = ['Financeiro','Operacional','Legal','Estratégico','Tecnologia','RH','Mercado','Compliance']
 const STATUS_OPTS = ['open','mitigated','closed']
 const STATUS_LABELS = { open: 'Aberto', mitigated: 'Em Mitigação', closed: 'Fechado' }
-const EMPTY = { name: '', probability: 3, impact: 3, status: 'open', mitigation: '', owner_id: '', project_id: '' }
+const EMPTY = { name: '', probability: 3, impact: 3, status: 'open', mitigation: '', mitigation_due: '', owner_id: '', project_id: '' }
 
 // Heatmap 5×5
 const HEAT_CELLS = []
@@ -134,6 +134,7 @@ export default function Riscos() {
       impact: risk.impact || 3,
       status: risk.status || 'open',
       mitigation: risk.mitigation || '',
+      mitigation_due: risk.mitigation_due ? risk.mitigation_due.slice(0, 10) : '',
       owner_id: risk.owner_id || '',
       project_id: risk.project_id || '',
     })
@@ -324,6 +325,13 @@ export default function Riscos() {
                           <td className="px-5 py-3 font-semibold text-zinc-800">{r.name || '—'}</td>
                           <td className="px-4 py-3 text-zinc-500 text-xs">{projMap[r.project_id]?.name || '—'}</td>
                           <td className="px-4 py-3 text-xs text-zinc-600">{profMap[r.owner_id]?.full_name || '—'}</td>
+                          <td className="px-4 py-3 text-xs text-zinc-600">
+                            {r.mitigation_due ? (
+                              <span className={new Date(r.mitigation_due) < new Date() ? 'text-red-500 font-semibold' : 'text-zinc-600'}>
+                                {new Date(r.mitigation_due).toLocaleDateString('pt-BR')}
+                              </span>
+                            ) : '—'}
+                          </td>
                           <td className="px-4 py-3 font-bold text-zinc-700">{score}/25</td>
                           <td className="px-4 py-3">
                             <span className="text-[10px] font-bold px-2 py-0.5 rounded border" style={{ background: lvl.bg, color: lvl.color, borderColor: `${lvl.color}40` }}>
@@ -405,6 +413,11 @@ export default function Riscos() {
               <div>
                 <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Mitigação</label>
                 <textarea className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500 resize-none" rows={3} value={form.mitigation || ''} onChange={e => setForm(p => ({...p, mitigation: e.target.value}))} placeholder="Ações de mitigação..." />
+              </div>
+              <div>
+                <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Prazo de mitigação</label>
+                <input type="date" className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500"
+                  value={form.mitigation_due || ''} onChange={e => setForm(p => ({...p, mitigation_due: e.target.value}))} />
               </div>
             </div>
             <div className="px-5 py-4 border-t border-zinc-100 flex items-center gap-3">

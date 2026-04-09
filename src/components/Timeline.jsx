@@ -274,6 +274,10 @@ export default function Timeline() {
                     </button>
                   </div>
                   {compMap[p.company_id] && <div className="text-[10px] text-zinc-500 flex items-center gap-1 mt-0.5"><Building2 className="w-2.5 h-2.5" />{compMap[p.company_id].name}</div>}
+                  <div className="flex items-center gap-2 mt-0.5">
+                    {p.budget && <span className="text-[9px] font-bold text-emerald-600">R$ {(p.budget/1000).toFixed(0)}k</span>}
+                    {p.associate_id && profMap[p.associate_id] && <span className="text-[9px] text-zinc-400">{profMap[p.associate_id].full_name?.split(' ')[0]}</span>}
+                  </div>
                 </div>
               ))}
             </div>

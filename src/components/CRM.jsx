@@ -739,6 +739,11 @@ export default function CRM() {
                     <div className="min-w-0">
                       <div className="text-sm font-bold text-zinc-800 truncate">{p.title || 'Sem título'}</div>
                       <div className="text-xs text-zinc-500 truncate">{company?.name || company?.full_name || '—'}</div>
+                      {p.status === 'perdida' && p.loss_reason && (
+                        <div className="text-[10px] text-rose-500 font-semibold mt-0.5 truncate" title={p.loss_reason}>
+                          ✗ {p.loss_reason}
+                        </div>
+                      )}
                     </div>
                     <div className="text-xs text-zinc-600">{p.type || '—'}</div>
                     <div>
