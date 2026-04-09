@@ -112,18 +112,23 @@ export default function Timeline() {
     setSavingProj(true)
     const { error } = await supabase.from('projects').insert({
       org_id: profile.org_id,
-      name: newProj.name.trim(),
-      type: newProj.type,
-      status: newProj.status,
-      company_id: newProj.company_id || null,
-      analyst_id: newProj.analyst_id || null,
-      deadline: newProj.deadline || null,
-      priority: newProj.priority,
-      progress: 0,
+      name:         newProj.name.trim(),
+      type:         newProj.type,
+      status:       newProj.status,
+      company_id:   newProj.company_id   || null,
+      analyst_id:   newProj.analyst_id   || null,
+      associate_id: newProj.associate_id || null,
+      executive_id: newProj.executive_id || null,
+      deadline:     newProj.deadline     || null,
+      priority:     newProj.priority,
+      progress:     0,
+      budget:       parseFloat(newProj.budget) || null,
+      observacoes:  newProj.observacoes?.trim() || null,
+      historico:    newProj.historico?.trim()   || null,
     })
     if (error) { toast.error('Erro ao criar projeto: ' + error.message); setSavingProj(false); return }
     setShowNewProject(false)
-    setNewProj({ name:'', type:'Diagnóstico', status:'Planejamento', company_id:'', analyst_id:'', deadline:'', priority:'medium' })
+    setNewProj({ name:'', type:'Diagnóstico', status:'Planejamento', company_id:'', analyst_id:'', associate_id:'', executive_id:'', deadline:'', priority:'medium', budget:'', observacoes:'', historico:'' })
     await load()
     logActivity(supabase, { org_id: profile.org_id, actor_id: profile.id, entity_type: 'project', entity_id: newProj.name, action: 'created', module: 'timeline', metadata: { name: newProj.name, type: newProj.type } })
     toast.success('Projeto criado')
@@ -140,7 +145,7 @@ export default function Timeline() {
   const [showNewProject,  setShowNewProject]  = useState(false)
   const [editingProject,  setEditingProject]  = useState(null)   // projeto sendo editado
   const [editForm,        setEditForm]        = useState({})
-  const [newProj, setNewProj] = useState({ name:'', type:'Diagnóstico', status:'Planejamento', company_id:'', analyst_id:'', deadline:'', priority:'medium' })
+  const [newProj, setNewProj] = useState({ name:'', type:'Diagnóstico', status:'Planejamento', company_id:'', analyst_id:'', associate_id:'', executive_id:'', deadline:'', priority:'medium', budget:'', observacoes:'', historico:'' })
   const [savingProj, setSavingProj] = useState(false)
 
   const load = useCallback(async () => {
@@ -330,6 +335,7 @@ export default function Timeline() {
               <th className="text-left px-5 py-3 font-bold">Projeto</th>
               <th className="text-left px-4 py-3 font-bold">Empresa</th>
               <th className="text-left px-4 py-3 font-bold">Analista</th>
+              <th className="text-left px-4 py-3 font-bold">Sócio</th>
               <th className="text-left px-4 py-3 font-bold">Status</th>
               <th className="text-left px-4 py-3 font-bold w-40">Progresso</th>
               <th className="text-left px-4 py-3 font-bold">Prazo</th>
@@ -354,6 +360,7 @@ export default function Timeline() {
                     </td>
                     <td className="px-4 py-3 text-zinc-500 text-xs">{compMap[p.company_id]?.name || '—'}</td>
                     <td className="px-4 py-3 text-zinc-500 text-xs">{profMap[p.analyst_id]?.full_name || '—'}</td>
+                    <td className="px-4 py-3 text-zinc-500 text-xs">{profMap[p.associate_id]?.full_name?.split(' ')[0] || '—'}</td>
                     <td className="px-4 py-3">
                       <span className="text-[10px] font-bold px-2 py-0.5 rounded" style={{ background: `${st.color}18`, color: st.color }}>{st.label}</span>
                     </td>
@@ -490,6 +497,14 @@ export default function Timeline() {
                 <textarea rows={2} className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500 resize-none"
                   placeholder="Contexto, condições especiais, riscos..."
                   value={form.observacoes || ''} onChange={e => setForm(p => ({...p, observacoes: e.target.value}))} />
+              </div>
+
+              {/* Histórico */}
+              <div>
+                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Histórico / Timeline de eventos</label>
+                <textarea rows={3} className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500 resize-none"
+                  placeholder="Registro cronológico de eventos, decisões, marcos do projeto..."
+                  value={form.historico || ''} onChange={e => setForm(p => ({...p, historico: e.target.value}))} />
               </div>
 
               {isEdit && (

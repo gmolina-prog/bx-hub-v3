@@ -97,6 +97,8 @@ export default function Captacao() {
   const [successMsg, setSuccessMsg] = useState(null)
   const [viewMode,  setViewMode]  = useState('kanban')
   const [draggingId, setDraggingId] = useState(null)
+  const [pendingLoss, setPendingLoss] = useState(null)  // { itemId, newStage }
+  const [lossReason,  setLossReason]  = useState('')
   const [dragOverStage, setDragOverStage] = useState(null)
   const [filterAssigned, setFilterAssigned] = useState('all')
   const [filterInstitution, setFilterInstitution] = useState('all')
@@ -715,6 +717,35 @@ export default function Captacao() {
       )}
 
       {/* ============== MODAL DEAL — ESTILO TRELLO ============== */}
+      {/* B-179: Modal de motivo de perda */}
+      {pendingLoss && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.5)' }}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+            <h3 className="text-base font-bold text-zinc-800 mb-1">Proposta Perdida</h3>
+            <p className="text-xs text-zinc-500 mb-4">Qual foi o motivo? (opcional — ajuda na análise do pipeline)</p>
+            <textarea
+              rows={3}
+              autoFocus
+              className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500 resize-none mb-4"
+              placeholder="Ex: preço acima do orçamento, concorrente, não fechou contrato..."
+              value={lossReason}
+              onChange={e => setLossReason(e.target.value)}
+            />
+            <div className="flex gap-3">
+              <button onClick={confirmLoss}
+                className="flex-1 py-2.5 text-sm font-bold text-white rounded-xl hover:opacity-90"
+                style={{ background: '#EF4444' }}>
+                Confirmar perda
+              </button>
+              <button onClick={() => { setPendingLoss(null); setLossReason('') }}
+                className="px-4 text-sm text-zinc-500 hover:text-zinc-700">
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {selectedItem && (
         <DealModal
           item={selectedItem}

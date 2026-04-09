@@ -38,7 +38,8 @@ export default function Portfolio() {
   const [tasks, setTasks] = useState([])
 
   // UI state
-  const [search, setSearch] = useState('')
+  const [search,       setSearch]       = useState('')
+  const [profilesList, setProfilesList] = useState([])
   const [critFilter, setCritFilter] = useState('todos')
   const [viewMode, setViewMode] = useState('grid')
   const [selectedCompanyId, setSelectedCompanyId] = useState(null)
@@ -55,13 +56,15 @@ export default function Portfolio() {
       const orgId = profile?.org_id
       if (!orgId) throw new Error('Perfil sem org_id')
 
-      const [cRes, prRes, tRes] = await Promise.allSettled([
+      const [cRes, prRes, tRes, profRes] = await Promise.allSettled([
         supabase.from('companies').select('*').eq('org_id', orgId),
         supabase.from('projects').select('*').eq('org_id', orgId),
         supabase.from('tasks').select('*').eq('org_id', orgId).is('deleted_at', null).eq('is_archived', false).limit(500),
+        supabase.from('profiles').select('id,full_name,initials,avatar_color,role').eq('org_id', orgId),
       ])
 
-      if (cRes.status  === 'fulfilled' && !cRes.value.error)  setCompanies(cRes.value.data  || [])
+      if (cRes.status   === 'fulfilled' && !cRes.value.error)  setCompanies(cRes.value.data  || [])
+      if (profRes.status === 'fulfilled' && !profRes.value.error) setProfilesList(profRes.value.data || [])
       else if (cRes.status  === 'rejected') console.error('Portfolio companies:', cRes.reason)
       if (prRes.status === 'fulfilled' && !prRes.value.error) setProjects(prRes.value.data  || [])
       else if (prRes.status === 'rejected') console.error('Portfolio projects:', prRes.reason)
@@ -151,7 +154,10 @@ export default function Portfolio() {
     }
     const cls = map[crit] || map.normal
     const label = crit.charAt(0).toUpperCase() + crit.slice(1)
-    return (
+    const profMap = {}
+  profilesList.forEach(p => { profMap[p.id] = p })
+
+  return (
       <span className={'text-[10px] font-bold uppercase tracking-wide px-2 py-1 rounded border ' + cls}>
         {label}
       </span>
@@ -447,7 +453,7 @@ export default function Portfolio() {
                     {selectedCompany.projects.map(function (p) {
                       return (
                         <div key={p.id}
-                          onClick={() => navigate('/kanban')}
+                          onClick={() => navigate('/timeline')}
                           className="p-3 bg-zinc-50 rounded-lg border border-zinc-100 cursor-pointer hover:border-violet-300 hover:bg-violet-50/40 transition-all group">
                           <div className="flex items-start justify-between gap-2 mb-1">
                             <div className="text-xs font-semibold text-zinc-800 flex-1 min-w-0 truncate group-hover:text-violet-700">
@@ -459,10 +465,30 @@ export default function Portfolio() {
                               </span>
                             )}
                           </div>
-                          <div className="text-[10px] text-zinc-500 flex items-center justify-between">
+                          <div className="text-[10px] text-zinc-500 flex items-center justify-between mb-1">
                             <span>{p.status || 'Sem status'}</span>
-                            <span className="text-violet-400 opacity-0 group-hover:opacity-100 text-[9px] font-bold">Ver tarefas →</span>
+                            <span className="text-violet-400 opacity-0 group-hover:opacity-100 text-[9px] font-bold">Ver Timeline →</span>
                           </div>
+                          {/* B-180: budget e associate */}
+                          {(p.budget || p.associate_id) && (
+                            <div className="flex items-center gap-2 mt-1 pt-1 border-t border-zinc-200">
+                              {p.budget && (
+                                <span className="text-[9px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">
+                                  R$ {(p.budget/1000).toFixed(0)}k
+                                </span>
+                              )}
+                              {p.associate_id && profMap[p.associate_id] && (
+                                <span className="text-[9px] text-zinc-500">
+                                  {profMap[p.associate_id].full_name?.split(' ')[0]}
+                                </span>
+                              )}
+                              {p.observacoes && (
+                                <span className="text-[9px] text-zinc-400 truncate flex-1" title={p.observacoes}>
+                                  {p.observacoes.slice(0, 40)}
+                                </span>
+                              )}
+                            </div>
+                          )}
                         </div>
                       )
                     })}
