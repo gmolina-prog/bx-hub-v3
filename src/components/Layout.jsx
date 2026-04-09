@@ -163,24 +163,37 @@ function SettingsPanel({ profile, onClose }) {
 }
 
 // ─── Painel de Check-in ───────────────────────────────────────────────────────
+// CHECK-IN DO DIA: persiste durante toda a sessão independente de checkout.
+// O colaborador registra uma vez por dia onde está (escritório/cliente/remoto/viagem)
+// + empresa alocada quando aplicável. Fica visível enquanto o dia não virar.
 function CheckInPanel({ profile, onClose }) {
-  const [loading, setLoading] = useState(true)
-  const [currentCI, setCurrentCI] = useState(null)
+  const [loading,      setLoading]      = useState(true)
+  const [todayCI,      setTodayCI]      = useState(null)   // check-in do dia (com ou sem checkout)
+  const [companies,    setCompanies]    = useState([])
   const [selectedType, setSelectedType] = useState(null)
-  const [clientName, setClientName] = useState('')
-  const [location, setLocation] = useState('')
-  const [gps, setGps] = useState(null)
-  const [saving, setSaving] = useState(false)
+  const [selectedCompany, setSelectedCompany] = useState('')
+  const [clientName,   setClientName]   = useState('')
+  const [location,     setLocation]     = useState('')
+  const [gps,          setGps]          = useState(null)
+  const [saving,       setSaving]       = useState(false)
 
   useEffect(() => {
     if (!profile) return
     const today = new Date().toISOString().split('T')[0]
-    supabase.from('check_ins').select('*').eq('user_id', profile.id).eq('org_id', profile.org_id)
-      .eq('date', today).is('check_out_time', null).order('check_in_time', { ascending: false }).limit(1)
-      .then(({ data }) => {
-        setCurrentCI(data?.[0] || null)
-        setLoading(false)
-      })
+
+    // Buscar o check-in do dia — qualquer status, com ou sem checkout
+    // Ordenado do mais recente para pegar o último registro do dia
+    Promise.all([
+      supabase.from('check_ins').select('*')
+        .eq('user_id', profile.id).eq('org_id', profile.org_id)
+        .eq('date', today).order('check_in_time', { ascending: false }).limit(1),
+      supabase.from('companies').select('id,name').eq('org_id', profile.org_id).order('name'),
+    ]).then(([ciRes, compRes]) => {
+      setTodayCI(ciRes.data?.[0] || null)
+      setCompanies(compRes.data || [])
+      setLoading(false)
+    })
+
     // GPS
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
@@ -194,30 +207,48 @@ function CheckInPanel({ profile, onClose }) {
     if (!selectedType) return
     setSaving(true)
     try {
-      // Fechar check-ins abertos do dia
       const today = new Date().toISOString().split('T')[0]
+      // Fechar qualquer check-in aberto do dia antes de criar novo
       await supabase.from('check_ins').update({ check_out_time: new Date().toISOString() })
-        .eq('user_id', profile.id).eq('org_id', profile.org_id).eq('date', today).is('check_out_time', null)
+        .eq('user_id', profile.id).eq('org_id', profile.org_id)
+        .eq('date', today).is('check_out_time', null)
 
       const payload = {
-        org_id: profile.org_id,
-        user_id: profile.id,
-        status: selectedType,
-        date: today,
+        org_id:      profile.org_id,
+        user_id:     profile.id,
+        status:      selectedType,
+        date:        today,
         check_in_time: new Date().toISOString(),
-        activity: clientName || null,
-        location: location || null,
-        latitude: gps?.lat || null,
-        longitude: gps?.lng || null,
+        // Empresa alocada: company_id se banco já tiver a coluna, client_name como fallback
+        client_name: selectedCompany
+          ? (companies.find(c => c.id === selectedCompany)?.name || clientName || null)
+          : (clientName || null),
+        activity:    clientName || null,
+        location:    location || null,
+        latitude:    gps?.lat || null,
+        longitude:   gps?.lng || null,
       }
+
+      // Tentar incluir company_id se a coluna existir no banco
+      // (requer execução de BX_CHECKIN_COMPANY_MIGRATION.sql no Supabase)
+      if (selectedCompany) payload.company_id = selectedCompany
+
       const { data, error } = await supabase.from('check_ins').insert(payload).select().single()
-      if (error) throw error
-      setCurrentCI(data)
-      setSelectedType(null)
-      setClientName('')
+      if (error) {
+        // Se company_id não existe ainda, tentar sem ele
+        if (error.message?.includes('company_id')) {
+          const { company_id: _, ...payloadSemCompany } = payload
+          const { data: d2, error: e2 } = await supabase.from('check_ins').insert(payloadSemCompany).select().single()
+          if (e2) throw e2
+          setTodayCI(d2)
+        } else {
+          throw error
+        }
+      } else {
+        setTodayCI(data)
+      }
+      setSelectedType(null); setClientName(''); setSelectedCompany('')
     } catch (err) {
-      console.error('[CheckIn]', err.message)
-      // toast não disponível aqui (componente isolado) — usar alert mínimo
       toast.error('Erro ao registrar check-in: ' + err.message)
     } finally {
       setSaving(false)
@@ -225,25 +256,41 @@ function CheckInPanel({ profile, onClose }) {
   }
 
   async function doCheckOut() {
-    if (!currentCI) return
+    if (!todayCI) return
     setSaving(true)
-    await supabase.from('check_ins').update({ check_out_time: new Date().toISOString() }).eq('id', currentCI.id).eq('org_id', profile.org_id)
-    setCurrentCI(null)
-    setSaving(false)
+    try {
+      const { error } = await supabase.from('check_ins')
+        .update({ check_out_time: new Date().toISOString() })
+        .eq('id', todayCI.id).eq('org_id', profile.org_id)
+      if (error) throw error
+      // Atualizar localmente — não limpar todayCI, só marcar checkout
+      setTodayCI(prev => ({ ...prev, check_out_time: new Date().toISOString() }))
+    } catch (err) {
+      toast.error('Erro ao registrar saída: ' + err.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function changeStatus() {
+    // Permite trocar o local durante o dia (ex: foi ao escritório de manhã, cliente à tarde)
+    setTodayCI(null)
   }
 
   function fmtTime(d) {
     return new Date(d).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
   }
 
-  const currentType = currentCI ? CHECKIN_TYPES.find(t => t.value === currentCI.status) : null
+  const currentType = todayCI ? CHECKIN_TYPES.find(t => t.value === todayCI.status) : null
+  const companyName = todayCI?.client_name || null
+  const hasCheckout = todayCI?.check_out_time != null
 
   return (
     <div className="absolute right-0 top-12 w-80 bg-white rounded-2xl shadow-2xl border border-zinc-200 z-50 overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-100">
         <h3 className="text-sm font-bold text-zinc-800 flex items-center gap-2">
-          <MapPin className="w-4 h-4" style={{ color: VL }} /> Check-in Rápido
+          <MapPin className="w-4 h-4" style={{ color: VL }} /> Check-in do Dia
         </h3>
         <button onClick={onClose} className="text-zinc-400 hover:text-zinc-600"><X className="w-4 h-4" /></button>
       </div>
@@ -251,55 +298,104 @@ function CheckInPanel({ profile, onClose }) {
       <div className="p-4">
         {loading ? (
           <div className="text-center text-xs text-zinc-400 py-4">Carregando…</div>
-        ) : currentCI ? (
-          /* Status atual */
+
+        ) : todayCI ? (
+          /* ── Status do dia ── */
           <div>
-            <div className="flex items-center gap-3 p-3 rounded-xl border-2 mb-4" style={{ borderColor: `${currentType?.color || VL}40`, background: `${currentType?.color || VL}08` }}>
-              <span className="text-2xl">{currentType?.icon || '📍'}</span>
-              <div>
-                <div className="text-sm font-bold text-zinc-800">{currentType?.label || currentCI.status}</div>
-                {currentCI.activity && <div className="text-xs text-zinc-500">{currentCI.activity}</div>}
-                <div className="text-[10px] text-zinc-400 mt-0.5 flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-green-400 inline-block" />
-                  Desde {fmtTime(currentCI.check_in_time)}
-                  {currentCI.latitude && <span className="text-green-600 ml-1">· GPS ✓</span>}
+            {/* Card de presença */}
+            <div className="flex items-start gap-3 p-3 rounded-xl border-2 mb-3"
+              style={{ borderColor: `${currentType?.color || VL}40`, background: `${currentType?.color || VL}08` }}>
+              <span className="text-2xl mt-0.5">{currentType?.icon || '📍'}</span>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-bold text-zinc-800">{currentType?.label || todayCI.status}</div>
+                {companyName && (
+                  <div className="text-xs font-semibold text-violet-700 mt-0.5 flex items-center gap-1">
+                    🏢 {companyName}
+                  </div>
+                )}
+                {todayCI.location && !companyName && (
+                  <div className="text-xs text-zinc-500 truncate mt-0.5">{todayCI.location}</div>
+                )}
+                <div className="text-[10px] text-zinc-400 mt-1 flex items-center gap-2 flex-wrap">
+                  <span className={`w-1.5 h-1.5 rounded-full inline-block ${hasCheckout ? 'bg-zinc-400' : 'bg-green-400'}`} />
+                  <span>Entrada: {fmtTime(todayCI.check_in_time)}</span>
+                  {hasCheckout && <span>· Saída: {fmtTime(todayCI.check_out_time)}</span>}
+                  {todayCI.latitude && <span className="text-green-600">· GPS ✓</span>}
                 </div>
               </div>
             </div>
-            <button onClick={doCheckOut} disabled={saving}
-              className="w-full py-2.5 text-sm font-bold text-white rounded-xl hover:opacity-90 disabled:opacity-50 transition-all"
-              style={{ background: '#EF4444' }}>
-              {saving ? 'Registrando saída…' : '⏹ Registrar Saída'}
-            </button>
+
+            {/* Ações */}
+            <div className="flex gap-2">
+              {!hasCheckout ? (
+                <button onClick={doCheckOut} disabled={saving}
+                  className="flex-1 py-2 text-sm font-bold text-white rounded-xl hover:opacity-90 disabled:opacity-50"
+                  style={{ background: '#EF4444' }}>
+                  {saving ? 'Aguarde…' : '⏹ Registrar Saída'}
+                </button>
+              ) : (
+                <div className="flex-1 py-2 text-center text-xs font-semibold text-zinc-400 bg-zinc-50 rounded-xl">
+                  ✅ Saída registrada — {fmtTime(todayCI.check_out_time)}
+                </div>
+              )}
+              <button onClick={changeStatus} title="Trocar local"
+                className="px-3 py-2 border border-zinc-200 rounded-xl text-xs text-zinc-500 hover:bg-zinc-50">
+                🔄
+              </button>
+            </div>
           </div>
+
         ) : (
-          /* Novo check-in */
+          /* ── Novo check-in ── */
           <div>
-            <p className="text-xs text-zinc-500 mb-3">Onde você está agora?</p>
+            <p className="text-xs text-zinc-500 mb-3">Onde você está hoje?</p>
             <div className="grid grid-cols-2 gap-2 mb-3">
               {CHECKIN_TYPES.map(t => (
                 <button key={t.value} onClick={() => setSelectedType(t.value)}
                   className="p-3 rounded-xl border-2 text-left transition-all"
                   style={{
                     borderColor: selectedType === t.value ? t.color : '#E5E5E5',
-                    background: selectedType === t.value ? `${t.color}10` : 'white',
+                    background:  selectedType === t.value ? `${t.color}10` : 'white',
                   }}>
                   <span className="text-xl block mb-1">{t.icon}</span>
                   <span className="text-xs font-bold" style={{ color: selectedType === t.value ? t.color : '#374151' }}>{t.label}</span>
                 </button>
               ))}
             </div>
-            {selectedType === 'cliente' && (
-              <input className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm mb-2 focus:outline-none focus:border-violet-400"
-                placeholder="Nome do cliente / empresa…" value={clientName} onChange={e => setClientName(e.target.value)} />
+
+            {/* Empresa alocada — sempre visível para cliente, opcional para outros */}
+            {(selectedType === 'cliente' || selectedType === 'escritorio') && (
+              <div className="mb-2">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1 block">
+                  Empresa alocada {selectedType === 'cliente' ? '*' : '(opcional)'}
+                </label>
+                <select className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-400"
+                  value={selectedCompany} onChange={e => setSelectedCompany(e.target.value)}>
+                  <option value="">— selecione ou deixe em branco —</option>
+                  {companies.map(co => <option key={co.id} value={co.id}>{co.name}</option>)}
+                </select>
+              </div>
             )}
+
+            {selectedType === 'cliente' && !selectedCompany && (
+              <input className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm mb-2 focus:outline-none focus:border-violet-400"
+                placeholder="Nome do cliente (se não listado acima)…"
+                value={clientName} onChange={e => setClientName(e.target.value)} />
+            )}
+
             <input className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm mb-3 focus:outline-none focus:border-violet-400"
-              placeholder="Endereço ou observação (opcional)…" value={location} onChange={e => setLocation(e.target.value)} />
-            {gps && <div className="text-[10px] text-green-600 mb-3 flex items-center gap-1">✅ GPS disponível · {gps.lat.toFixed(5)}, {gps.lng.toFixed(5)}</div>}
-            <button onClick={doCheckIn} disabled={!selectedType || saving}
+              placeholder="Endereço ou observação (opcional)…"
+              value={location} onChange={e => setLocation(e.target.value)} />
+
+            {gps && <div className="text-[10px] text-green-600 mb-3 flex items-center gap-1">
+              ✅ GPS · {gps.lat.toFixed(4)}, {gps.lng.toFixed(4)}
+            </div>}
+
+            <button onClick={doCheckIn}
+              disabled={!selectedType || saving || (selectedType === 'cliente' && !selectedCompany && !clientName.trim())}
               className="w-full py-2.5 text-sm font-bold text-white rounded-xl hover:opacity-90 disabled:opacity-50 transition-all"
-              style={{ background: selectedType ? (CHECKIN_TYPES.find(t => t.value === selectedType)?.color || VL) : '#D1D5DB' }}>
-              {saving ? 'Registrando…' : '✅ Fazer Check-in'}
+              style={{ background: VL }}>
+              {saving ? 'Registrando…' : '📍 Registrar Presença'}
             </button>
           </div>
         )}
@@ -307,6 +403,7 @@ function CheckInPanel({ profile, onClose }) {
     </div>
   )
 }
+
 
 // ─── Layout Principal ─────────────────────────────────────────────────────────
 export default function Layout({ children }) {

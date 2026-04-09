@@ -75,7 +75,13 @@ export default function Sidebar() {
   }
 
   async function handleLogout() {
-    await supabase.auth.signOut()
+    try {
+      await supabase.auth.signOut()
+    } catch (err) {
+      console.error('[Logout]', err.message)
+      // Forçar redirect mesmo em caso de erro
+      window.location.href = '/'
+    }
   }
 
   const initials = profile?.initials || (profile?.full_name || '?').split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase()

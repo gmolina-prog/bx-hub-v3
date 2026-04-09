@@ -549,7 +549,9 @@ export default function Calendar() {
                   const list = todayCheckins.filter(c => c.status === loc.id)
                   const names = list.map(c => {
                     const p = profiles.find(x => x.id === c.user_id)
-                    return p?.full_name?.split(' ')[0] || ''
+                    const firstName = p?.full_name?.split(' ')[0] || ''
+                    // Mostrar empresa alocada se disponível
+                    return c.client_name ? `${firstName} (${c.client_name.split(' ')[0]})` : firstName
                   }).filter(Boolean)
                   return (
                     <div key={loc.id} className={`${LOC_COLORS[loc.color]} rounded-xl p-4`}>

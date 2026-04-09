@@ -371,8 +371,36 @@ export default function Chat() {
     setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 5000)
   }
 
-  function markChannelRead(channelId) {
+  async function markChannelRead(channelId) {
     setUnreadByChannel(prev => ({ ...prev, [channelId]: 0 }))
+    // Persistir no banco: marcar mensagens não lidas como lidas pelo usuário atual
+    // read_by é um array de UUIDs — adicionar profile.id se ainda não estiver
+    if (!profile?.id) return
+    try {
+      // Buscar mensagens não lidas do canal (onde profile.id não está em read_by)
+      const { data: unread } = await supabase
+        .from('chat_messages')
+        .select('id,read_by')
+        .eq('channel_id', channelId)
+        .eq('org_id', profile.org_id)
+        .not('sender_id', 'eq', profile.id)
+        .order('created_at', { ascending: false })
+        .limit(50)
+
+      if (!unread?.length) return
+
+      // Atualizar as mensagens que ainda não têm profile.id em read_by
+      const toUpdate = unread.filter(m => !Array.isArray(m.read_by) || !m.read_by.includes(profile.id))
+      for (const msg of toUpdate) {
+        const newReadBy = Array.isArray(msg.read_by) ? [...msg.read_by, profile.id] : [profile.id]
+        await supabase.from('chat_messages')
+          .update({ read_by: newReadBy })
+          .eq('id', msg.id).eq('org_id', profile.org_id)
+      }
+    } catch (err) {
+      // Falha silenciosa — não crítico para UX
+      console.warn('[Chat] markChannelRead persist:', err.message)
+    }
   }
 
   // ── Send message ──

@@ -42,7 +42,39 @@ function daysColor(d) {
 
 export default function Timeline() {
   const { profile } = useData()
-  useEscapeKey(() => setShowNewProject(false), showNewProject)
+  useEscapeKey(() => { setShowNewProject(false); setEditingProject(null) }, showNewProject || !!editingProject)
+
+  async function openEdit(p) {
+    setEditingProject(p)
+    setEditForm({
+      name:       p.name || '',
+      type:       p.type || 'Diagnóstico',
+      status:     p.status || 'Planejamento',
+      company_id: p.company_id || '',
+      analyst_id: p.analyst_id || '',
+      deadline:   p.deadline ? p.deadline.slice(0, 10) : '',
+      priority:   p.priority || 'medium',
+    })
+  }
+
+  async function updateProject() {
+    if (!editForm.name?.trim()) { toast.warning('Nome obrigatório'); return }
+    setSavingProj(true)
+    const { error } = await supabase.from('projects').update({
+      name:       editForm.name.trim(),
+      type:       editForm.type,
+      status:     editForm.status,
+      company_id: editForm.company_id || null,
+      analyst_id: editForm.analyst_id || null,
+      deadline:   editForm.deadline || null,
+      priority:   editForm.priority,
+    }).eq('id', editingProject.id).eq('org_id', profile.org_id)
+    if (error) { toast.error('Erro ao atualizar: ' + error.message); setSavingProj(false); return }
+    setEditingProject(null)
+    await load()
+    toast.success('Projeto atualizado')
+    setSavingProj(false)
+  }
 
   async function createProject() {
     if (!newProj.name.trim()) { toast.warning('Preencha o nome do projeto'); return }
@@ -73,7 +105,9 @@ export default function Timeline() {
   const [filterStatus, setFilterStatus] = useState('all')
   const [filterCompany, setFilterCompany] = useState('all')
   const [view, setView] = useState('gantt')
-  const [showNewProject, setShowNewProject] = useState(false)
+  const [showNewProject,  setShowNewProject]  = useState(false)
+  const [editingProject,  setEditingProject]  = useState(null)   // projeto sendo editado
+  const [editForm,        setEditForm]        = useState({})
   const [newProj, setNewProj] = useState({ name:'', type:'Diagnóstico', status:'Planejamento', company_id:'', analyst_id:'', deadline:'', priority:'medium' })
   const [savingProj, setSavingProj] = useState(false)
 
@@ -258,7 +292,15 @@ export default function Timeline() {
                 const hasNoTasks = projTasks.length === 0
                 return (
                   <tr key={p.id} className="hover:bg-zinc-50 transition-colors">
-                    <td className="px-5 py-3 font-semibold text-zinc-800">{p.name}</td>
+                    <td className="px-5 py-3 font-semibold text-zinc-800">
+                      <div className="flex items-center gap-2 group">
+                        <span>{p.name}</span>
+                        <button onClick={e => { e.stopPropagation(); openEdit(p) }}
+                          className="opacity-0 group-hover:opacity-100 transition-opacity text-zinc-400 hover:text-violet-600 p-0.5 rounded">
+                          ✏️
+                        </button>
+                      </div>
+                    </td>
                     <td className="px-4 py-3 text-zinc-500 text-xs">{compMap[p.company_id]?.name || '—'}</td>
                     <td className="px-4 py-3 text-zinc-500 text-xs">{profMap[p.analyst_id]?.full_name || '—'}</td>
                     <td className="px-4 py-3">
@@ -291,6 +333,78 @@ export default function Timeline() {
           </table>
         </div>
       )}
+    {/* ── Modal Editar Projeto ── */}
+    {editingProject && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+        style={{ background: 'rgba(0,0,0,0.45)' }}
+        onClick={e => e.target === e.currentTarget && setEditingProject(null)}>
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+          <div className="flex items-center justify-between mb-5">
+            <h3 className="text-base font-bold text-zinc-800">Editar Projeto</h3>
+            <button onClick={() => setEditingProject(null)} className="text-zinc-400 hover:text-zinc-600">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+          <div className="space-y-3">
+            <div>
+              <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Nome *</label>
+              <input autoFocus className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                value={editForm.name || ''} onChange={e => setEditForm(p => ({...p, name: e.target.value}))} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Tipo</label>
+                <select className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                  value={editForm.type || ''} onChange={e => setEditForm(p => ({...p, type: e.target.value}))}>
+                  <option>Diagnóstico</option><option>RJ</option><option>M&A</option>
+                  <option>Reestruturação</option><option>Assessoria</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Status</label>
+                <select className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                  value={editForm.status || ''} onChange={e => setEditForm(p => ({...p, status: e.target.value}))}>
+                  <option>Planejamento</option><option value="active">Em andamento</option>
+                  <option>Concluído</option><option>Pausado</option>
+                </select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Empresa</label>
+                <select className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                  value={editForm.company_id || ''} onChange={e => setEditForm(p => ({...p, company_id: e.target.value}))}>
+                  <option value="">— nenhuma —</option>
+                  {companies.map(co => <option key={co.id} value={co.id}>{co.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Analista</label>
+                <select className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                  value={editForm.analyst_id || ''} onChange={e => setEditForm(p => ({...p, analyst_id: e.target.value}))}>
+                  <option value="">— nenhum —</option>
+                  {profilesList.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
+                </select>
+              </div>
+            </div>
+            <div>
+              <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Prazo</label>
+              <input type="date" className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                value={editForm.deadline || ''} onChange={e => setEditForm(p => ({...p, deadline: e.target.value}))} />
+            </div>
+            <div className="flex gap-3 pt-2">
+              <button onClick={updateProject} disabled={savingProj || !editForm.name?.trim()}
+                className="flex-1 py-2.5 text-sm font-bold text-white rounded-xl hover:opacity-90 disabled:opacity-50"
+                style={{ background: '#5452C1' }}>
+                {savingProj ? 'Salvando…' : 'Salvar Alterações'}
+              </button>
+              <button onClick={() => setEditingProject(null)} className="px-4 text-sm text-zinc-500 hover:text-zinc-700">Cancelar</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
+
     {/* ── Modal Novo Projeto ── */}
     {showNewProject && (
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4"

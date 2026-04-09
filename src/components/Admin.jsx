@@ -79,7 +79,10 @@ export default function Admin() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [successMsg, setSuccessMsg] = useState(null)
-  const [showInviteForm, setShowInviteForm] = useState(false)
+  const [showInviteForm,  setShowInviteForm]  = useState(false)
+  const [editingProfile,  setEditingProfile]  = useState(null)
+  const [editProfileForm, setEditProfileForm] = useState({})
+  const [savingProfile,   setSavingProfile]   = useState(false)
   const [inviteData, setInviteData] = useState({ email: '', full_name: '', role: 'analyst' })
   const [inviting, setInviting] = useState(false)
 
@@ -154,6 +157,34 @@ export default function Admin() {
     } catch (err) {
       console.warn('api_tokens table may not exist yet')
     }
+  }
+
+  async function openEditProfile(p) {
+    setEditingProfile(p)
+    setEditProfileForm({
+      full_name: p.full_name || '',
+      cargo:     p.cargo || '',
+      phone:     p.phone || '',
+      location:  p.location || '',
+    })
+  }
+
+  async function saveProfile() {
+    if (!editProfileForm.full_name?.trim()) { toast.warning('Nome obrigatório'); return }
+    setSavingProfile(true)
+    const initials = editProfileForm.full_name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0,2)
+    const { error } = await supabase.from('profiles').update({
+      full_name: editProfileForm.full_name.trim(),
+      initials,
+      cargo:    editProfileForm.cargo?.trim() || null,
+      phone:    editProfileForm.phone?.trim() || null,
+      location: editProfileForm.location?.trim() || null,
+    }).eq('id', editingProfile.id).eq('org_id', profile.org_id)
+    if (error) { toast.error('Erro ao atualizar: ' + error.message); setSavingProfile(false); return }
+    setEditingProfile(null)
+    await loadProfiles()
+    toast.success('Colaborador atualizado')
+    setSavingProfile(false)
   }
 
   async function updateRole(profileId, newRole) {
@@ -608,6 +639,53 @@ export default function Admin() {
           )}
         </div>
       )}
+    {/* ── Modal Editar Colaborador ── */}
+    {editingProfile && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+        style={{ background: 'rgba(0,0,0,0.45)' }}
+        onClick={e => e.target === e.currentTarget && setEditingProfile(null)}>
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+          <div className="flex items-center justify-between mb-5">
+            <h3 className="text-base font-bold text-zinc-800">Editar Colaborador</h3>
+            <button onClick={() => setEditingProfile(null)} className="text-zinc-400 hover:text-zinc-600">
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+          </div>
+          <div className="space-y-3">
+            <div>
+              <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Nome completo *</label>
+              <input autoFocus className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                value={editProfileForm.full_name || ''} onChange={e => setEditProfileForm(p => ({...p, full_name: e.target.value}))} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Cargo</label>
+                <input className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                  value={editProfileForm.cargo || ''} onChange={e => setEditProfileForm(p => ({...p, cargo: e.target.value}))} placeholder="Analista, Consultor..." />
+              </div>
+              <div>
+                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Telefone</label>
+                <input className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                  value={editProfileForm.phone || ''} onChange={e => setEditProfileForm(p => ({...p, phone: e.target.value}))} placeholder="+55 11..." />
+              </div>
+            </div>
+            <div>
+              <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Localização</label>
+              <input className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                value={editProfileForm.location || ''} onChange={e => setEditProfileForm(p => ({...p, location: e.target.value}))} placeholder="São Paulo, SP..." />
+            </div>
+            <div className="flex gap-3 pt-2">
+              <button onClick={saveProfile} disabled={savingProfile || !editProfileForm.full_name?.trim()}
+                className="flex-1 py-2.5 text-sm font-bold text-white rounded-xl hover:opacity-90 disabled:opacity-50"
+                style={{ background: '#5452C1' }}>
+                {savingProfile ? 'Salvando…' : 'Salvar'}
+              </button>
+              <button onClick={() => setEditingProfile(null)} className="px-4 text-sm text-zinc-500 hover:text-zinc-700">Cancelar</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
     </div>
   )
 }
@@ -631,6 +709,53 @@ function Kpi({ label, value, sub, accent }) {
       </div>
       <div className="text-2xl font-bold tracking-tight">{value}</div>
       {sub && <div className="text-[10px] text-zinc-400 mt-0.5">{sub}</div>}
+    {/* ── Modal Editar Colaborador ── */}
+    {editingProfile && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+        style={{ background: 'rgba(0,0,0,0.45)' }}
+        onClick={e => e.target === e.currentTarget && setEditingProfile(null)}>
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+          <div className="flex items-center justify-between mb-5">
+            <h3 className="text-base font-bold text-zinc-800">Editar Colaborador</h3>
+            <button onClick={() => setEditingProfile(null)} className="text-zinc-400 hover:text-zinc-600">
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+          </div>
+          <div className="space-y-3">
+            <div>
+              <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Nome completo *</label>
+              <input autoFocus className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                value={editProfileForm.full_name || ''} onChange={e => setEditProfileForm(p => ({...p, full_name: e.target.value}))} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Cargo</label>
+                <input className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                  value={editProfileForm.cargo || ''} onChange={e => setEditProfileForm(p => ({...p, cargo: e.target.value}))} placeholder="Analista, Consultor..." />
+              </div>
+              <div>
+                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Telefone</label>
+                <input className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                  value={editProfileForm.phone || ''} onChange={e => setEditProfileForm(p => ({...p, phone: e.target.value}))} placeholder="+55 11..." />
+              </div>
+            </div>
+            <div>
+              <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Localização</label>
+              <input className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                value={editProfileForm.location || ''} onChange={e => setEditProfileForm(p => ({...p, location: e.target.value}))} placeholder="São Paulo, SP..." />
+            </div>
+            <div className="flex gap-3 pt-2">
+              <button onClick={saveProfile} disabled={savingProfile || !editProfileForm.full_name?.trim()}
+                className="flex-1 py-2.5 text-sm font-bold text-white rounded-xl hover:opacity-90 disabled:opacity-50"
+                style={{ background: '#5452C1' }}>
+                {savingProfile ? 'Salvando…' : 'Salvar'}
+              </button>
+              <button onClick={() => setEditingProfile(null)} className="px-4 text-sm text-zinc-500 hover:text-zinc-700">Cancelar</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
     </div>
   )
 }
@@ -653,6 +778,53 @@ function SystemCard({ icon: Icon, title, value, sub, color }) {
           <div className="text-xs text-zinc-400 mt-0.5">{sub}</div>
         </div>
       </div>
+    {/* ── Modal Editar Colaborador ── */}
+    {editingProfile && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+        style={{ background: 'rgba(0,0,0,0.45)' }}
+        onClick={e => e.target === e.currentTarget && setEditingProfile(null)}>
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+          <div className="flex items-center justify-between mb-5">
+            <h3 className="text-base font-bold text-zinc-800">Editar Colaborador</h3>
+            <button onClick={() => setEditingProfile(null)} className="text-zinc-400 hover:text-zinc-600">
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+          </div>
+          <div className="space-y-3">
+            <div>
+              <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Nome completo *</label>
+              <input autoFocus className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                value={editProfileForm.full_name || ''} onChange={e => setEditProfileForm(p => ({...p, full_name: e.target.value}))} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Cargo</label>
+                <input className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                  value={editProfileForm.cargo || ''} onChange={e => setEditProfileForm(p => ({...p, cargo: e.target.value}))} placeholder="Analista, Consultor..." />
+              </div>
+              <div>
+                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Telefone</label>
+                <input className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                  value={editProfileForm.phone || ''} onChange={e => setEditProfileForm(p => ({...p, phone: e.target.value}))} placeholder="+55 11..." />
+              </div>
+            </div>
+            <div>
+              <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Localização</label>
+              <input className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                value={editProfileForm.location || ''} onChange={e => setEditProfileForm(p => ({...p, location: e.target.value}))} placeholder="São Paulo, SP..." />
+            </div>
+            <div className="flex gap-3 pt-2">
+              <button onClick={saveProfile} disabled={savingProfile || !editProfileForm.full_name?.trim()}
+                className="flex-1 py-2.5 text-sm font-bold text-white rounded-xl hover:opacity-90 disabled:opacity-50"
+                style={{ background: '#5452C1' }}>
+                {savingProfile ? 'Salvando…' : 'Salvar'}
+              </button>
+              <button onClick={() => setEditingProfile(null)} className="px-4 text-sm text-zinc-500 hover:text-zinc-700">Cancelar</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
     </div>
   )
 }

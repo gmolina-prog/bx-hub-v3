@@ -50,21 +50,21 @@ export default function Notificacoes() {
   }, [profile])
 
   async function markRead(id) {
-    await supabase.from('notifications')
+    const { error } = await supabase.from('notifications')
       .update({ is_read: true }).eq('id', id).eq('user_id', profile.id)
-    setNotifs(prev => prev.map(n => n.id === id ? {...n, is_read: true} : n))
+    if (!error) setNotifs(prev => prev.map(n => n.id === id ? {...n, is_read: true} : n))
   }
 
   async function markAllRead() {
     setActing(true)
-    if (notifs.some(n => !n.is_read)) {
-      await supabase.from('notifications')
-        .update({ is_read: true })
-        .eq('user_id', profile.id)
-        .eq('org_id', profile.org_id)
-      setNotifs(prev => prev.map(n => ({...n, is_read: true})))
-    }
-    setActing(false)
+    try {
+      if (notifs.some(n => !n.is_read)) {
+        const { error } = await supabase.from('notifications')
+          .update({ is_read: true }).eq('user_id', profile.id).eq('org_id', profile.org_id)
+        if (!error) setNotifs(prev => prev.map(n => ({...n, is_read: true})))
+        else toast.error('Erro ao marcar: ' + error.message)
+      }
+    } finally { setActing(false) }
   }
 
   async function deleteNotif(id) {
