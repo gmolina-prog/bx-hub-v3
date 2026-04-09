@@ -428,8 +428,6 @@ export default function Layout({ children }) {
       }
     })
 
-    // Realtime notificações
-    return () => supabase.removeChannel(ch)
   }, [profile])
 
   // Fechar painéis ao mudar de rota
