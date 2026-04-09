@@ -188,6 +188,30 @@ export default function Time() {
     return profiles.find(p => p.id === selectedId)
   }, [profiles, selectedId])
 
+  // Streak por usuário (dias consecutivos com check-in)
+  const streakByUser = useMemo(() => {
+    const ciByUser = {}
+    checkins.forEach(ci => {
+      if (!ciByUser[ci.user_id]) ciByUser[ci.user_id] = new Set()
+      if (ci.date) ciByUser[ci.user_id].add(ci.date)
+    })
+    const result = {}
+    Object.entries(ciByUser).forEach(([uid, dates]) => {
+      const datesSet = Array.from(dates)
+      let streak = 0
+      let cursor = new Date(); cursor.setHours(0,0,0,0)
+      const todayStr = cursor.toISOString().slice(0,10)
+      if (!datesSet.includes(todayStr)) cursor.setDate(cursor.getDate() - 1)
+      for (let i = 0; i < 60; i++) {
+        const d = cursor.toISOString().slice(0,10)
+        if (datesSet.includes(d)) { streak++; cursor.setDate(cursor.getDate() - 1) }
+        else break
+      }
+      result[uid] = streak
+    })
+    return result
+  }, [checkins])
+
   // Stats per profile
   const profileStats = useMemo(() => {
     const m = new Map()
