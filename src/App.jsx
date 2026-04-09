@@ -34,6 +34,7 @@ import Automations from './components/Automations'
 import Admin from './components/Admin'
 import Logs from './components/Logs'
 import Notificacoes from './components/Notificacoes'
+import Avisos from './components/Avisos'
 import Configuracoes from './components/Configuracoes'
 
 export default function App() {
@@ -89,6 +90,7 @@ export default function App() {
         <Route path="/admin" element={<Admin />} />
         <Route path="/logs" element={<Logs />} />
         <Route path="/notificacoes" element={<Notificacoes />} />
+        <Route path="/avisos" element={<Avisos />} />
         <Route path="/configuracoes" element={<Configuracoes />} />
 
         <Route path="*" element={<Navigate to="/" replace />} />

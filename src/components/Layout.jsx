@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { Settings, Bell, MapPin, X, Check, CheckCheck, LogOut, ChevronRight } from 'lucide-react'
 import Sidebar from './Sidebar'
 import { supabase } from '../lib/supabase'
+import GlobalSearch from './GlobalSearch'
 import { isLeaderRole } from '../lib/roles'
 import { toast } from './Toast'
 import { useData } from '../contexts/DataContext'
@@ -411,6 +412,7 @@ export default function Layout({ children }) {
   const { profile, unreadNotif, clearUnread } = useData()
   const location = useLocation()
   const [openPanel, setOpenPanel] = useState(null) // 'notif' | 'settings' | 'checkin'
+  const [searchOpen, setSearchOpen] = useState(false)
   const [checkinStatus, setCheckinStatus] = useState(null) // status do check-in ativo
   const headerRef = useRef(null)
 
@@ -429,6 +431,18 @@ export default function Layout({ children }) {
     })
 
   }, [profile])
+
+  // Ctrl+K abre busca global
+  useEffect(() => {
+    function handleKey(e) {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault()
+        setSearchOpen(s => !s)
+      }
+    }
+    window.addEventListener('keydown', handleKey)
+    return () => window.removeEventListener('keydown', handleKey)
+  }, [])
 
   // Fechar painéis ao mudar de rota
   useEffect(() => { setOpenPanel(null) }, [location.pathname])
@@ -478,6 +492,15 @@ export default function Layout({ children }) {
 
           {/* Right: action buttons */}
           <div className="flex items-center gap-1">
+
+            {/* BUSCA GLOBAL */}
+            <button
+              onClick={() => setSearchOpen(true)}
+              title="Busca global (Ctrl+K)"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-zinc-500 border border-zinc-200 hover:border-violet-400 hover:text-violet-600 transition-all bg-zinc-50 mr-1">
+              🔍 <span className="hidden sm:inline text-zinc-400">Buscar</span>
+              <kbd className="hidden md:inline text-[9px] bg-zinc-100 px-1 rounded font-mono">⌘K</kbd>
+            </button>
 
             {/* CHECK-IN */}
             <div className="relative">
@@ -557,7 +580,9 @@ export default function Layout({ children }) {
 
         {/* ── PAGE CONTENT ── */}
         <main className="flex-1 overflow-y-auto bg-[#F2F2F2]">
-          {children}
+          {/* Busca Global Ctrl+K */}
+        {searchOpen && <GlobalSearch onClose={() => setSearchOpen(false)} />}
+        {children}
         </main>
       </div>
     </div>

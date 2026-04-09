@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import { GitBranch, Building2 } from 'lucide-react'
+import { GitBranch, Building2, History, Layers, CheckSquare, Clock3 } from 'lucide-react'
 import { toast } from './Toast'
 import { supabase } from '../lib/supabase'
 import { logActivity } from '../lib/activityLog'
@@ -42,6 +42,60 @@ function daysColor(d) {
   return 'text-green-600'
 }
 
+
+// ─── Templates de projeto BX Finance ────────────────────────────────────────
+const PROJECT_TEMPLATES = {
+  'Diagnóstico': {
+    label: 'Diagnóstico Financeiro',
+    tasks: [
+      { title: 'Coleta de documentos (BP, DRE, Balanço)', priority: 'high',   column_id: 'todo' },
+      { title: 'Análise Horizontal e Vertical',           priority: 'high',   column_id: 'todo' },
+      { title: 'Análise Fleuriet (NCG, CDG, ST)',         priority: 'high',   column_id: 'todo' },
+      { title: 'Análise DuPont',                          priority: 'medium', column_id: 'todo' },
+      { title: 'Indicadores de liquidez e rentabilidade', priority: 'medium', column_id: 'todo' },
+      { title: 'Ciclos operacional e financeiro (PMR, PME, PMP)', priority: 'medium', column_id: 'todo' },
+      { title: 'Análise de endividamento e DSCR',         priority: 'medium', column_id: 'todo' },
+      { title: 'Elaboração do relatório final',           priority: 'high',   column_id: 'todo' },
+      { title: 'Apresentação ao cliente',                 priority: 'medium', column_id: 'todo' },
+    ]
+  },
+  'RJ': {
+    label: 'Recuperação Judicial',
+    tasks: [
+      { title: 'Levantamento de passivos e credores',          priority: 'high',   column_id: 'todo' },
+      { title: 'Análise de viabilidade econômica',             priority: 'high',   column_id: 'todo' },
+      { title: 'Elaboração do plano de recuperação judicial',  priority: 'high',   column_id: 'todo' },
+      { title: 'Submissão do PRJ ao administrador judicial',   priority: 'high',   column_id: 'todo' },
+      { title: 'Acompanhamento da AGC',                        priority: 'high',   column_id: 'todo' },
+      { title: 'Negociação com credores classe I, II, III, IV',priority: 'medium', column_id: 'todo' },
+      { title: 'Monitoramento de compliance pós-aprovação',    priority: 'medium', column_id: 'todo' },
+      { title: 'Relatórios mensais ao Juízo',                  priority: 'medium', column_id: 'todo' },
+    ]
+  },
+  'Reestruturação': {
+    label: 'Reestruturação de Passivo',
+    tasks: [
+      { title: 'Mapeamento da dívida bancária (Curva ABC)',  priority: 'high',   column_id: 'todo' },
+      { title: 'Contato e negociação com bancos credores',   priority: 'high',   column_id: 'todo' },
+      { title: 'Elaboração de proposta de renegociação',     priority: 'high',   column_id: 'todo' },
+      { title: 'Análise de DSCR com novo perfil de dívida',  priority: 'medium', column_id: 'todo' },
+      { title: 'Formalização de acordos e CCB',              priority: 'high',   column_id: 'todo' },
+      { title: 'Monitoramento do cumprimento dos acordos',   priority: 'medium', column_id: 'todo' },
+    ]
+  },
+  'M&A': {
+    label: 'M&A / Assessoria',
+    tasks: [
+      { title: 'NDA e documentação inicial',               priority: 'high',   column_id: 'todo' },
+      { title: 'Due diligence financeira',                  priority: 'high',   column_id: 'todo' },
+      { title: 'Valuation da empresa-alvo',                 priority: 'high',   column_id: 'todo' },
+      { title: 'Estruturação da oferta e term sheet',       priority: 'high',   column_id: 'todo' },
+      { title: 'Negociação e fechamento',                   priority: 'medium', column_id: 'todo' },
+      { title: 'Pós-fechamento e integração',               priority: 'medium', column_id: 'todo' },
+    ]
+  },
+}
+
 export default function Timeline() {
   const { profile } = useData()
   usePageTitle('Projetos')
@@ -82,6 +136,45 @@ export default function Timeline() {
     }
   }
 
+  async function loadProjectLog(projId) {
+    setLoadingLog(true)
+    try {
+      const { data, error } = await supabase
+        .from('activity_log')
+        .select('id,actor_id,action,metadata,created_at,module,entity_type')
+        .eq('org_id', profile.org_id)
+        .eq('project_id', projId)
+        .order('created_at', { ascending: false })
+        .limit(50)
+      if (error) throw error
+      setProjectLog(data || [])
+    } catch (err) {
+      toast.error('Erro ao carregar histórico')
+    } finally {
+      setLoadingLog(false)
+    }
+  }
+
+  async function applyTemplate(projId, type) {
+    const tmpl = PROJECT_TEMPLATES[type]
+    if (!tmpl || !projId) return
+    try {
+      const inserts = tmpl.tasks.map(t => ({
+        org_id:     profile.org_id,
+        project_id: projId,
+        title:      t.title,
+        priority:   t.priority,
+        column_id:  t.column_id,
+        created_by: profile.id,
+      }))
+      const { error } = await supabase.from('tasks').insert(inserts)
+      if (error) throw error
+      toast.success(`${tmpl.tasks.length} tarefas criadas a partir do template "${tmpl.label}"`)
+    } catch (err) {
+      toast.error('Erro ao aplicar template: ' + err.message)
+    }
+  }
+
   async function updateProject() {
     if (!editForm.name?.trim()) { toast.warning('Nome obrigatório'); return }
     setSavingProj(true)
@@ -110,7 +203,7 @@ export default function Timeline() {
   async function createProject() {
     if (!newProj.name.trim()) { toast.warning('Preencha o nome do projeto'); return }
     setSavingProj(true)
-    const { error } = await supabase.from('projects').insert({
+    const { data, error } = await supabase.from('projects').insert({
       org_id: profile.org_id,
       name:         newProj.name.trim(),
       type:         newProj.type,
@@ -125,7 +218,7 @@ export default function Timeline() {
       budget:       parseFloat(newProj.budget) || null,
       observacoes:  newProj.observacoes?.trim() || null,
       historico:    newProj.historico?.trim()   || null,
-    })
+    }).select('id')
     if (error) { toast.error('Erro ao criar projeto: ' + error.message); setSavingProj(false); return }
     setShowNewProject(false)
     setNewProj({ name:'', type:'Diagnóstico', status:'Planejamento', company_id:'', analyst_id:'', associate_id:'', executive_id:'', deadline:'', priority:'medium', budget:'', observacoes:'', historico:'' })
@@ -204,6 +297,71 @@ export default function Timeline() {
   const statuses = [...new Set(projects.map(p => p.status).filter(Boolean))]
 
   return (
+    <>
+    {/* Painel de Histórico do Projeto */}
+    {histProject && (
+      <div className="fixed inset-0 z-50 flex items-start justify-end p-4"
+        style={{ background: 'rgba(0,0,0,0.3)' }}
+        onClick={e => e.target === e.currentTarget && setHistProject(null)}>
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md h-full max-h-[90vh] flex flex-col">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-100">
+            <div>
+              <h3 className="text-sm font-bold text-zinc-800 flex items-center gap-2">
+                <History className="w-4 h-4 text-amber-500" /> Histórico do Projeto
+              </h3>
+              <p className="text-xs text-zinc-500 mt-0.5 truncate max-w-[250px]">{histProject.name}</p>
+            </div>
+            <button onClick={() => setHistProject(null)} className="text-zinc-400 hover:text-zinc-600">✕</button>
+          </div>
+          <div className="flex-1 overflow-y-auto px-5 py-4">
+            {loadingLog ? (
+              <div className="text-center text-xs text-zinc-400 py-8">Carregando…</div>
+            ) : projectLog.length === 0 ? (
+              <div className="text-center text-xs text-zinc-400 py-8">
+                <Clock3 className="w-8 h-8 text-zinc-200 mx-auto mb-2" />
+                Nenhuma atividade registrada ainda
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {projectLog.map((ev, i) => {
+                  const actor = profMap[ev.actor_id]
+                  const initials = actor?.initials || actor?.full_name?.slice(0,2) || '?'
+                  const title = ev.metadata?.title || ev.entity_id || ev.entity_type
+                  const actionLabels = {
+                    created:'criou', updated:'atualizou', completed:'concluiu',
+                    moved:'moveu', deleted:'removeu', archived:'arquivou',
+                    stage_changed:'mudou estágio', published:'publicou',
+                  }
+                  const actionLabel = actionLabels[ev.action] || ev.action
+                  return (
+                    <div key={ev.id} className="flex gap-3">
+                      <div className="flex flex-col items-center">
+                        <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0"
+                          style={{ background: actor?.avatar_color || '#5452C1' }}>
+                          {initials}
+                        </div>
+                        {i < projectLog.length - 1 && <div className="w-px flex-1 bg-zinc-100 mt-1 mb-0" style={{ minHeight: 12 }} />}
+                      </div>
+                      <div className="pb-3 flex-1 min-w-0">
+                        <div className="text-xs text-zinc-700">
+                          <span className="font-semibold">{actor?.full_name?.split(' ')[0] || 'Sistema'}</span>
+                          {' '}{actionLabel}
+                          {title && <span className="text-zinc-500"> "{title.slice(0,40)}"</span>}
+                        </div>
+                        <div className="text-[10px] text-zinc-400 mt-0.5">
+                          {new Date(ev.created_at).toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' })}
+                          {ev.module && <span className="ml-1 capitalize">· {ev.module}</span>}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    )}
     <div className="p-6 max-w-[1600px] mx-auto">
       <div className="rounded-2xl p-6 mb-6 text-white" style={{ background: CH }}>
         <div className="flex items-center justify-between flex-wrap gap-4">
@@ -267,6 +425,11 @@ export default function Timeline() {
                 <div key={p.id} className="px-4 py-3 border-b border-zinc-100 h-14 flex flex-col justify-center">
                   <div className="flex items-center gap-1 group">
                     <div className="text-xs font-bold text-zinc-800 truncate flex-1">{p.name}</div>
+                    <button onClick={e => { e.stopPropagation(); setHistProject(p); loadProjectLog(p.id) }}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity text-zinc-400 hover:text-amber-500 shrink-0 mr-0.5"
+                      title="Histórico">
+                      <History className="w-3 h-3" />
+                    </button>
                     <button onClick={e => { e.stopPropagation(); openEdit(p) }}
                       className="opacity-0 group-hover:opacity-100 transition-opacity text-zinc-400 hover:text-violet-600 shrink-0"
                       title="Editar projeto">
@@ -553,5 +716,6 @@ export default function Timeline() {
       )
     })()}
     </div>
+    </>
   )
 }

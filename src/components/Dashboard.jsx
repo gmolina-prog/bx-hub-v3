@@ -19,7 +19,8 @@ function loadLeaflet() {
   })
 }
 
-import { RefreshCw } from 'lucide-react'
+import { RefreshCw, TrendingUp, AlertTriangle, Users, Briefcase } from 'lucide-react'
+import { isLeaderRole } from '../lib/roles'
 
 const CH = '#2D2E39', VL = '#5452C1'
 const GREEN = '#10B981', AMBER = '#F59E0B', RED = '#EF4444', BLUE = '#3B82F6'
@@ -75,6 +76,119 @@ function Gauge({ score }) {
         <text x="110" y="102" fontSize="42" fontWeight="700" textAnchor="middle" fill={color} fontFamily="Montserrat">{score}</text>
         <text x="110" y="122" fontSize="12" textAnchor="middle" fill="#999" fontFamily="Montserrat">{label}</text>
       </svg>
+
+      {/* ── PAINEL SÓCIO (owner/gerente only) ── */}
+      {isLeaderRole(profile?.role) && (() => {
+        const myProjects = (data.projects || []).filter(p =>
+          p.associate_id === profile.id || p.executive_id === profile.id
+        )
+        const openRisks = (data.risks || []).filter(r => r.status !== 'closed')
+        const overdueRisks = openRisks.filter(r => r.mitigation_due && new Date(r.mitigation_due) < new Date())
+        const rjProjects = (data.projects || []).filter(p =>
+          p.type === 'RJ' && !['Cancelado','Concluído','Completo'].includes(p.status)
+        )
+        const totalBudget = (data.projects || []).reduce((s, p) => s + (parseFloat(p.budget) || 0), 0)
+        const INACTIVE = ['Cancelado','Completo','Concluído','Pausado','cancelled','complete','concluido','pausado']
+        const activeProjs2 = (data.projects || []).filter(p => !INACTIVE.includes(p.status))
+
+        return (
+          <div className="bg-white border border-zinc-200 rounded-2xl p-5 mb-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <TrendingUp className="w-4 h-4" style={{ color: VL }} />
+                <h2 className="text-sm font-bold text-zinc-800">Visão Sócio</h2>
+              </div>
+              <span className="text-[10px] font-bold text-violet-600 bg-violet-50 px-2 py-1 rounded-full">
+                {profile?.cargo || profile?.role}
+              </span>
+            </div>
+
+            {/* KPIs do sócio */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+              {[
+                { label: 'Projetos Ativos',  value: activeProjs2.length,   sub: `${rjProjects.length} em RJ`,   color: VL,     icon: '📁' },
+                { label: 'Riscos Abertos',   value: openRisks.length,      sub: overdueRisks.length > 0 ? `⚠ ${overdueRisks.length} vencidos` : 'todos em prazo', color: overdueRisks.length > 0 ? '#EF4444' : '#10B981', icon: '⚠️' },
+                { label: 'Pipeline Total',   value: `R$ ${(data.pipeTotal/1000).toFixed(0)}k`, sub: `${(data.pipeline || []).length} oport.`, color: '#10B981', icon: '🎯' },
+                { label: 'Orçamento Total',  value: totalBudget > 0 ? `R$ ${(totalBudget/1000).toFixed(0)}k` : '—', sub: 'em projetos', color: '#F59E0B', icon: '💰' },
+              ].map((kpi, i) => (
+                <div key={i} className="p-3 rounded-xl border border-zinc-100 bg-zinc-50">
+                  <div className="text-sm mb-1">{kpi.icon}</div>
+                  <div className="text-lg font-bold" style={{ color: kpi.color }}>{kpi.value}</div>
+                  <div className="text-[10px] font-semibold text-zinc-600">{kpi.label}</div>
+                  <div className="text-[10px] text-zinc-400">{kpi.sub}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Projetos em RJ */}
+            {rjProjects.length > 0 && (
+              <div className="mb-4">
+                <h3 className="text-xs font-bold text-zinc-700 uppercase tracking-wider mb-2">Recuperações Judiciais Ativas</h3>
+                <div className="space-y-2">
+                  {rjProjects.map(p => {
+                    const projTasks = (data.tasks || []).filter(t => t.project_id === p.id)
+                    const done = projTasks.filter(t => t.column_id === 'done').length
+                    const pct = projTasks.length > 0 ? Math.round(done / projTasks.length * 100) : 0
+                    const overdue = projTasks.filter(t => t.due_date && new Date(t.due_date) < new Date() && t.column_id !== 'done').length
+                    const daysLeft = p.deadline ? Math.ceil((new Date(p.deadline) - new Date()) / 86400000) : null
+                    return (
+                      <div key={p.id} className="flex items-center gap-3 p-3 rounded-xl border border-zinc-100 hover:border-violet-200 transition-colors"
+                        style={{ borderLeft: `3px solid ${overdue > 0 ? '#EF4444' : '#5452C1'}` }}>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs font-bold text-zinc-800 truncate">{p.name}</div>
+                          <div className="text-[10px] text-zinc-500 mt-0.5">
+                            {data.compMap?.[p.company_id]?.name || ''}
+                            {overdue > 0 && <span className="text-red-500 font-semibold ml-2">· {overdue} tarefa{overdue !== 1 ? 's' : ''} vencida{overdue !== 1 ? 's' : ''}</span>}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3 shrink-0">
+                          <div className="w-20">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-[10px] text-zinc-400">{pct}%</span>
+                            </div>
+                            <div className="h-1.5 bg-zinc-100 rounded-full overflow-hidden">
+                              <div className="h-full rounded-full" style={{ width: `${pct}%`, background: pct === 100 ? '#10B981' : VL }} />
+                            </div>
+                          </div>
+                          {daysLeft !== null && (
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${daysLeft < 0 ? 'bg-red-100 text-red-600' : daysLeft < 30 ? 'bg-amber-100 text-amber-600' : 'bg-zinc-100 text-zinc-500'}`}>
+                              {daysLeft < 0 ? `${Math.abs(daysLeft)}d atrasado` : `${daysLeft}d`}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Riscos críticos */}
+            {overdueRisks.length > 0 && (
+              <div>
+                <h3 className="text-xs font-bold text-red-600 uppercase tracking-wider mb-2">⚠ Mitigações Vencidas</h3>
+                <div className="space-y-1.5">
+                  {overdueRisks.slice(0, 5).map(r => (
+                    <div key={r.id} className="flex items-center gap-2 p-2.5 bg-red-50 rounded-xl border border-red-100">
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs font-semibold text-red-700 truncate">{r.name}</div>
+                        <div className="text-[10px] text-red-500 mt-0.5">
+                          Prazo: {new Date(r.mitigation_due).toLocaleDateString('pt-BR')}
+                          {data.profMap?.[r.owner_id] && ` · ${data.profMap[r.owner_id].full_name.split(' ')[0]}`}
+                        </div>
+                      </div>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-600">
+                        P{r.probability}×I{r.impact}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )
+      })()}
+
     </div>
   )
 }
@@ -93,14 +207,16 @@ export default function Dashboard() {
     if (!profile) return
     setLoading(true)
     const today = new Date().toISOString().split('T')[0]
-    const [tasksR, pipeR, projR, ciR, profR, routR, actR] = await Promise.allSettled([
+    const [tasksR, pipeR, projR, ciR, profR, routR, actR, risksR, compR] = await Promise.allSettled([
       supabase.from('tasks').select('id,column_id,priority,assigned_to,due_date,title,project_id,updated_at').eq('org_id', profile.org_id).is('deleted_at', null).limit(500),
       supabase.from('pipeline_items').select('id,stage,value,probability,name').eq('org_id', profile.org_id).eq('is_archived', false).limit(200),
-      supabase.from('projects').select('id,name,status,deadline').eq('org_id', profile.org_id),
+      supabase.from('projects').select('id,name,status,deadline,type,budget,associate_id,company_id').eq('org_id', profile.org_id),
       supabase.from('check_ins').select('id,user_id,date,status,location,latitude,longitude').eq('org_id', profile.org_id).eq('date', today),
       supabase.from('profiles').select('id,full_name,initials,avatar_color,role,cargo').eq('org_id', profile.org_id).order('full_name'),
       supabase.from('routines').select('id,is_active,frequency').eq('org_id', profile.org_id).eq('is_active', true),
       supabase.from('activity_log').select('id,actor_id,entity_type,action,metadata,created_at,module').eq('org_id', profile.org_id).order('created_at', { ascending: false }).limit(10),
+      supabase.from('risks').select('id,name,status,probability,impact,owner_id,project_id,mitigation_due').eq('org_id', profile.org_id).neq('status','closed').limit(50),
+      supabase.from('companies').select('id,name,status,criticality').eq('org_id', profile.org_id).eq('status','ativo').limit(50),
     ])
 
     const tasks    = tasksR.status === 'fulfilled' && !tasksR.value.error ? tasksR.value.data || [] : []
@@ -127,8 +243,12 @@ export default function Dashboard() {
     // B-116: 'active' e 'Em andamento' são o mesmo estado — ambos contam como ativo
     const INACTIVE_STATUSES = ['Cancelado','Completo','cancelled','complete','Concluído','concluido','Pausado','pausado']
     const activeProjs = projects.filter(p => !INACTIVE_STATUSES.includes(p.status))
+    const risks    = risksR?.status === 'fulfilled' && !risksR.value.error ? risksR.value.data  || [] : []
+    const companies = compR?.status  === 'fulfilled' && !compR.value.error  ? compR.value.data   || [] : []
     const profMap = {}
     profiles.forEach(p => { profMap[p.id] = p })
+    const compMap = {}
+    companies.forEach(co => { compMap[co.id] = co })
 
     const ciByStatus = { escritorio: 0, cliente: 0, remoto: 0, viagem: 0 }
     checkins.forEach(c => { const s = (c.status || '').toLowerCase().replace(/ /g, ''); if (ciByStatus[s] !== undefined) ciByStatus[s]++ })
@@ -561,6 +681,119 @@ export default function Dashboard() {
           })}
         </div>
       </div>
+
+      {/* ── PAINEL SÓCIO (owner/gerente only) ── */}
+      {isLeaderRole(profile?.role) && (() => {
+        const myProjects = (data.projects || []).filter(p =>
+          p.associate_id === profile.id || p.executive_id === profile.id
+        )
+        const openRisks = (data.risks || []).filter(r => r.status !== 'closed')
+        const overdueRisks = openRisks.filter(r => r.mitigation_due && new Date(r.mitigation_due) < new Date())
+        const rjProjects = (data.projects || []).filter(p =>
+          p.type === 'RJ' && !['Cancelado','Concluído','Completo'].includes(p.status)
+        )
+        const totalBudget = (data.projects || []).reduce((s, p) => s + (parseFloat(p.budget) || 0), 0)
+        const INACTIVE = ['Cancelado','Completo','Concluído','Pausado','cancelled','complete','concluido','pausado']
+        const activeProjs2 = (data.projects || []).filter(p => !INACTIVE.includes(p.status))
+
+        return (
+          <div className="bg-white border border-zinc-200 rounded-2xl p-5 mb-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <TrendingUp className="w-4 h-4" style={{ color: VL }} />
+                <h2 className="text-sm font-bold text-zinc-800">Visão Sócio</h2>
+              </div>
+              <span className="text-[10px] font-bold text-violet-600 bg-violet-50 px-2 py-1 rounded-full">
+                {profile?.cargo || profile?.role}
+              </span>
+            </div>
+
+            {/* KPIs do sócio */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+              {[
+                { label: 'Projetos Ativos',  value: activeProjs2.length,   sub: `${rjProjects.length} em RJ`,   color: VL,     icon: '📁' },
+                { label: 'Riscos Abertos',   value: openRisks.length,      sub: overdueRisks.length > 0 ? `⚠ ${overdueRisks.length} vencidos` : 'todos em prazo', color: overdueRisks.length > 0 ? '#EF4444' : '#10B981', icon: '⚠️' },
+                { label: 'Pipeline Total',   value: `R$ ${(data.pipeTotal/1000).toFixed(0)}k`, sub: `${(data.pipeline || []).length} oport.`, color: '#10B981', icon: '🎯' },
+                { label: 'Orçamento Total',  value: totalBudget > 0 ? `R$ ${(totalBudget/1000).toFixed(0)}k` : '—', sub: 'em projetos', color: '#F59E0B', icon: '💰' },
+              ].map((kpi, i) => (
+                <div key={i} className="p-3 rounded-xl border border-zinc-100 bg-zinc-50">
+                  <div className="text-sm mb-1">{kpi.icon}</div>
+                  <div className="text-lg font-bold" style={{ color: kpi.color }}>{kpi.value}</div>
+                  <div className="text-[10px] font-semibold text-zinc-600">{kpi.label}</div>
+                  <div className="text-[10px] text-zinc-400">{kpi.sub}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Projetos em RJ */}
+            {rjProjects.length > 0 && (
+              <div className="mb-4">
+                <h3 className="text-xs font-bold text-zinc-700 uppercase tracking-wider mb-2">Recuperações Judiciais Ativas</h3>
+                <div className="space-y-2">
+                  {rjProjects.map(p => {
+                    const projTasks = (data.tasks || []).filter(t => t.project_id === p.id)
+                    const done = projTasks.filter(t => t.column_id === 'done').length
+                    const pct = projTasks.length > 0 ? Math.round(done / projTasks.length * 100) : 0
+                    const overdue = projTasks.filter(t => t.due_date && new Date(t.due_date) < new Date() && t.column_id !== 'done').length
+                    const daysLeft = p.deadline ? Math.ceil((new Date(p.deadline) - new Date()) / 86400000) : null
+                    return (
+                      <div key={p.id} className="flex items-center gap-3 p-3 rounded-xl border border-zinc-100 hover:border-violet-200 transition-colors"
+                        style={{ borderLeft: `3px solid ${overdue > 0 ? '#EF4444' : '#5452C1'}` }}>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs font-bold text-zinc-800 truncate">{p.name}</div>
+                          <div className="text-[10px] text-zinc-500 mt-0.5">
+                            {data.compMap?.[p.company_id]?.name || ''}
+                            {overdue > 0 && <span className="text-red-500 font-semibold ml-2">· {overdue} tarefa{overdue !== 1 ? 's' : ''} vencida{overdue !== 1 ? 's' : ''}</span>}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3 shrink-0">
+                          <div className="w-20">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-[10px] text-zinc-400">{pct}%</span>
+                            </div>
+                            <div className="h-1.5 bg-zinc-100 rounded-full overflow-hidden">
+                              <div className="h-full rounded-full" style={{ width: `${pct}%`, background: pct === 100 ? '#10B981' : VL }} />
+                            </div>
+                          </div>
+                          {daysLeft !== null && (
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${daysLeft < 0 ? 'bg-red-100 text-red-600' : daysLeft < 30 ? 'bg-amber-100 text-amber-600' : 'bg-zinc-100 text-zinc-500'}`}>
+                              {daysLeft < 0 ? `${Math.abs(daysLeft)}d atrasado` : `${daysLeft}d`}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Riscos críticos */}
+            {overdueRisks.length > 0 && (
+              <div>
+                <h3 className="text-xs font-bold text-red-600 uppercase tracking-wider mb-2">⚠ Mitigações Vencidas</h3>
+                <div className="space-y-1.5">
+                  {overdueRisks.slice(0, 5).map(r => (
+                    <div key={r.id} className="flex items-center gap-2 p-2.5 bg-red-50 rounded-xl border border-red-100">
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs font-semibold text-red-700 truncate">{r.name}</div>
+                        <div className="text-[10px] text-red-500 mt-0.5">
+                          Prazo: {new Date(r.mitigation_due).toLocaleDateString('pt-BR')}
+                          {data.profMap?.[r.owner_id] && ` · ${data.profMap[r.owner_id].full_name.split(' ')[0]}`}
+                        </div>
+                      </div>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-600">
+                        P{r.probability}×I{r.impact}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )
+      })()}
+
     </div>
   )
 }

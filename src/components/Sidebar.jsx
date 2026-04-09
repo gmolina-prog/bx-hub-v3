@@ -37,6 +37,7 @@ const SECTIONS = [
     title: 'EQUIPE',
     items: [
       { emoji: '💬', label: 'Chat',       path: '/chat',       badge: 'chat' },
+      { emoji: '📢', label: 'Avisos',     path: '/avisos' },
       { emoji: '📅', label: 'Calendário', path: '/calendario' },
       { emoji: '👥', label: 'Time',       path: '/time' },
       { emoji: '🧾', label: 'Reembolsos', path: '/reembolsos' },
