@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { Plus, X, Save, Trash2, Search, AlertCircle, Check, Clock, User, FolderOpen, Flag, MessageSquare, CheckSquare, MoreHorizontal, Archive } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useData } from '../contexts/DataContext'
+import { toast, confirm } from './Toast'
 
 const COLS = [
   { id: 'todo',  label: 'A Fazer',     color: '#9CA3AF' },
@@ -415,7 +416,7 @@ export default function Kanban() {
   }
 
   async function deleteTask(id) {
-    if (!window.confirm('Excluir esta tarefa?')) return
+    if (!await confirm('Excluir esta tarefa?', { danger: true, confirmLabel: 'Excluir', cancelLabel: 'Cancelar' })) return
     await supabase.from('tasks').update({ deleted_at: new Date().toISOString() }).eq('id', id)
     await load(); setModalTask(null)
   }

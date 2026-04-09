@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { Bell, Check, CheckCheck, X, AlertCircle, Clock, CheckCircle, AlertTriangle, Info } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useData } from '../contexts/DataContext'
+import { toast, confirm } from './Toast'
 
 const VL = '#5452C1'
 const TYPE_MAP = {
@@ -69,7 +70,7 @@ export default function Notificacoes() {
   }
 
   async function clearAll() {
-    if (!window.confirm('Limpar todas as notificações?')) return
+    if (!await confirm('Limpar todas as notificações?', { danger: true, confirmLabel: 'Excluir', cancelLabel: 'Cancelar' })) return
     setActing(true)
     await supabase.from('notifications').delete().eq('user_id', profile.id).eq('org_id', profile.org_id)
     setNotifs([]); setActing(false)

@@ -145,7 +145,9 @@ export default function Logs() {
       if (entityType !== 'all' && ev.entity_type !== entityType) return false
       if (search) {
         const s = search.toLowerCase()
-        const hay = `${ev.action || ''} ${ev.details || ''} ${ev.entity_type || ''} ${ev.module || ''}`.toLowerCase()
+        // B-18: module é sempre null no banco — buscar em action, details, entity_type, metadata
+        const meta = typeof ev.metadata === 'object' ? JSON.stringify(ev.metadata || {}) : ''
+        const hay = `${ev.action || ''} ${ev.details || ''} ${ev.entity_type || ''} ${meta}`.toLowerCase()
         if (!hay.includes(s)) return false
       }
       return true

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useData } from '../contexts/DataContext'
+import { toast, confirm } from './Toast'
 import {
   Zap,
   Plus,
@@ -166,7 +167,7 @@ export default function Automations() {
       showSuccess(currentStatus ? 'Automação desativada' : 'Automação ativada')
     } catch (err) {
       console.error('Error toggling rule:', err)
-      alert('Erro ao atualizar regra: ' + (err.message || 'desconhecido'))
+      toast.error(`Erro ao atualizar regra: ` + (err.message || 'desconhecido'))
     }
   }
 
@@ -182,17 +183,17 @@ export default function Automations() {
       showSuccess('Automação excluída')
     } catch (err) {
       console.error('Error deleting rule:', err)
-      alert('Erro ao excluir regra: ' + (err.message || 'desconhecido'))
+      toast.error(`Erro ao excluir regra: ` + (err.message || 'desconhecido'))
     }
   }
 
   async function submitForm() {
     if (!formData.name.trim() || !formData.trigger_desc.trim() || !formData.action_desc.trim()) {
-      alert('Por favor, preencha todos os campos')
+      toast.warning('Por favor, preencha todos os campos')
       return
     }
     if (!profile?.org_id) {
-      alert('Perfil do usuário não carregado. Tente novamente em alguns segundos.')
+      toast.warning('Perfil do usuário não carregado. Tente novamente em alguns segundos.')
       return
     }
 
@@ -214,7 +215,7 @@ export default function Automations() {
       showSuccess('Automação criada com sucesso! Ative para começar a rodar.')
     } catch (err) {
       console.error('Error creating rule:', err)
-      alert('Erro ao criar automação: ' + (err.message || 'desconhecido'))
+      toast.error(`Erro ao criar automação: ` + (err.message || 'desconhecido'))
     } finally {
       setSubmitting(false)
     }

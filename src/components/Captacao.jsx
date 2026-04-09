@@ -2,6 +2,7 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useData } from '../contexts/DataContext'
+import { toast, confirm } from './Toast'
 import {
   Target,
   Plus,
@@ -152,7 +153,7 @@ export default function Captacao() {
 
   async function submitItem() {
     if (!form.name.trim()) {
-      alert('Preencha o nome da oportunidade')
+      toast.warning('Preencha o nome da oportunidade')
       return
     }
     setSubmitting(true)
@@ -181,7 +182,7 @@ export default function Captacao() {
       await loadAll()
       showSuccess('Oportunidade criada')
     } catch (err) {
-      alert('Erro ao criar oportunidade: ' + err.message)
+      toast.error(`Erro ao criar oportunidade: ` + err.message)
     } finally {
       setSubmitting(false)
     }
@@ -201,7 +202,7 @@ export default function Captacao() {
       await loadAll()
       showSuccess('Movido para ' + STAGES.find(s => s.id === newStage)?.label)
     } catch (err) {
-      alert('Erro ao mover: ' + err.message)
+      toast.error(`Erro ao mover: ` + err.message)
     }
   }
 
@@ -626,9 +627,11 @@ export default function Captacao() {
           formatCurrency={formatCurrency}
           onClose={() => setSelectedItem(null)}
           onSave={async (updated) => {
-            await supabase.from('pipeline_items').update(updated).eq('id', selectedItem.id)
+            const { error } = await supabase.from('pipeline_items').update(updated).eq('id', selectedItem.id)
+            if (error) { toast.error('Erro ao salvar: ' + error.message); return }
             await loadAll()
             setSelectedItem(null)
+            showSuccess('Oportunidade salva')
           }}
           onArchive={async () => {
             await supabase.from('pipeline_items').update({ is_archived: true }).eq('id', selectedItem.id)
@@ -637,7 +640,7 @@ export default function Captacao() {
             showSuccess('Oportunidade arquivada')
           }}
           onDelete={async () => {
-            if (!window.confirm('Excluir esta oportunidade permanentemente?')) return
+            if (!await confirm('Excluir esta oportunidade permanentemente?', { danger: true, confirmLabel: 'Excluir', cancelLabel: 'Cancelar' })) return
             await supabase.from('pipeline_items').delete().eq('id', selectedItem.id)
             await loadAll()
             setSelectedItem(null)

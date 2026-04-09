@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import { useData } from '../contexts/DataContext'
+import { toast, confirm } from './Toast'
 import {
   Settings,
   Users,
@@ -157,7 +158,7 @@ export default function Admin() {
 
   async function updateRole(profileId, newRole) {
     if (!isOwner) {
-      alert('Apenas owners/admins podem alterar roles')
+      toast.warning('Apenas owners/admins podem alterar roles')
       return
     }
     try {
@@ -169,17 +170,17 @@ export default function Admin() {
       await loadProfiles()
       showSuccess('Role atualizada')
     } catch (err) {
-      alert('Erro ao atualizar role: ' + err.message)
+      toast.error(`Erro ao atualizar role: ` + err.message)
     }
   }
 
   async function submitInvite() {
     if (!inviteData.email || !inviteData.full_name) {
-      alert('Preencha nome e email')
+      toast.warning('Preencha nome e email')
       return
     }
     if (!isOwner) {
-      alert('Apenas owners/admins podem convidar usuários')
+      toast.warning('Apenas owners/admins podem convidar usuários')
       return
     }
     setInviting(true)
@@ -200,7 +201,7 @@ export default function Admin() {
       await loadProfiles()
       showSuccess('Convite registrado. Envie o link de acesso separadamente.')
     } catch (err) {
-      alert('Erro ao convidar: ' + err.message)
+      toast.error(`Erro ao convidar: ` + err.message)
     } finally {
       setInviting(false)
     }

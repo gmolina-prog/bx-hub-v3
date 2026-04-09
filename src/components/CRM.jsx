@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import { useData } from '../contexts/DataContext'
+import { toast, confirm } from './Toast'
 import {
   Users,
   FileText,
@@ -155,7 +156,7 @@ export default function CRM() {
 
   async function submitProposal() {
     if (!proposalForm.company_id || !proposalForm.title.trim()) {
-      alert('Selecione um cliente e preencha o título')
+      toast.warning('Selecione um cliente e preencha o título')
       return
     }
     setSubmitting(true)
@@ -180,7 +181,7 @@ export default function CRM() {
       await loadAll()
       showSuccess('Proposta criada com sucesso')
     } catch (err) {
-      alert('Erro ao criar proposta: ' + err.message)
+      toast.error(`Erro ao criar proposta: ` + err.message)
     } finally {
       setSubmitting(false)
     }
@@ -188,7 +189,7 @@ export default function CRM() {
 
   async function submitInteraction() {
     if (!interactionForm.company_id || !interactionForm.notes.trim()) {
-      alert('Selecione um cliente e preencha as notas')
+      toast.warning('Selecione um cliente e preencha as notas')
       return
     }
     setSubmitting(true)
@@ -211,7 +212,7 @@ export default function CRM() {
       showSuccess('Interação registrada')
     } catch (err) {
       console.error('[CRM] client_interactions:', err)
-      alert('Erro ao registrar interação: ' + err.message)
+      toast.error(`Erro ao registrar interação: ` + err.message)
     } finally {
       setSubmitting(false)
     }
@@ -232,7 +233,7 @@ export default function CRM() {
       await loadAll()
       showSuccess('Status atualizado')
     } catch (err) {
-      alert('Erro ao atualizar status: ' + err.message)
+      toast.error(`Erro ao atualizar status: ` + err.message)
     }
   }
 
@@ -244,7 +245,7 @@ export default function CRM() {
       await loadAll()
       showSuccess('Proposta excluída')
     } catch (err) {
-      alert('Erro ao excluir: ' + err.message)
+      toast.error(`Erro ao excluir: ` + err.message)
     }
   }
 

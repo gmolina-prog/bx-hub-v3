@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { AlertTriangle, Plus, X, Save, Trash2, AlertCircle } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useData } from '../contexts/DataContext'
+import { toast, confirm } from './Toast'
 
 const CH = '#2D2E39', VL = '#5452C1'
 const GREEN = '#10B981', AMBER = '#F59E0B', RED = '#EF4444', BLUE = '#3B82F6'
@@ -104,7 +105,7 @@ export default function Riscos() {
   }
 
   async function deleteRisk(id) {
-    if (!window.confirm('Excluir este risco?')) return
+    if (!await confirm('Excluir este risco?', { danger: true, confirmLabel: 'Excluir', cancelLabel: 'Cancelar' })) return
     await supabase.from('risks').delete().eq('id', id)
     setSelected(null); await load()
   }

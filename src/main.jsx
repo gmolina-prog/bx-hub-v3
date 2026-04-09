@@ -2,6 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import App from './App'
+import { ToastProvider } from './components/Toast'
 import { DataProvider } from './contexts/DataContext'
 import './index.css'
 
@@ -46,7 +47,9 @@ ReactDOM.createRoot(document.getElementById('root')).render(
   <ErrorBoundary>
     <BrowserRouter>
       <DataProvider>
-        <App />
+        <ToastProvider>
+          <App />
+        </ToastProvider>
       </DataProvider>
     </BrowserRouter>
   </ErrorBoundary>

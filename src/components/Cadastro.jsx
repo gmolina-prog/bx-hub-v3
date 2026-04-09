@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
+import { toast } from './Toast'
 import { useData } from '../contexts/DataContext'
 import {
   FolderOpen,
@@ -91,6 +92,11 @@ export default function Cadastro() {
   const [filterCriticality, setFilterCriticality] = useState('all')
   const [filterStatus, setFilterStatus] = useState('all')
   const [viewMode, setViewMode] = useState('table') // 'table' | 'cards'
+  const [showNewCompany, setShowNewCompany] = useState(false)
+  const [showNewProfile, setShowNewProfile] = useState(false)
+  const [newCompanyForm, setNewCompanyForm] = useState({ name: '', cnpj: '', segment: '', criticality: 'medio', status: 'ativo', notes: '' })
+  const [newProfileForm, setNewProfileForm] = useState({ full_name: '', email: '', role: 'analyst', cargo: '', phone: '' })
+  const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     if (profile?.org_id) loadAll()
@@ -132,6 +138,54 @@ export default function Cadastro() {
       console.warn(`Tabela ${tableName} nao acessivel:`, err.message)
       setter([])
     }
+  }
+
+  async function createCompany() {
+    if (!newCompanyForm.name.trim()) { toast.warning('Preencha o nome da empresa'); return }
+    setSaving(true)
+    const { error } = await supabase.from('companies').insert({
+      org_id: profile.org_id, name: newCompanyForm.name.trim(),
+      cnpj: newCompanyForm.cnpj?.trim() || null,
+      segment: newCompanyForm.segment?.trim() || null,
+      criticality: newCompanyForm.criticality,
+      status: newCompanyForm.status,
+      notes: newCompanyForm.notes?.trim() || null,
+    })
+    if (error) { toast.error('Erro ao criar empresa: ' + error.message) }
+    else {
+      setNewCompanyForm({ name: '', cnpj: '', segment: '', criticality: 'medio', status: 'ativo', notes: '' })
+      setShowNewCompany(false)
+      await loadAll()
+      toast.success('Empresa cadastrada com sucesso')
+    }
+    setSaving(false)
+  }
+
+  async function createProfile() {
+    if (!newProfileForm.full_name.trim() || !newProfileForm.email.trim()) {
+      toast.warning('Preencha nome e email'); return
+    }
+    setSaving(true)
+    // Gerar iniciais automaticamente
+    const initials = newProfileForm.full_name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0,2)
+    const { error } = await supabase.from('profiles').insert({
+      org_id: profile.org_id,
+      full_name: newProfileForm.full_name.trim(),
+      email: newProfileForm.email.trim(),
+      role: newProfileForm.role,
+      cargo: newProfileForm.cargo?.trim() || null,
+      phone: newProfileForm.phone?.trim() || null,
+      initials,
+      is_active: true,
+    })
+    if (error) { toast.error('Erro ao criar colaborador: ' + error.message) }
+    else {
+      setNewProfileForm({ full_name: '', email: '', role: 'analyst', cargo: '', phone: '' })
+      setShowNewProfile(false)
+      await loadAll()
+      toast.success('Colaborador cadastrado com sucesso')
+    }
+    setSaving(false)
   }
 
   function showSuccess(msg) {
@@ -219,6 +273,7 @@ export default function Cadastro() {
   }
 
   return (
+    <>
     <div className="p-6 max-w-[1600px] mx-auto">
       {/* Hero */}
       <div className="bg-gradient-to-br from-zinc-800 to-zinc-900 rounded-2xl p-6 mb-6 text-white">
@@ -253,10 +308,11 @@ export default function Cadastro() {
               </button>
             )}
             <button
+              onClick={() => { if (activeTab === 'companies') setShowNewCompany(true); else if (activeTab === 'profiles') setShowNewProfile(true) }}
               className="px-4 py-2 bg-violet-600 hover:bg-violet-500 rounded-lg text-sm font-semibold flex items-center gap-2"
             >
               <Plus className="w-4 h-4" />
-              Novo
+              {activeTab === 'companies' ? 'Nova Empresa' : activeTab === 'profiles' ? 'Novo Colaborador' : 'Novo'}
             </button>
           </div>
         </div>
@@ -727,6 +783,133 @@ export default function Cadastro() {
         </>
       )}
     </div>
+
+    {/* ── Modal Nova Empresa ── */}
+    {showNewCompany && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.45)' }}
+        onClick={e => e.target === e.currentTarget && setShowNewCompany(false)}>
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+          <div className="flex items-center justify-between mb-5">
+            <h3 className="text-base font-bold text-zinc-800">Nova Empresa</h3>
+            <button onClick={() => setShowNewCompany(false)} className="text-zinc-400 hover:text-zinc-600">
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+          </div>
+          <div className="space-y-3">
+            <div>
+              <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Razão Social *</label>
+              <input autoFocus className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                value={newCompanyForm.name} onChange={e => setNewCompanyForm(p => ({...p, name: e.target.value}))} placeholder="Nome da empresa..." />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">CNPJ</label>
+                <input className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                  value={newCompanyForm.cnpj} onChange={e => setNewCompanyForm(p => ({...p, cnpj: e.target.value}))} placeholder="00.000.000/0000-00" />
+              </div>
+              <div>
+                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Segmento</label>
+                <input className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                  value={newCompanyForm.segment} onChange={e => setNewCompanyForm(p => ({...p, segment: e.target.value}))} placeholder="Ex: Têxtil, Saúde..." />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Criticidade</label>
+                <select className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                  value={newCompanyForm.criticality} onChange={e => setNewCompanyForm(p => ({...p, criticality: e.target.value}))}>
+                  <option value="baixo">Baixo</option>
+                  <option value="medio">Médio</option>
+                  <option value="alto">Alto</option>
+                  <option value="critico">Crítico</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Status</label>
+                <select className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                  value={newCompanyForm.status} onChange={e => setNewCompanyForm(p => ({...p, status: e.target.value}))}>
+                  <option value="ativo">Ativo</option>
+                  <option value="em_reestruturacao">Em Reestruturação</option>
+                  <option value="arquivado">Arquivado</option>
+                </select>
+              </div>
+            </div>
+            <div>
+              <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Observações</label>
+              <textarea className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500 resize-none" rows={2}
+                value={newCompanyForm.notes} onChange={e => setNewCompanyForm(p => ({...p, notes: e.target.value}))} placeholder="Contexto, histórico..." />
+            </div>
+            <div className="flex gap-3 pt-2">
+              <button onClick={createCompany} disabled={saving || !newCompanyForm.name.trim()}
+                className="flex-1 py-2.5 text-sm font-bold text-white rounded-xl hover:opacity-90 disabled:opacity-50"
+                style={{ background: '#5452C1' }}>
+                {saving ? 'Salvando…' : 'Criar Empresa'}
+              </button>
+              <button onClick={() => setShowNewCompany(false)} className="px-4 text-sm text-zinc-500 hover:text-zinc-700">Cancelar</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* ── Modal Novo Colaborador ── */}
+    {showNewProfile && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.45)' }}
+        onClick={e => e.target === e.currentTarget && setShowNewProfile(false)}>
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+          <div className="flex items-center justify-between mb-5">
+            <h3 className="text-base font-bold text-zinc-800">Novo Colaborador</h3>
+            <button onClick={() => setShowNewProfile(false)} className="text-zinc-400 hover:text-zinc-600">
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+          </div>
+          <div className="space-y-3">
+            <div>
+              <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Nome Completo *</label>
+              <input autoFocus className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                value={newProfileForm.full_name} onChange={e => setNewProfileForm(p => ({...p, full_name: e.target.value}))} placeholder="Nome completo..." />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Email *</label>
+                <input type="email" className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                  value={newProfileForm.email} onChange={e => setNewProfileForm(p => ({...p, email: e.target.value}))} placeholder="email@bxgroup.com.br" />
+              </div>
+              <div>
+                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Telefone</label>
+                <input className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                  value={newProfileForm.phone} onChange={e => setNewProfileForm(p => ({...p, phone: e.target.value}))} placeholder="+55 11 9..." />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Cargo / Função</label>
+                <input className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                  value={newProfileForm.cargo} onChange={e => setNewProfileForm(p => ({...p, cargo: e.target.value}))} placeholder="Analista, Consultor..." />
+              </div>
+              <div>
+                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Nível de acesso</label>
+                <select className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                  value={newProfileForm.role} onChange={e => setNewProfileForm(p => ({...p, role: e.target.value}))}>
+                  <option value="analyst">Analista</option>
+                  <option value="Gerente">Gerente</option>
+                  <option value="owner">Owner</option>
+                </select>
+              </div>
+            </div>
+            <div className="flex gap-3 pt-2">
+              <button onClick={createProfile} disabled={saving || !newProfileForm.full_name.trim() || !newProfileForm.email.trim()}
+                className="flex-1 py-2.5 text-sm font-bold text-white rounded-xl hover:opacity-90 disabled:opacity-50"
+                style={{ background: '#5452C1' }}>
+                {saving ? 'Salvando…' : 'Criar Colaborador'}
+              </button>
+              <button onClick={() => setShowNewProfile(false)} className="px-4 text-sm text-zinc-500 hover:text-zinc-700">Cancelar</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   )
 }
 

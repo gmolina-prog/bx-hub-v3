@@ -320,7 +320,7 @@ export default function BI() {
                   return (
                     <div
                       key={c.id}
-                      onClick={() => setSelectedCompanyId(c.id)}
+                      onClick={() => { setSelectedCompanyId(c.id); if (!c.powerbi_link) setActiveTab('internal') }}
                       className={`px-4 py-3 cursor-pointer transition-colors flex items-center gap-3 ${
                         isSelected ? 'bg-violet-50 border-l-4 border-violet-500' : 'hover:bg-zinc-50 border-l-4 border-transparent'
                       }`}
@@ -354,7 +354,8 @@ export default function BI() {
                 {companiesWithoutBI.map(c => {
                   const initials = (c.name || '?').substring(0, 1).toUpperCase()
                   return (
-                    <div key={c.id} className="px-4 py-2 flex items-center gap-3 opacity-60">
+                    <div key={c.id} onClick={() => { setSelectedCompanyId(c.id); setActiveTab('internal') }}
+                      className="px-4 py-2 flex items-center gap-3 opacity-60 hover:opacity-100 cursor-pointer hover:bg-zinc-50 transition-all">
                       <div className="w-8 h-8 rounded-lg bg-zinc-100 text-zinc-500 flex items-center justify-center font-bold text-sm flex-shrink-0">
                         {initials}
                       </div>

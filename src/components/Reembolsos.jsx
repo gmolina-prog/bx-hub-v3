@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { Receipt, Plus, X, Check, ChevronDown, ChevronRight, AlertCircle, Trash2 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useData } from '../contexts/DataContext'
+import { toast, confirm } from './Toast'
 
 const VL = '#5452C1'
 const STATUS = {
@@ -67,7 +68,7 @@ export default function Reembolsos() {
   }
 
   async function deleteReport(id) {
-    if (!window.confirm('Excluir este relatório?')) return
+    if (!await confirm('Excluir este relatório?', { danger: true, confirmLabel: 'Excluir', cancelLabel: 'Cancelar' })) return
     await supabase.from('expense_items').delete().eq('report_id', id)
     await supabase.from('expense_reports').delete().eq('id', id); await load()
   }

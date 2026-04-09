@@ -2,6 +2,7 @@
 import React, { useEffect, useState, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import { useData } from '../contexts/DataContext'
+import { toast, confirm } from './Toast'
 import {
   Inbox,
   Plus,
@@ -144,7 +145,7 @@ export default function Intakes() {
 
   async function submitIntake() {
     if (!form.company_name.trim()) {
-      alert('Preencha o nome da empresa')
+      toast.warning('Preencha o nome da empresa')
       return
     }
     setSubmitting(true)
@@ -176,7 +177,7 @@ export default function Intakes() {
       await loadAll()
       showSuccess('Intake criado com sucesso')
     } catch (err) {
-      alert('Erro ao criar intake: ' + err.message)
+      toast.error(`Erro ao criar intake: ` + err.message)
     } finally {
       setSubmitting(false)
     }
@@ -192,7 +193,7 @@ export default function Intakes() {
       await loadAll()
       showSuccess('Status atualizado')
     } catch (err) {
-      alert('Erro ao atualizar: ' + err.message)
+      toast.error(`Erro ao atualizar: ` + err.message)
     }
   }
 

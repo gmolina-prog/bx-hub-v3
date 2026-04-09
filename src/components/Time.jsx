@@ -2,6 +2,7 @@
 import React, { useEffect, useState, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import { useData } from '../contexts/DataContext'
+import { toast, confirm } from './Toast'
 import {
   Users,
   Search,
@@ -141,7 +142,7 @@ export default function Time() {
 
   async function submitKudo() {
     if (!kudoForm.to_user || !kudoForm.message.trim()) {
-      alert('Selecione um destinatário e escreva uma mensagem')
+      toast.warning('Selecione um destinatário e escreva uma mensagem')
       return
     }
     setSubmitting(true)
@@ -160,7 +161,7 @@ export default function Time() {
       await loadAll()
       showSuccess('Kudo enviado! 🎉')
     } catch (err) {
-      alert('Erro ao enviar kudo: ' + err.message)
+      toast.error(`Erro ao enviar kudo: ` + err.message)
     } finally {
       setSubmitting(false)
     }

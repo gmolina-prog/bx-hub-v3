@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import { useData } from '../contexts/DataContext'
+import { toast, confirm } from './Toast'
 import {
   Calendar as CalendarIcon,
   MapPin,
@@ -159,7 +160,7 @@ export default function Calendar() {
 
   async function submitCheckin() {
     if (!checkinForm.date || !checkinForm.status) {
-      alert('Preencha data e local')
+      toast.warning('Preencha data e local')
       return
     }
     setSubmitting(true)
@@ -185,7 +186,7 @@ export default function Calendar() {
       await loadAll()
       showSuccess('Check-in registrado')
     } catch (err) {
-      alert('Erro ao registrar check-in: ' + err.message)
+      toast.error(`Erro ao registrar check-in: ` + err.message)
     } finally {
       setSubmitting(false)
     }
