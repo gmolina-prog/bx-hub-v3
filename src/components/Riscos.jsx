@@ -44,6 +44,7 @@ export default function Riscos() {
   const [risks, setRisks] = useState([])
   const [projects, setProjects] = useState([])
   const [profiles, setProfiles] = useState([])
+  const profMap = Object.fromEntries(profiles.map(p => [p.id, p]))
   const [loading, setLoading] = useState(true)
   const [tableError, setTableError] = useState(false)
   const [selected, setSelected] = useState(null)

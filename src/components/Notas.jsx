@@ -214,7 +214,6 @@ function NewNoteModal({ projects, companies, onCreate, onClose }) {
 export default function Notas() {
   const { profile } = useData()
   usePageTitle('Notas')
-  useEscapeKey(() => { setStep('type') }, !!(step !== 'notes' && step !== 'type'))
   const [notes, setNotes] = useState([])
   const [projects, setProjects] = useState([])
   const [companies, setCompanies] = useState([])
@@ -226,6 +225,7 @@ export default function Notas() {
   const [sortBy, setSortBy] = useState('recentes')
   const [selectedId, setSelectedId] = useState(null)
   const [showNew, setShowNew] = useState(false)
+  useEscapeKey(() => { setShowNew(false) }, showNew)
   const [expandProjects, setExpandProjects] = useState(false)
   const [expandCompanies, setExpandCompanies] = useState(false)
   const [saveStatus, setSaveStatus] = useState('Salvo ✓')
