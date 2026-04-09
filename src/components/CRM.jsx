@@ -179,7 +179,7 @@ export default function CRM() {
       setProposalForm({ company_id: '', title: '', service_type: 'diagnostico', value: '', status: 'rascunho', contact_name: '', notes: '' })
       setShowProposalForm(false)
       await loadAll()
-      showSuccess('Proposta criada com sucesso')
+      toast.success('Proposta criada com sucesso')
     } catch (err) {
       toast.error(`Erro ao criar proposta: ` + err.message)
     } finally {
@@ -209,7 +209,7 @@ export default function CRM() {
       setInteractionForm({ company_id: '', type: 'meeting', notes: '' })
       setShowInteractionForm(false)
       await loadAll()
-      showSuccess('Interação registrada')
+      toast.success('Interação registrada')
     } catch (err) {
       console.error('[CRM] client_interactions:', err)
       toast.error(`Erro ao registrar interação: ` + err.message)
@@ -232,7 +232,7 @@ export default function CRM() {
         .eq('org_id', profile.org_id)
       if (uErr) throw uErr
       await loadAll()
-      showSuccess('Status atualizado')
+      toast.success('Status atualizado')
     } catch (err) {
       toast.error(`Erro ao atualizar status: ` + err.message)
     }
@@ -244,16 +244,13 @@ export default function CRM() {
       const { error: dErr } = await supabase.from('proposals').delete().eq('id', proposalId).eq('org_id', profile.org_id)
       if (dErr) throw dErr
       await loadAll()
-      showSuccess('Proposta excluída')
+      toast.success('Proposta excluída')
     } catch (err) {
       toast.error(`Erro ao excluir: ` + err.message)
     }
   }
 
-  function showSuccess(msg) {
-    setSuccessMsg(msg)
-    setTimeout(() => setSuccessMsg(null), 3500)
-  }
+  // B-114: showSuccess migrado para toast.success()
 
   // ===== KPIs derivados =====
   const kpis = useMemo(() => {

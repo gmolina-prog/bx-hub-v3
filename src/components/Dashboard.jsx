@@ -120,7 +120,9 @@ export default function Dashboard() {
     const pipeTotal = pipeline.reduce((s, p) => s + (p.value || 0), 0)
     const pipeWeighted = pipeline.reduce((s, p) => s + (p.value || 0) * (p.probability || 0) / 100, 0)
 
-    const activeProjs = projects.filter(p => !['Cancelado','Completo','cancelled','complete'].includes(p.status))
+    // B-116: 'active' e 'Em andamento' são o mesmo estado — ambos contam como ativo
+    const INACTIVE_STATUSES = ['Cancelado','Completo','cancelled','complete','Concluído','concluido','Pausado','pausado']
+    const activeProjs = projects.filter(p => !INACTIVE_STATUSES.includes(p.status))
     const profMap = {}
     profiles.forEach(p => { profMap[p.id] = p })
 

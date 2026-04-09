@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { Settings, User, Bell, Palette, Shield, Save, Eye, EyeOff, CheckCircle, AlertCircle, X, Key } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { CARGO_OPTIONS, ROLES } from '../lib/roles'
+import { toast } from './Toast'
 import { useData } from '../contexts/DataContext'
 
 const CH = '#2D2E39', VL = '#5452C1'
@@ -50,6 +51,10 @@ export default function Configuracoes() {
   }, [profile])
 
   function feedback(msg, isError = false) {
+    // B-113: usar toast global em vez de inline div
+    if (isError) toast.error(msg)
+    else toast.success(msg)
+    // Manter estado para compatibilidade com displays inline existentes
     if (isError) { setError(msg); setSuccess(null) } else { setSuccess(msg); setError(null) }
     setTimeout(() => { setSuccess(null); setError(null) }, 3500)
   }

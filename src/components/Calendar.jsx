@@ -190,7 +190,7 @@ export default function Calendar() {
       setShowCheckinForm(false)
       setCheckinForm({ date: formatDateISO(new Date()), status: 'escritorio', location: '', client_name: '', activity: '' })
       await loadAll()
-      showSuccess('Check-in registrado')
+      toast.success('Check-in registrado')
     } catch (err) {
       toast.error(`Erro ao registrar check-in: ` + err.message)
     } finally {
@@ -219,7 +219,7 @@ export default function Calendar() {
       setShowEventForm(false)
       setEventForm({ title: '', date: '', time: '', type: 'meeting', location: '', description: '' })
       await loadAll()
-      showSuccess('Compromisso criado')
+      toast.success('Compromisso criado')
     } catch (err) {
       toast.error('Erro ao criar compromisso: ' + err.message)
     } finally {
@@ -227,10 +227,7 @@ export default function Calendar() {
     }
   }
 
-  function showSuccess(msg) {
-    setSuccessMsg(msg)
-    setTimeout(() => setSuccessMsg(null), 3500)
-  }
+  // B-114: showSuccess migrado para toast.success()
 
   const days = useMemo(() => {
     return Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))

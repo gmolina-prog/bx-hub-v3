@@ -137,7 +137,11 @@ export default function Timeline() {
   const profMap = {}; profiles.forEach(p => { profMap[p.id] = p })
 
   const filtered = projects.filter(p => {
-    const matchStatus = filterStatus === 'all' || p.status === filterStatus
+    const matchStatus = filterStatus === 'all' ||
+      p.status === filterStatus ||
+      // B-111: backward compat — 'active' = 'Em andamento'
+      (filterStatus === 'Em andamento' && p.status === 'active') ||
+      (filterStatus === 'active'       && p.status === 'Em andamento')
     const matchComp = filterCompany === 'all' || p.company_id === filterCompany
     return matchStatus && matchComp
   })
@@ -344,170 +348,110 @@ export default function Timeline() {
           </table>
         </div>
       )}
-    {/* ── Modal Editar Projeto ── */}
-    {editingProject && (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
-        style={{ background: 'rgba(0,0,0,0.45)' }}
-        onClick={e => e.target === e.currentTarget && setEditingProject(null)}>
-        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
-          <div className="flex items-center justify-between mb-5">
-            <h3 className="text-base font-bold text-zinc-800">Editar Projeto</h3>
-            <button onClick={() => setEditingProject(null)} className="text-zinc-400 hover:text-zinc-600">
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-          <div className="space-y-3">
-            <div>
-              <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Nome *</label>
-              <input autoFocus className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
-                value={editForm.name || ''} onChange={e => setEditForm(p => ({...p, name: e.target.value}))} />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Tipo</label>
-                <select className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
-                  value={editForm.type || ''} onChange={e => setEditForm(p => ({...p, type: e.target.value}))}>
-                  <option>Diagnóstico</option><option>RJ</option><option>M&A</option>
-                  <option>Reestruturação</option><option>Assessoria</option>
-                </select>
-              </div>
-              <div>
-                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Status</label>
-                <select className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
-                  value={editForm.status || ''} onChange={e => setEditForm(p => ({...p, status: e.target.value}))}>
-                  <option>Planejamento</option><option value="active">Em andamento</option>
-                  <option>Concluído</option><option>Pausado</option>
-                </select>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Empresa</label>
-                <select className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
-                  value={editForm.company_id || ''} onChange={e => setEditForm(p => ({...p, company_id: e.target.value}))}>
-                  <option value="">— nenhuma —</option>
-                  {companies.map(co => <option key={co.id} value={co.id}>{co.name}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Analista</label>
-                <select className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
-                  value={editForm.analyst_id || ''} onChange={e => setEditForm(p => ({...p, analyst_id: e.target.value}))}>
-                  <option value="">— nenhum —</option>
-                  {profilesList.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
-                </select>
-              </div>
-            </div>
-            <div>
-              <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Prazo</label>
-              <input type="date" className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
-                value={editForm.deadline || ''} onChange={e => setEditForm(p => ({...p, deadline: e.target.value}))} />
-            </div>
-            <div>
-              <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">
-                Progresso manual — {editForm.progress ?? 0}%
-              </label>
-              <input type="range" min="0" max="100" step="5"
-                className="w-full accent-violet-600"
-                value={editForm.progress ?? 0}
-                onChange={e => setEditForm(p => ({...p, progress: parseInt(e.target.value)}))} />
-              <div className="flex justify-between text-[10px] text-zinc-400 mt-0.5">
-                <span>0%</span><span>50%</span><span>100%</span>
-              </div>
-              <p className="text-[10px] text-zinc-400 mt-1">
-                Sobrescrito automaticamente pelo % de tarefas concluídas se houver tasks no projeto.
-              </p>
-            </div>
-            <div className="flex gap-3 pt-2">
-              <button onClick={updateProject} disabled={savingProj || !editForm.name?.trim()}
-                className="flex-1 py-2.5 text-sm font-bold text-white rounded-xl hover:opacity-90 disabled:opacity-50"
-                style={{ background: '#5452C1' }}>
-                {savingProj ? 'Salvando…' : 'Salvar Alterações'}
+    {/* ── Modal Criar / Editar Projeto (unificado) ── */}
+    {(showNewProject || editingProject) && (() => {
+      const isEdit  = !!editingProject
+      const form    = isEdit ? editForm    : newProj
+      const setForm = isEdit ? setEditForm : setNewProj
+      const onSave  = isEdit ? updateProject : createProject
+      return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: 'rgba(0,0,0,0.45)' }}
+          onClick={e => e.target === e.currentTarget && (isEdit ? setEditingProject(null) : setShowNewProject(false))}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="text-base font-bold text-zinc-800">
+                {isEdit ? 'Editar Projeto' : 'Novo Projeto'}
+              </h3>
+              <button onClick={() => isEdit ? setEditingProject(null) : setShowNewProject(false)}
+                className="text-zinc-400 hover:text-zinc-600">
+                <X className="w-5 h-5" />
               </button>
-              <button onClick={() => setEditingProject(null)} className="px-4 text-sm text-zinc-500 hover:text-zinc-700">Cancelar</button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Nome *</label>
+                <input autoFocus className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                  value={form.name || ''} onChange={e => setForm(p => ({...p, name: e.target.value}))}
+                  placeholder="Ex: Diagnóstico Financeiro — Empresa X..." />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Tipo</label>
+                  <select className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                    value={form.type || 'Diagnóstico'} onChange={e => setForm(p => ({...p, type: e.target.value}))}>
+                    <option>Diagnóstico</option><option>RJ</option><option>M&A</option>
+                    <option>Reestruturação</option><option>Assessoria</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Status</label>
+                  <select className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                    value={form.status || 'Planejamento'} onChange={e => setForm(p => ({...p, status: e.target.value}))}>
+                    <option>Planejamento</option>
+                    <option value="Em andamento">Em andamento</option>
+                    <option>Concluído</option><option>Pausado</option>
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Empresa</label>
+                  <select className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                    value={form.company_id || ''} onChange={e => setForm(p => ({...p, company_id: e.target.value}))}>
+                    <option value="">— nenhuma —</option>
+                    {companies.map(co => <option key={co.id} value={co.id}>{co.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Analista</label>
+                  <select className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                    value={form.analyst_id || ''} onChange={e => setForm(p => ({...p, analyst_id: e.target.value}))}>
+                    <option value="">— nenhum —</option>
+                    {profilesList.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Prazo</label>
+                <input type="date" className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                  value={form.deadline || ''} onChange={e => setForm(p => ({...p, deadline: e.target.value}))} />
+              </div>
+              {isEdit && (
+                <div>
+                  <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">
+                    Progresso manual — {form.progress ?? 0}%
+                  </label>
+                  <input type="range" min="0" max="100" step="5"
+                    className="w-full accent-violet-600"
+                    value={form.progress ?? 0}
+                    onChange={e => setForm(p => ({...p, progress: parseInt(e.target.value)}))} />
+                  <div className="flex justify-between text-[10px] text-zinc-400 mt-0.5">
+                    <span>0%</span><span>50%</span><span>100%</span>
+                  </div>
+                  <p className="text-[10px] text-zinc-400 mt-1">
+                    Sobrescrito automaticamente pelo % de tarefas concluídas se houver tasks no projeto.
+                  </p>
+                </div>
+              )}
+              <div className="flex gap-3 pt-2">
+                <button onClick={onSave}
+                  disabled={savingProj || !(isEdit ? form.name?.trim() : form.name.trim())}
+                  className="flex-1 py-2.5 text-sm font-bold text-white rounded-xl hover:opacity-90 disabled:opacity-50"
+                  style={{ background: '#5452C1' }}>
+                  {savingProj ? (isEdit ? 'Salvando…' : 'Criando…') : (isEdit ? 'Salvar Alterações' : 'Criar Projeto')}
+                </button>
+                <button
+                  onClick={() => isEdit ? setEditingProject(null) : setShowNewProject(false)}
+                  className="px-4 text-sm text-zinc-500 hover:text-zinc-700">
+                  Cancelar
+                </button>
+              </div>
             </div>
           </div>
         </div>
-      </div>
-    )}
-
-    {/* ── Modal Novo Projeto ── */}
-    {showNewProject && (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
-        style={{ background: 'rgba(0,0,0,0.45)' }}
-        onClick={e => e.target === e.currentTarget && setShowNewProject(false)}>
-        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
-          <div className="flex items-center justify-between mb-5">
-            <h3 className="text-base font-bold text-zinc-800">Novo Projeto</h3>
-            <button onClick={() => setShowNewProject(false)} className="text-zinc-400 hover:text-zinc-600">
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-          <div className="space-y-3">
-            <div>
-              <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Nome *</label>
-              <input autoFocus className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
-                value={newProj.name} onChange={e => setNewProj(p => ({...p, name: e.target.value}))}
-                placeholder="Ex: Diagnóstico Financeiro — Empresa X..." />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Tipo</label>
-                <select className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
-                  value={newProj.type} onChange={e => setNewProj(p => ({...p, type: e.target.value}))}>
-                  <option>Diagnóstico</option>
-                  <option>RJ</option>
-                  <option>M&A</option>
-                  <option>Reestruturação</option>
-                  <option>Assessoria</option>
-                </select>
-              </div>
-              <div>
-                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Status</label>
-                <select className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
-                  value={newProj.status} onChange={e => setNewProj(p => ({...p, status: e.target.value}))}>
-                  <option>Planejamento</option>
-                  <option value="active">Em andamento</option>
-                  <option>Concluído</option>
-                  <option>Pausado</option>
-                </select>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Empresa</label>
-                <select className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
-                  value={newProj.company_id} onChange={e => setNewProj(p => ({...p, company_id: e.target.value}))}>
-                  <option value="">— nenhuma —</option>
-                  {companies.map(co => <option key={co.id} value={co.id}>{co.name}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Analista</label>
-                <select className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
-                  value={newProj.analyst_id} onChange={e => setNewProj(p => ({...p, analyst_id: e.target.value}))}>
-                  <option value="">— nenhum —</option>
-                  {profilesList.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
-                </select>
-              </div>
-            </div>
-            <div>
-              <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Prazo</label>
-              <input type="date" className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
-                value={newProj.deadline} onChange={e => setNewProj(p => ({...p, deadline: e.target.value}))} />
-            </div>
-            <div className="flex gap-3 pt-2">
-              <button onClick={createProject} disabled={savingProj || !newProj.name.trim()}
-                className="flex-1 py-2.5 text-sm font-bold text-white rounded-xl hover:opacity-90 disabled:opacity-50"
-                style={{ background: '#5452C1' }}>
-                {savingProj ? 'Criando…' : 'Criar Projeto'}
-              </button>
-              <button onClick={() => setShowNewProject(false)} className="px-4 text-sm text-zinc-500 hover:text-zinc-700">Cancelar</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    )}
+      )
+    })()}
     </div>
   )
 }

@@ -504,7 +504,7 @@ export default function Produtividade() {
                           <div className={avatarClass} style={avatarStyle}>{initials}</div>
                           <div>
                             <div className="font-bold text-zinc-800">{p.full_name || '—'}</div>
-                            <div className="text-xs text-zinc-500">{p.role || ''}</div>
+                            <div className="text-xs text-zinc-500">{p.cargo || p.role || ''}</div>
                           </div>
                         </div>
                       </td>
