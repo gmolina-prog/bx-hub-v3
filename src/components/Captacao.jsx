@@ -87,7 +87,6 @@ const AGING_THRESHOLDS = {
 export default function Captacao() {
   const { profile } = useData()
   usePageTitle('Captação')
-  useEscapeKey(() => { setSelectedItem(null) }, !!(selectedItem))
   const [items, setItems] = useState([])
   const [institutions, setInstitutions] = useState([])
   const [profiles, setProfiles] = useState([])
@@ -120,6 +119,7 @@ export default function Captacao() {
     notes: '',
   })
 
+  useEscapeKey(() => { setSelectedItem(null) }, !!(selectedItem))
   useEffect(() => {
     if (profile?.org_id) loadAll()
     // eslint-disable-next-line react-hooks/exhaustive-deps

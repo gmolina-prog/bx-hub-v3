@@ -80,7 +80,6 @@ const SORT_OPTIONS = [
 export default function Intakes() {
   const { profile } = useData()
   usePageTitle('Leads')
-  useEscapeKey(() => { setSelectedIntake(null) }, !!(selectedIntake))
   const [intakes, setIntakes] = useState([])
   const [companies, setCompanies] = useState([])
   const [loading, setLoading] = useState(false)
@@ -112,6 +111,7 @@ export default function Intakes() {
     next_contact_date: '',
   })
 
+  useEscapeKey(() => { setSelectedIntake(null) }, !!(selectedIntake))
   useEffect(() => {
     if (profile?.org_id) loadAll()
     // eslint-disable-next-line react-hooks/exhaustive-deps

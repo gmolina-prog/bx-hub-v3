@@ -40,7 +40,6 @@ function heatColor(score) {
 export default function Riscos() {
   const { profile } = useData()
   usePageTitle('Riscos')
-  useEscapeKey(() => { setSelected(null); setIsNew(false) }, !!(selected))
   const [risks, setRisks] = useState([])
   const [projects, setProjects] = useState([])
   const [profiles, setProfiles] = useState([])
@@ -74,6 +73,7 @@ export default function Riscos() {
     setLoading(false)
   }, [profile])
 
+  useEscapeKey(() => { setSelected(null); setIsNew(false) }, !!(selected))
   useEffect(() => { load() }, [load])
 
   const openRisks = risks.filter(r => r.status !== 'closed')

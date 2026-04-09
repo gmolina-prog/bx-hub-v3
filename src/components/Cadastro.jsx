@@ -74,7 +74,6 @@ const CRITICALITY_META = {
 export default function Cadastro() {
   const { profile } = useData()
   usePageTitle('Cadastro')
-  useEscapeKey(() => { setShowNewCompany(false); setShowNewProfile(false); setShowNewLabel(false); setShowNewInstitution(false) }, !!(showNewCompany || showNewProfile || showNewLabel || showNewInstitution))
   const [activeTab, setActiveTab] = useState('companies')
   const [companies, setCompanies] = useState([])
   const [profiles, setProfiles] = useState([])
@@ -102,6 +101,7 @@ export default function Cadastro() {
   const [newLabelForm, setNewLabelForm]             = useState({ name: '', color: '#5452C1' })
   const [newInstForm,  setNewInstForm]              = useState({ name: '', type: 'Banco Comercial', contact_name: '', contact_email: '', contact_phone: '', notes: '' })
 
+  useEscapeKey(() => { setShowNewCompany(false); setShowNewProfile(false); setShowNewLabel(false); setShowNewInstitution(false) }, !!(showNewCompany || showNewProfile || showNewLabel || showNewInstitution))
   useEffect(() => {
     if (profile?.org_id) loadAll()
     // eslint-disable-next-line react-hooks/exhaustive-deps

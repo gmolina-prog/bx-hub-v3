@@ -99,7 +99,6 @@ const PROJECT_TEMPLATES = {
 export default function Timeline() {
   const { profile } = useData()
   usePageTitle('Projetos')
-  useEscapeKey(() => { setShowNewProject(false); setEditingProject(null) }, showNewProject || !!editingProject)
 
   async function openEdit(p) {
     setEditingProject(p)
@@ -257,6 +256,7 @@ export default function Timeline() {
     setLoading(false)
   }, [profile])
 
+  useEscapeKey(() => { setShowNewProject(false); setEditingProject(null) }, showNewProject || !!editingProject)
   useEffect(() => { load() }, [load])
 
   const compMap = {}; companies.forEach(c => { compMap[c.id] = c })

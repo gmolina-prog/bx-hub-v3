@@ -89,7 +89,6 @@ const WEEKDAY_LABELS = ['SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB', 'DOM']
 export default function Calendar() {
   const { profile } = useData()
   usePageTitle('Agenda')
-  useEscapeKey(() => { setShowEventForm(false); setShowCheckinForm(false) }, !!(showEventForm || showCheckinForm))
   const [activeTab, setActiveTab] = useState('checkin')
   const [showEventForm, setShowEventForm] = useState(false)
   const [eventForm, setEventForm] = useState({ title: '', date: '', time: '', type: 'meeting', location: '', description: '' })
@@ -111,6 +110,7 @@ export default function Calendar() {
     activity: '',
   })
 
+  useEscapeKey(() => { setShowEventForm(false); setShowCheckinForm(false) }, !!(showEventForm || showCheckinForm))
   useEffect(() => {
     if (profile?.org_id) loadAll()
     // eslint-disable-next-line react-hooks/exhaustive-deps

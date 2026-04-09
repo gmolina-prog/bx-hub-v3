@@ -67,7 +67,6 @@ function TaskModal({ task, projects, profiles, onClose, onSave, onDelete, onArch
   const [loadingComments, setLoadingComments] = useState(false)
   const { profile } = useData()
   usePageTitle('Kanban')
-  useEscapeKey(() => { setModalTask(null) }, !!(modalTask))
 
   // Load comments
   useEffect(() => {
@@ -409,7 +408,8 @@ export default function Kanban() {
   const [filterAssignee, setFilterAssignee] = useState('all')
   const [filterDue,      setFilterDue]      = useState('all')  // all | today | overdue | week
   const [modalTask, setModalTask] = useState(null)
-  const [error, setError] = useState(null)
+ useEscapeKey(() => { setModalTask(null) }, !!(modalTask))
+   const [error, setError] = useState(null)
   const [dragging, setDragging] = useState(null)
   const [dragOver, setDragOver] = useState(null)
 
