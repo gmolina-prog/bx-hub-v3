@@ -95,7 +95,9 @@ export default function Captacao() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [successMsg, setSuccessMsg] = useState(null)
-  const [viewMode, setViewMode] = useState('kanban')
+  const [viewMode,  setViewMode]  = useState('kanban')
+  const [draggingId, setDraggingId] = useState(null)
+  const [dragOverStage, setDragOverStage] = useState(null)
   const [filterAssigned, setFilterAssigned] = useState('all')
   const [filterInstitution, setFilterInstitution] = useState('all')
   const [filterMinValue, setFilterMinValue] = useState('')
@@ -191,6 +193,19 @@ export default function Captacao() {
     } finally {
       setSubmitting(false)
     }
+  }
+
+  function onDragStart(itemId) { setDraggingId(itemId) }
+  function onDragOver(e, stageId) { e.preventDefault(); setDragOverStage(stageId) }
+  function onDragLeave() { setDragOverStage(null) }
+  async function onDrop(e, stageId) {
+    e.preventDefault()
+    setDragOverStage(null)
+    if (!draggingId) return
+    const item = items.find(i => i.id === draggingId)
+    setDraggingId(null)
+    if (!item || item.stage === stageId) return
+    await moveItem(draggingId, stageId)
   }
 
   async function moveItem(itemId, newStage) {
@@ -498,7 +513,16 @@ export default function Captacao() {
             const list = byStage[stage.id] || []
             const stageValue = list.reduce((s, it) => s + (parseFloat(it.value) || 0), 0)
             return (
-              <div key={stage.id} className="bg-zinc-50 rounded-xl border border-zinc-200">
+              <div key={stage.id}
+                className={`bg-zinc-50 rounded-xl border transition-all ${
+                  dragOverStage === stage.id
+                    ? 'border-violet-400 ring-2 ring-violet-300 ring-offset-1'
+                    : 'border-zinc-200'
+                }`}
+                onDragOver={e => onDragOver(e, stage.id)}
+                onDragLeave={onDragLeave}
+                onDrop={e => onDrop(e, stage.id)}
+              >
                 <div className="px-3 py-3 border-b border-zinc-200">
                   <div className="flex items-center justify-between mb-1">
                     <div className="flex items-center gap-2">
@@ -524,9 +548,13 @@ export default function Captacao() {
                       return (
                         <div
                           key={item.id}
+                          draggable
+                          onDragStart={() => onDragStart(item.id)}
                           onClick={() => setSelectedItem(item)}
-                          className="bg-white border border-zinc-200 rounded-lg p-3 cursor-pointer hover:shadow-md hover:border-violet-300 transition-all"
-                          style={item.cover_color ? { borderLeftWidth: '3px', borderLeftColor: item.cover_color } : {}}
+                          className={`bg-white border rounded-lg p-3 cursor-pointer hover:shadow-md hover:border-violet-300 transition-all ${
+                            draggingId === item.id ? 'opacity-40 scale-95' : ''
+                          }`}
+                          style={item.cover_color ? { borderLeftWidth: '3px', borderLeftColor: item.cover_color } : { borderColor: '#e4e4e7' }}
                         >
                           <div className="text-xs font-bold text-zinc-800 line-clamp-2 mb-1">{item.name || '—'}</div>
                           {item.entity_name && (

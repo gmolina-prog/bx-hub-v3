@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { RefreshCw, Plus, X, Check, AlertCircle, User, Clock } from 'lucide-react'
 import { toast } from './Toast'
 import { supabase } from '../lib/supabase'
+import { usePageTitle } from '../hooks/usePageTitle'
 import { useData } from '../contexts/DataContext'
 
 const VL = '#5452C1'
@@ -17,6 +18,7 @@ function today() { return new Date().toISOString().split('T')[0] }
 
 export default function Rotinas() {
   const { profile } = useData()
+  usePageTitle('Rotinas')
   const [routines, setRoutines] = useState([])
   const [completions, setCompletions] = useState([])
   const [projects, setProjects] = useState([])

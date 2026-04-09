@@ -2,6 +2,7 @@
 import React, { useEffect, useState, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import { ROLES } from '../lib/roles'
+import { usePageTitle } from '../hooks/usePageTitle'
 import { useData } from '../contexts/DataContext'
 import { toast, confirm } from './Toast'
 import {
@@ -60,6 +61,7 @@ const KUDOS_CATEGORIES = [
 
 export default function Time() {
   const { profile } = useData()
+  usePageTitle('Time')
   const [activeTab, setActiveTab] = useState('directory')
   const [profiles, setProfiles] = useState([])
   const [kudos, setKudos] = useState([])

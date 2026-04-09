@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
+import { usePageTitle } from '../hooks/usePageTitle'
 import { useData } from '../contexts/DataContext'
 import { useNavigate } from 'react-router-dom'
 import {
@@ -27,6 +28,7 @@ import {
 
 export default function Portfolio() {
   const { profile } = useData()
+  usePageTitle('Portfolio')
   const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)

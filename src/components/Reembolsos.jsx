@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { Receipt, Plus, X, Check, ChevronDown, ChevronRight, AlertCircle, Trash2 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import { usePageTitle } from '../hooks/usePageTitle'
 import { useData } from '../contexts/DataContext'
+import { isLeaderRole } from '../lib/roles'
 import { toast, confirm } from './Toast'
 
 const VL = '#5452C1'
@@ -19,6 +21,7 @@ function fmtBRL(v) { return new Intl.NumberFormat('pt-BR', { style: 'currency', 
 
 export default function Reembolsos() {
   const { profile } = useData()
+  usePageTitle('Reembolsos')
   const [reports, setReports] = useState([])
   const [items, setItems] = useState({})
   const [expanded, setExpanded] = useState({})
@@ -68,6 +71,12 @@ export default function Reembolsos() {
   async function advanceStatus(r) {
     const next = STATUS[r.status]?.next
     if (!next) return
+    // B-135: aprovar/pagar exige permissão de liderança
+    const needsLeader = ['aprovado', 'pago'].includes(next)
+    if (needsLeader && !isLeaderRole(profile?.role)) {
+      toast.warning('Apenas gerentes e sócios podem aprovar reembolsos.')
+      return
+    }
     const { error } = await supabase.from('expense_reports')
       .update({ status: next }).eq('id', r.id).eq('org_id', profile.org_id)
     if (error) { toast.error('Erro ao avançar status: ' + error.message); return }

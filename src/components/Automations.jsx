@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { usePageTitle } from '../hooks/usePageTitle'
 import { useData } from '../contexts/DataContext'
 import { toast, confirm } from './Toast'
 import {
@@ -120,6 +121,7 @@ const INTEGRATIONS = [
 
 export default function Automations() {
   const { profile } = useData()
+  usePageTitle('Automações')
   const [rules, setRules] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)

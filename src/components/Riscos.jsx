@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { AlertTriangle, Plus, X, Save, Trash2, AlertCircle } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useEscapeKey } from '../hooks/useEscapeKey'
+import { usePageTitle } from '../hooks/usePageTitle'
 import { useData } from '../contexts/DataContext'
 import { toast, confirm } from './Toast'
 
@@ -38,6 +39,7 @@ function heatColor(score) {
 
 export default function Riscos() {
   const { profile } = useData()
+  usePageTitle('Riscos')
   useEscapeKey(() => { setSelected(null); setIsNew(false) }, !!(selected))
   const [risks, setRisks] = useState([])
   const [projects, setProjects] = useState([])
@@ -49,7 +51,9 @@ export default function Riscos() {
   const [form, setForm] = useState(EMPTY)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
-  const [filterStatus, setFilterStatus] = useState('all')
+  const [filterStatus,  setFilterStatus]  = useState('all')
+  const [filterProject, setFilterProject] = useState('all')
+  const [search,        setSearch]        = useState('')
   const [tab, setTab] = useState('matrix') // matrix | list
 
   const load = useCallback(async () => {
@@ -83,7 +87,15 @@ export default function Riscos() {
   const medium   = openRisks.filter(r => { const s = riskScore(r.probability, r.impact); return s >= 5 && s < 10 })
   const low      = openRisks.filter(r => riskScore(r.probability, r.impact) < 5)
 
-  const filtered = filterStatus === 'all' ? risks : risks.filter(r => r.status === filterStatus)
+  const filtered = risks.filter(r => {
+    const matchStatus  = filterStatus  === 'all' || r.status     === filterStatus
+    const matchProject = filterProject === 'all' || r.project_id === filterProject
+    const matchSearch  = !search.trim() ||
+      (r.title       || '').toLowerCase().includes(search.toLowerCase()) ||
+      (r.description || '').toLowerCase().includes(search.toLowerCase()) ||
+      (r.owner       || '').toLowerCase().includes(search.toLowerCase())
+    return matchStatus && matchProject && matchSearch
+  })
   const projMap = {}
   projects.forEach(p => { projMap[p.id] = p })
 
@@ -229,10 +241,29 @@ export default function Riscos() {
                 <button key={id} onClick={() => setTab(id)} className={`px-4 py-2 text-sm font-semibold transition-colors ${tab === id ? 'bg-zinc-800 text-white' : 'text-zinc-600 hover:bg-zinc-50'}`}>{label}</button>
               ))}
             </div>
+            <input
+              type="text"
+              placeholder="Buscar risco…"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="px-3 py-2 text-sm border border-zinc-200 rounded-lg focus:outline-none focus:border-violet-500 w-48"
+            />
             <select className="text-sm border border-zinc-200 rounded-lg px-3 py-2 bg-white" value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
               <option value="all">Todos os status</option>
               {STATUS_OPTS.map(s => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
             </select>
+            <select className="text-sm border border-zinc-200 rounded-lg px-3 py-2 bg-white" value={filterProject} onChange={e => setFilterProject(e.target.value)}>
+              <option value="all">Todos os projetos</option>
+              {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+            {(filterStatus !== 'all' || filterProject !== 'all' || search) && (
+              <button
+                onClick={() => { setFilterStatus('all'); setFilterProject('all'); setSearch('') }}
+                className="flex items-center gap-1 text-xs font-semibold text-rose-600 border border-rose-200 px-3 py-2 rounded-lg bg-rose-50 hover:bg-rose-100 whitespace-nowrap"
+              >
+                <X className="w-3 h-3" /> Limpar
+              </button>
+            )}
           </div>
 
           {loading ? (

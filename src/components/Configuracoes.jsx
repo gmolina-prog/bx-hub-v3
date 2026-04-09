@@ -3,6 +3,7 @@ import { Settings, User, Bell, Palette, Shield, Save, Eye, EyeOff, CheckCircle, 
 import { supabase } from '../lib/supabase'
 import { CARGO_OPTIONS, ROLES } from '../lib/roles'
 import { toast } from './Toast'
+import { usePageTitle } from '../hooks/usePageTitle'
 import { useData } from '../contexts/DataContext'
 
 const CH = '#2D2E39', VL = '#5452C1'
@@ -22,6 +23,7 @@ const LOCATIONS = [
 
 export default function Configuracoes() {
   const { profile, refreshProfile } = useData()
+  usePageTitle('Configurações')
   const [tab, setTab] = useState('perfil')
   const [saving, setSaving] = useState(false)
   const [success, setSuccess] = useState(null)

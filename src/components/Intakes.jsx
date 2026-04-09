@@ -2,6 +2,7 @@
 import React, { useEffect, useState, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import { useEscapeKey } from '../hooks/useEscapeKey'
+import { usePageTitle } from '../hooks/usePageTitle'
 import { useData } from '../contexts/DataContext'
 import { toast, confirm } from './Toast'
 import {
@@ -78,6 +79,7 @@ const SORT_OPTIONS = [
 
 export default function Intakes() {
   const { profile } = useData()
+  usePageTitle('Leads')
   useEscapeKey(() => { setSelectedIntake(null) }, !!(selectedIntake))
   const [intakes, setIntakes] = useState([])
   const [companies, setCompanies] = useState([])
@@ -151,6 +153,11 @@ export default function Intakes() {
   async function submitIntake() {
     if (!form.company_name.trim()) {
       toast.warning('Preencha o nome da empresa')
+      return
+    }
+    // B-140: validação de email
+    if (form.email?.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
+      toast.warning('E-mail inválido — verifique o formato')
       return
     }
     setSubmitting(true)

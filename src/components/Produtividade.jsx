@@ -1,6 +1,7 @@
 // src/components/Produtividade.jsx
 import React, { useEffect, useState, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
+import { usePageTitle } from '../hooks/usePageTitle'
 import { useData } from '../contexts/DataContext'
 import {
   TrendingUp,
@@ -35,7 +36,7 @@ import {
 //   routine_completions: routine_id, completed_by, reference_date
 //   projects (6): id, name, type, priority (Alta/Média), status, progress,
 //                 deadline, analyst_id, executive_id
-//   profiles (10): id, full_name, initials, avatar_color, role
+//   profiles: id, full_name, initials, avatar_color, role, cargo (select *)
 //   check_ins (7): user_id, status, date
 //   time_entries: hours por user/task
 // ============================================================================
@@ -68,6 +69,7 @@ const SCORE_WEIGHTS = {
 
 export default function Produtividade() {
   const { profile } = useData()
+  usePageTitle('Produtividade')
   const [activeTab, setActiveTab] = useState('team') // default = visao da equipe (mantém comportamento original)
   const [period, setPeriod] = useState('30d')
   const [tasks, setTasks] = useState([])

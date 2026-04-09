@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import { ROLES, CARGO_OPTIONS } from '../lib/roles'
 import { toast } from './Toast'
 import { useEscapeKey } from '../hooks/useEscapeKey'
+import { usePageTitle } from '../hooks/usePageTitle'
 import { useData } from '../contexts/DataContext'
 import {
   FolderOpen,
@@ -72,6 +73,7 @@ const CRITICALITY_META = {
 
 export default function Cadastro() {
   const { profile } = useData()
+  usePageTitle('Cadastro')
   useEscapeKey(() => { setShowNewCompany(false); setShowNewProfile(false); setShowNewLabel(false); setShowNewInstitution(false) }, !!(showNewCompany || showNewProfile || showNewLabel || showNewInstitution))
   const [activeTab, setActiveTab] = useState('companies')
   const [companies, setCompanies] = useState([])
