@@ -220,7 +220,8 @@ export default function Captacao() {
         .eq('id', itemId)
         .eq('org_id', profile.org_id)
       if (uErr) throw uErr
-      logActivity(supabase, { org_id: profile.org_id, actor_id: profile.id, entity_type: 'pipeline_item', entity_id: itemId, action: 'stage_changed', module: 'captacao', metadata: { to: newStage } })
+      const movedItem = items.find(i => i.id === itemId)
+      logActivity(supabase, { org_id: profile.org_id, actor_id: profile.id, entity_type: 'pipeline_item', entity_id: itemId, action: 'stage_changed', module: 'captacao', metadata: { to: newStage, title: movedItem?.name } })
       await loadAll()
       toast.success('Movido para ' + STAGES.find(s => s.id === newStage)?.label)
     } catch (err) {
@@ -296,6 +297,33 @@ export default function Captacao() {
     return { days, level, label }
   }
 
+  function exportCSV() {
+    const rows = [
+      ['Oportunidade','Estágio','Valor','Probabilidade','Empresa','Contato','Instituição','Responsável','Última ação','Próxima ação'],
+      ...filtered.map(it => {
+        const prof  = profiles.find(p => p.id === it.assigned_to)
+        const stage = STAGES.find(s => s.id === it.stage)
+        return [
+          `"${(it.name || '').replace(/"/g,'""')}"`,
+          stage?.label || it.stage,
+          it.value || 0,
+          `${it.probability || STAGE_PROBABILITIES[it.stage]}%`,
+          `"${(it.entity_name || '').replace(/"/g,'""')}"`,
+          `"${(it.contact_name || '').replace(/"/g,'""')}"`,
+          `"${(it.institution_name || '').replace(/"/g,'""')}"`,
+          prof?.full_name || '',
+          it.last_contact ? it.last_contact.slice(0,10) : '',
+          `"${(it.next_action || '').replace(/"/g,'""')}"`,
+        ].join(',')
+      })
+    ]
+    const blob = new Blob([rows.join('\n')], { type: 'text/csv;charset=utf-8;' })
+    const url  = URL.createObjectURL(blob)
+    const a    = document.createElement('a')
+    a.href = url; a.download = `pipeline_${new Date().toISOString().slice(0,10)}.csv`
+    a.click(); URL.revokeObjectURL(url)
+  }
+
   return (
     <div className="p-6 max-w-[1600px] mx-auto">
       {/* Hero */}
@@ -320,6 +348,13 @@ export default function Captacao() {
             >
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
               Atualizar
+            </button>
+            <button
+              onClick={exportCSV}
+              className="px-3 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-sm font-semibold flex items-center gap-2"
+              title="Exportar pipeline filtrado como CSV"
+            >
+              ↓ CSV
             </button>
             <button
               onClick={() => setShowForm(true)}
@@ -721,7 +756,11 @@ function DealModal({ item, stages, stageProbabilities, profiles, companies, inst
     notes:            item.notes || '',
     assigned_to:      item.assigned_to || '',
     cover_color:      item.cover_color || '',
+    tags:             Array.isArray(item.tags) ? item.tags : [],
+    checklist:        Array.isArray(item.checklist) ? item.checklist : [],
   })
+  const [newTag,          setNewTag]          = useState('')
+  const [newCheckItem,    setNewCheckItem]    = useState('')
   const [saving, setSaving] = useState(false)
   const [newContact, setNewContact] = useState('')
 
@@ -789,6 +828,14 @@ function DealModal({ item, stages, stageProbabilities, profiles, companies, inst
               placeholder="Nome da oportunidade…"
             />
             {item.entity_name && <div className="text-xs text-zinc-400 mt-1">{item.entity_name}</div>}
+            <div className="text-[10px] text-zinc-400 mt-0.5 flex items-center gap-2">
+              {item.created_by && profiles.find(p => p.id === item.created_by) && (
+                <span>Criado por {profiles.find(p => p.id === item.created_by)?.full_name?.split(' ')[0]}</span>
+              )}
+              {item.created_at && (
+                <span>{item.created_by ? '·' : ''} {new Date(item.created_at).toLocaleDateString('pt-BR')}</span>
+              )}
+            </div>
           </div>
           <div className="flex items-center gap-1.5 shrink-0">
             <button onClick={onArchive} className="p-1.5 text-zinc-400 hover:text-amber-500 transition-colors" title="Arquivar">
@@ -914,6 +961,58 @@ function DealModal({ item, stages, stageProbabilities, profiles, companies, inst
                   {form.cover_color && (
                     <button onClick={() => setForm(p => ({ ...p, cover_color: '' }))} className="text-[10px] text-zinc-400 hover:text-zinc-600 ml-1">limpar</button>
                   )}
+                </div>
+              </div>
+
+              {/* Tags */}
+              <div>
+                <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Tags</label>
+                <div className="flex flex-wrap gap-1 mb-2">
+                  {(form.tags || []).map((tag, i) => (
+                    <span key={i} className="inline-flex items-center gap-1 text-[10px] font-bold bg-violet-100 text-violet-700 px-2 py-0.5 rounded-full">
+                      {tag}
+                      <button onClick={() => setForm(p => ({...p, tags: p.tags.filter((_,j) => j !== i)}))} className="hover:text-red-600 ml-0.5">×</button>
+                    </span>
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <input className="flex-1 border border-zinc-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-violet-500"
+                    placeholder="Nova tag… (Enter para adicionar)"
+                    value={newTag} onChange={e => setNewTag(e.target.value)}
+                    onKeyDown={e => { if (e.key==='Enter' && newTag.trim()) { setForm(p=>({...p,tags:[...(p.tags||[]),newTag.trim()]})); setNewTag('') }}} />
+                  <button onClick={() => { if(newTag.trim()){setForm(p=>({...p,tags:[...(p.tags||[]),newTag.trim()]}));setNewTag('')}}}
+                    className="px-2 py-1.5 bg-violet-600 text-white text-xs rounded-lg hover:bg-violet-500">+ Tag</button>
+                </div>
+              </div>
+
+              {/* Checklist */}
+              <div>
+                <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1 block">
+                  Checklist {(form.checklist||[]).length > 0 && (
+                    <span className="text-zinc-400 font-normal ml-1">
+                      {(form.checklist||[]).filter(i=>i.done).length}/{(form.checklist||[]).length}
+                    </span>
+                  )}
+                </label>
+                <div className="space-y-1 mb-2 max-h-32 overflow-y-auto">
+                  {(form.checklist||[]).map((item, i) => (
+                    <div key={i} className="flex items-center gap-2 group">
+                      <input type="checkbox" checked={!!item.done}
+                        onChange={e => setForm(p => ({...p, checklist: p.checklist.map((ci,j) => j===i ? {...ci,done:e.target.checked} : ci)}))}
+                        className="w-3.5 h-3.5 accent-violet-600 shrink-0" />
+                      <span className={`text-xs flex-1 ${item.done ? 'line-through text-zinc-400' : 'text-zinc-700'}`}>{item.text}</span>
+                      <button onClick={() => setForm(p => ({...p, checklist: p.checklist.filter((_,j) => j!==i)}))}
+                        className="opacity-0 group-hover:opacity-100 text-zinc-300 hover:text-red-500 text-xs">×</button>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <input className="flex-1 border border-zinc-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-violet-500"
+                    placeholder="Novo item… (Enter)"
+                    value={newCheckItem} onChange={e => setNewCheckItem(e.target.value)}
+                    onKeyDown={e => { if(e.key==='Enter'&&newCheckItem.trim()){setForm(p=>({...p,checklist:[...(p.checklist||[]),{text:newCheckItem.trim(),done:false}]}));setNewCheckItem('')}}} />
+                  <button onClick={() => { if(newCheckItem.trim()){setForm(p=>({...p,checklist:[...(p.checklist||[]),{text:newCheckItem.trim(),done:false}]}));setNewCheckItem('')}}}
+                    className="px-2 py-1.5 bg-zinc-700 text-white text-xs rounded-lg hover:bg-zinc-600">+ Item</button>
                 </div>
               </div>
             </div>

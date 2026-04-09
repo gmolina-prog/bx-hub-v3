@@ -434,7 +434,8 @@ export default function Kanban() {
     setTasks(t => t.map(x => x.id === dragging.id ? { ...x, column_id: colId } : x))
     setDragging(null); setDragOver(null)
     const { error: err } = await supabase.from('tasks').update({ column_id: colId }).eq('id', dragging.id).eq('org_id', profile.org_id)
-    if (!err) logActivity(supabase, { org_id: profile.org_id, actor_id: profile.id, entity_type: 'task', entity_id: dragging.id, action: colId === 'done' ? 'completed' : 'moved', module: 'kanban', metadata: { to: colId } })
+    const draggedTask = tasks.find(t => t.id === dragging.id)
+    if (!err) logActivity(supabase, { org_id: profile.org_id, actor_id: profile.id, entity_type: 'task', entity_id: dragging.id, action: colId === 'done' ? 'completed' : 'moved', module: 'kanban', metadata: { to: colId, title: draggedTask?.title } })
     if (err) {
       setTasks(t => t.map(x => x.id === dragging.id ? { ...x, column_id: prev } : x))
       setError('Erro ao mover tarefa.')
@@ -463,6 +464,12 @@ export default function Kanban() {
         is_emergency: form.is_emergency || false, checklist: form.checklist || [],
       }).eq('id', form.id).eq('org_id', profile.org_id)
       if (err) { setError(err.message); return }
+    }
+    // Log de criação/atualização
+    if (form.id === 'new') {
+      logActivity(supabase, { org_id: profile.org_id, actor_id: profile.id, entity_type: 'task', entity_id: null, action: 'created', module: 'kanban', metadata: { title: form.title, priority: form.priority } })
+    } else {
+      logActivity(supabase, { org_id: profile.org_id, actor_id: profile.id, entity_type: 'task', entity_id: form.id, action: 'updated', module: 'kanban', metadata: { title: form.title } })
     }
     // B-97: notificar assigned_to quando task é criada ou reatribuída
     const assigneeChanged = form.assigned_to &&
