@@ -61,6 +61,22 @@ export default function Timeline() {
     })
   }
 
+  async function deleteProject(projId) {
+    if (!await confirm('Excluir este projeto? Todas as tarefas associadas permanecerão mas perderão o vínculo com o projeto.', {
+      danger: true, confirmLabel: 'Excluir', cancelLabel: 'Cancelar'
+    })) return
+    try {
+      const { error } = await supabase.from('projects')
+        .update({ deleted_at: new Date().toISOString() })
+        .eq('id', projId).eq('org_id', profile.org_id)
+      if (error) throw error
+      await load()
+      toast.success('Projeto excluído')
+    } catch (err) {
+      toast.error('Erro ao excluir: ' + err.message)
+    }
+  }
+
   async function updateProject() {
     if (!editForm.name?.trim()) { toast.warning('Nome obrigatório'); return }
     setSavingProj(true)
@@ -456,6 +472,12 @@ export default function Timeline() {
                   className="px-4 text-sm text-zinc-500 hover:text-zinc-700">
                   Cancelar
                 </button>
+                {isEdit && (
+                  <button onClick={() => { deleteProject(editingProject.id); setEditingProject(null) }}
+                    className="px-4 text-sm font-semibold text-red-500 hover:text-red-700 ml-auto">
+                    Excluir
+                  </button>
+                )}
               </div>
             </div>
           </div>

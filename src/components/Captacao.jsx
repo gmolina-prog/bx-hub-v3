@@ -602,6 +602,29 @@ export default function Captacao() {
                           <div className="h-1 bg-zinc-100 rounded-full overflow-hidden mb-2">
                             <div className="h-full bg-violet-500" style={{ width: `${item.probability || STAGE_PROBABILITIES[item.stage]}%` }} />
                           </div>
+                          {/* B-167: checklist progress */}
+                          {Array.isArray(item.checklist) && item.checklist.length > 0 && (() => {
+                            const done = item.checklist.filter(i => i.done).length
+                            const total = item.checklist.length
+                            return (
+                              <div className="mb-2">
+                                <div className="flex items-center gap-1 mb-1">
+                                  <span className="text-[9px] text-zinc-400">☑ {done}/{total}</span>
+                                </div>
+                                <div className="h-1 bg-zinc-100 rounded-full overflow-hidden">
+                                  <div className="h-full bg-emerald-500" style={{ width: `${total > 0 ? done/total*100 : 0}%` }} />
+                                </div>
+                              </div>
+                            )
+                          })()}
+                          {/* B-168: tags */}
+                          {Array.isArray(item.tags) && item.tags.length > 0 && (
+                            <div className="flex gap-1 flex-wrap mb-2">
+                              {item.tags.slice(0,3).map((tag,i) => (
+                                <span key={i} className="text-[9px] font-bold bg-violet-100 text-violet-600 px-1.5 py-0.5 rounded-full">{tag}</span>
+                              ))}
+                            </div>
+                          )}
                           <div className="flex items-center justify-between">
                             <div className={avatarClass} style={avatarStyle}>{initials}</div>
                             <div className={`text-[9px] font-bold ${

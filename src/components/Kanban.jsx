@@ -56,6 +56,7 @@ function TaskModal({ task, projects, profiles, onClose, onSave, onDelete, onArch
     due_date: task.due_date ? task.due_date.split('T')[0] : '',
     hours_logged: task.hours_logged || '',
     is_emergency: task.is_emergency || false,
+    is_starred:  task.is_starred  || false,
   })
   const [subtasks, setSubtasks] = useState(Array.isArray(task.checklist) ? task.checklist : [])
   const [newSubtask, setNewSubtask] = useState('')
@@ -344,6 +345,7 @@ export default function Kanban() {
   const [filterProject, setFilterProject] = useState('all')
   const [filterPriority, setFilterPriority] = useState('all')
   const [filterAssignee, setFilterAssignee] = useState('all')
+  const [filterDue,      setFilterDue]      = useState('all')  // all | today | overdue | week
   const [modalTask, setModalTask] = useState(null)
   const [error, setError] = useState(null)
   const [dragging, setDragging] = useState(null)
@@ -351,7 +353,7 @@ export default function Kanban() {
 
   function exportCSV() {
     // B-164: exporta tasks filtradas (respeita filtros ativos) + coluna Emergência
-    const exportTasks = (filterProject !== 'all' || filterPriority !== 'all' || filterAssignee !== 'all' || search) ? filtered : tasks
+    const exportTasks = (filterProject !== 'all' || filterPriority !== 'all' || filterAssignee !== 'all' || filterDue !== 'all' || search) ? filtered : tasks
     const rows = [
       ['Título','Status','Prioridade','Responsável','Projeto','Vencimento','Horas','Emergência'],
       ...exportTasks.map(t => {
@@ -404,7 +406,16 @@ export default function Kanban() {
     const matchProj    = filterProject  === 'all' || t.project_id  === filterProject
     const matchPrio    = filterPriority === 'all' || t.priority     === filterPriority
     const matchUser    = filterAssignee === 'all' || t.assigned_to  === filterAssignee
-    return matchSearch && matchProj && matchPrio && matchUser
+    const now = new Date(); now.setHours(0,0,0,0)
+    const due = t.due_date ? new Date(t.due_date) : null
+    const tomorrow = new Date(now); tomorrow.setDate(now.getDate() + 1)
+    const nextWeek  = new Date(now); nextWeek.setDate(now.getDate() + 7)
+    const matchDue =
+      filterDue === 'all'     ? true :
+      filterDue === 'overdue' ? (due && due < now && t.column_id !== 'done') :
+      filterDue === 'today'   ? (due && due >= now && due < tomorrow) :
+      filterDue === 'week'    ? (due && due >= now && due < nextWeek) : true
+    return matchSearch && matchProj && matchPrio && matchUser && matchDue
   })
 
   function getColTasks(colId) {
@@ -456,6 +467,7 @@ export default function Kanban() {
         project_id: form.project_id || null, created_by: profile.id,
         due_date: form.due_date || null, hours_logged: form.hours_logged ? parseFloat(form.hours_logged) : null,
         is_emergency: form.is_emergency || false, checklist: form.checklist || [],
+        cover_color: form.cover_color || null, is_starred: form.is_starred || false,
       })
       if (err) { setError(err.message); return }
     } else {
@@ -465,6 +477,7 @@ export default function Kanban() {
         project_id: form.project_id || null,
         due_date: form.due_date || null, hours_logged: form.hours_logged ? parseFloat(form.hours_logged) : null,
         is_emergency: form.is_emergency || false, checklist: form.checklist || [],
+        cover_color: form.cover_color || null, is_starred: form.is_starred || false,
       }).eq('id', form.id).eq('org_id', profile.org_id)
       if (err) { setError(err.message); return }
     }
@@ -668,6 +681,12 @@ export default function Kanban() {
           <option value="all">Todas as prioridades</option>
           {Object.entries(PRIORITY).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
         </select>
+        <select className="text-sm border border-zinc-200 rounded-lg px-3 py-2 bg-white" value={filterDue} onChange={e => setFilterDue(e.target.value)}>
+          <option value="all">Todos os prazos</option>
+          <option value="overdue">⚠ Atrasadas</option>
+          <option value="today">📅 Vencendo hoje</option>
+          <option value="week">📆 Esta semana</option>
+        </select>
         <select className="text-sm border border-zinc-200 rounded-lg px-3 py-2 bg-white" value={filterAssignee} onChange={e => setFilterAssignee(e.target.value)}>
           <option value="all">Todos responsáveis</option>
           {profilesList.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
@@ -682,9 +701,9 @@ export default function Kanban() {
         >
           👤 Minhas tarefas
         </button>
-        {(filterProject !== 'all' || filterPriority !== 'all' || filterAssignee !== 'all' || search) && (
+        {(filterProject !== 'all' || filterPriority !== 'all' || filterAssignee !== 'all' || filterDue !== 'all' || search) && (
           <button
-            onClick={() => { setFilterProject('all'); setFilterPriority('all'); setFilterAssignee('all'); setSearch('') }}
+            onClick={() => { setFilterProject('all'); setFilterPriority('all'); setFilterAssignee('all'); setFilterDue('all'); setSearch('') }}
             className="flex items-center gap-1 text-xs font-semibold text-rose-600 border border-rose-200 px-3 py-2 rounded-lg bg-rose-50 hover:bg-rose-100 transition-all whitespace-nowrap"
           >
             <X className="w-3 h-3" /> Limpar filtros
@@ -703,7 +722,7 @@ export default function Kanban() {
       </div>
 
       {/* Indicador de filtros ativos */}
-      {(filterProject !== 'all' || filterPriority !== 'all' || filterAssignee !== 'all' || search) && (
+      {(filterProject !== 'all' || filterPriority !== 'all' || filterAssignee !== 'all' || filterDue !== 'all' || search) && (
         <div className="flex items-center gap-2 px-1 mb-2">
           <span className="text-xs text-zinc-500">
             Exibindo <span className="font-bold text-violet-700">{filtered.length}</span> de {tasks.length} tarefas
@@ -770,7 +789,7 @@ export default function Kanban() {
                         onDragEnd={onDragEnd}
                         onClick={() => setModalTask(t)}
                         className="bg-white rounded-xl shadow-sm border border-zinc-100 cursor-pointer hover:shadow-md hover:-translate-y-0.5 transition-all select-none"
-                        style={{ borderLeft: t.is_emergency ? '4px solid #DC2626' : `4px solid ${pr.color}`, opacity: dragging?.id === t.id ? 0.5 : 1, background: t.is_emergency ? '#FFF5F5' : 'white' }}>
+                        style={{ borderLeft: t.is_emergency ? '4px solid #DC2626' : t.cover_color ? `4px solid ${t.cover_color}` : `4px solid ${pr.color}`, opacity: dragging?.id === t.id ? 0.5 : 1, background: t.is_emergency ? '#FFF5F5' : t.cover_color ? `${t.cover_color}0D` : 'white' }}>
                         {/* Emergency badge */}
                         {t.is_emergency && <div className="px-3 pt-2.5 flex"><span className="text-[9px] font-bold bg-red-100 text-red-600 px-2 py-0.5 rounded-full">🚨 EMERGÊNCIA</span></div>}
                         <div className="p-3">
@@ -795,6 +814,9 @@ export default function Kanban() {
                             <PriorityBadge priority={t.priority} />
                             <DueBadge date={t.due_date} colId={t.column_id} />
                             {t.hours_logged && <span className="text-[10px] text-zinc-400 flex items-center gap-1"><Clock className="w-2.5 h-2.5" />{t.hours_logged}h</span>}
+                          {Array.isArray(t.tags) && t.tags.slice(0,2).map((tag,i) => (
+                            <span key={i} className="text-[9px] font-bold bg-violet-100 text-violet-600 px-1.5 py-0.5 rounded-full">{tag}</span>
+                          ))}
                             {prof && (
                               <div className="ml-auto w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold text-white" style={{ background: prof.avatar_color || '#5452C1' }} title={prof.full_name}>
                                 {prof.initials || prof.full_name?.slice(0, 2)}
