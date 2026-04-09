@@ -77,7 +77,7 @@ function TaskModal({ task, projects, profiles, onClose, onSave, onDelete, onArch
 
   async function handleSave() {
     setSaving(true)
-    await onSave({ ...form, checklist: subtasks, id: task.id, _prevEmergency: task.is_emergency })
+    await onSave({ ...form, checklist: subtasks, id: task.id, _prevEmergency: task.is_emergency, _prevAssignedTo: task.assigned_to })
     setSaving(false)
   }
 
@@ -351,7 +351,7 @@ export default function Kanban() {
     if (!profile) return
     setLoading(true)
     const [tasksR, projR, profR] = await Promise.allSettled([
-      supabase.from('tasks').select('*').eq('org_id', profile.org_id).is('deleted_at', null).order('created_at', { ascending: false }),
+      supabase.from('tasks').select('*').eq('org_id', profile.org_id).is('deleted_at', null).order('created_at', { ascending: false }).limit(500),
       supabase.from('projects').select('id,name').eq('org_id', profile.org_id).order('name'),
       supabase.from('profiles').select('id,full_name,initials,avatar_color').eq('org_id', profile.org_id).order('full_name'),
     ])
@@ -430,12 +430,40 @@ export default function Kanban() {
       }).eq('id', form.id).eq('org_id', profile.org_id)
       if (err) { setError(err.message); return }
     }
+    // B-97: notificar assigned_to quando task é criada ou reatribuída
+    const assigneeChanged = form.assigned_to &&
+      form.assigned_to !== profile.id && // não notificar a si mesmo
+      (form.id === 'new' || form.assigned_to !== form._prevAssignedTo)
+    if (assigneeChanged) {
+      notifyAssignee(form)
+    }
+
     // B-emergency: disparar alerta SÓ quando is_emergency MUDA para true
     if (form.is_emergency && !form._prevEmergency) {
       fireEmergencyAlert(form)
     }
     await load()
     setModalTask(null)
+  }
+
+  // Notifica o responsável atribuído à task
+  async function notifyAssignee(form) {
+    try {
+      const taskTitle = form.title || 'Tarefa sem título'
+      const projName  = projects.find(p => p.id === form.project_id)?.name
+      await supabase.from('notifications').insert({
+        org_id:      profile.org_id,
+        user_id:     form.assigned_to,
+        type:        'task_assigned',
+        title:       '📋 Nova tarefa atribuída',
+        message:     `"${taskTitle}"${projName ? ` — ${projName}` : ''} foi atribuída a você por ${profile.full_name || 'alguém'}.`,
+        entity_type: 'task',
+        entity_id:   form.id !== 'new' ? form.id : null,
+        is_read:     false,
+      })
+    } catch (err) {
+      console.warn('[Kanban] notifyAssignee:', err.message)
+    }
   }
 
   // Dispara notificações + post no chat ao ativar emergência

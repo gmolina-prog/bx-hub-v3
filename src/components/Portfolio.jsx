@@ -53,19 +53,18 @@ export default function Portfolio() {
       const orgId = profile?.org_id
       if (!orgId) throw new Error('Perfil sem org_id')
 
-      const [cRes, prRes, tRes] = await Promise.all([
+      const [cRes, prRes, tRes] = await Promise.allSettled([
         supabase.from('companies').select('*').eq('org_id', orgId),
         supabase.from('projects').select('*').eq('org_id', orgId),
-        supabase.from('tasks').select('*').eq('org_id', orgId).is('deleted_at', null).eq('is_archived', false),
+        supabase.from('tasks').select('*').eq('org_id', orgId).is('deleted_at', null).eq('is_archived', false).limit(500),
       ])
 
-      if (cRes.error) throw cRes.error
-      if (prRes.error) throw prRes.error
-      if (tRes.error) throw tRes.error
-
-      setCompanies(cRes.data || [])
-      setProjects(prRes.data || [])
-      setTasks(tRes.data || [])
+      if (cRes.status  === 'fulfilled' && !cRes.value.error)  setCompanies(cRes.value.data  || [])
+      else if (cRes.status  === 'rejected') console.error('Portfolio companies:', cRes.reason)
+      if (prRes.status === 'fulfilled' && !prRes.value.error) setProjects(prRes.value.data  || [])
+      else if (prRes.status === 'rejected') console.error('Portfolio projects:', prRes.reason)
+      if (tRes.status  === 'fulfilled' && !tRes.value.error)  setTasks(tRes.value.data    || [])
+      else if (tRes.status  === 'rejected') console.error('Portfolio tasks:', tRes.reason)
     } catch (err) {
       console.error('Portfolio loadAll error:', err)
       setError(err.message || 'Erro ao carregar portfólio')

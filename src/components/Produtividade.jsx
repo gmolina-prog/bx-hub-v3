@@ -207,12 +207,19 @@ export default function Produtividade() {
     Object.entries(ciByUser).forEach(([uid, dates]) => {
       if (!scores.has(uid)) return
       const u = scores.get(uid)
-      const sorted = Array.from(dates).sort().reverse()
+      const datesSet = Array.from(dates)
+      const sorted = [...datesSet].sort().reverse()
       let streak = 0
       let cursor = new Date(); cursor.setHours(0,0,0,0)
+      const todayStr = cursor.toISOString().slice(0,10)
+      // B-102: se hoje ainda não tem check-in, começar do dia anterior
+      // (evita streak quebrar durante o dia)
+      if (!datesSet.includes(todayStr)) {
+        cursor.setDate(cursor.getDate() - 1)
+      }
       for (let i = 0; i < 60; i++) {
         const d = cursor.toISOString().slice(0,10)
-        if (sorted.includes(d)) { streak++ } else { break }
+        if (datesSet.includes(d)) { streak++ } else { break }
         cursor.setDate(cursor.getDate() - 1)
       }
       u.streak = streak

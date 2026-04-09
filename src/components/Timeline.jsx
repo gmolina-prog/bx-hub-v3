@@ -55,6 +55,7 @@ export default function Timeline() {
       analyst_id: p.analyst_id || '',
       deadline:   p.deadline ? p.deadline.slice(0, 10) : '',
       priority:   p.priority || 'medium',
+      progress:   p.progress ?? 0,
     })
   }
 
@@ -69,6 +70,7 @@ export default function Timeline() {
       analyst_id: editForm.analyst_id || null,
       deadline:   editForm.deadline || null,
       priority:   editForm.priority,
+      progress:   parseInt(editForm.progress) || 0,
     }).eq('id', editingProject.id).eq('org_id', profile.org_id)
     if (error) { toast.error('Erro ao atualizar: ' + error.message); setSavingProj(false); return }
     setEditingProject(null)
@@ -400,6 +402,21 @@ export default function Timeline() {
               <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Prazo</label>
               <input type="date" className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
                 value={editForm.deadline || ''} onChange={e => setEditForm(p => ({...p, deadline: e.target.value}))} />
+            </div>
+            <div>
+              <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">
+                Progresso manual — {editForm.progress ?? 0}%
+              </label>
+              <input type="range" min="0" max="100" step="5"
+                className="w-full accent-violet-600"
+                value={editForm.progress ?? 0}
+                onChange={e => setEditForm(p => ({...p, progress: parseInt(e.target.value)}))} />
+              <div className="flex justify-between text-[10px] text-zinc-400 mt-0.5">
+                <span>0%</span><span>50%</span><span>100%</span>
+              </div>
+              <p className="text-[10px] text-zinc-400 mt-1">
+                Sobrescrito automaticamente pelo % de tarefas concluídas se houver tasks no projeto.
+              </p>
             </div>
             <div className="flex gap-3 pt-2">
               <button onClick={updateProject} disabled={savingProj || !editForm.name?.trim()}

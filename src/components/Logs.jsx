@@ -42,17 +42,55 @@ const PERIODS = [
   { value: 'all', label: 'Tudo', hours: null },
 ]
 
+// Mapa de actions do sistema → categoria
+const ACTION_MAP = {
+  'created':       'create',
+  'completed':     'approve',
+  'moved':         'move',
+  'stage_changed': 'move',
+  'updated':       'edit',
+  'deleted':       'delete',
+  'archived':      'delete',
+  'assigned':      'edit',
+  'emergency':     'critical',
+}
+
 function categorize(ev) {
   const action = (ev.action || '').toLowerCase()
-  if (action.includes('moveu') || action.includes('movido')) return 'move'
-  if (action.includes('cri') || action.includes('add') || action.includes('inser')) return 'create'
+  // Checar action exato primeiro
+  if (ACTION_MAP[action]) return ACTION_MAP[action]
+  // Fallback por substring
+  if (action.includes('moved') || action.includes('moveu') || action.includes('stage')) return 'move'
+  if (action.includes('creat') || action.includes('cri') || action.includes('add') || action.includes('inser')) return 'create'
+  if (action.includes('complet') || action.includes('aprov') || action.includes('approve')) return 'approve'
   if (action.includes('edit') || action.includes('atual') || action.includes('updat')) return 'edit'
   if (action.includes('exclu') || action.includes('delet') || action.includes('remov') || action.includes('arquiv')) return 'delete'
-  if (action.includes('aprov') || action.includes('approve')) return 'approve'
   if (action.includes('login') || action.includes('access') || action.includes('aces')) return 'access'
-  if (action.includes('falh') || action.includes('error') || action.includes('crit')) return 'critical'
+  if (action.includes('emergency') || action.includes('falh') || action.includes('error') || action.includes('crit')) return 'critical'
   if (action.includes('alert') || action.includes('warn') || action.includes('aviso')) return 'alert'
   return 'other'
+}
+
+// Descrição amigável da ação
+function friendlyAction(ev) {
+  const action = (ev.action || '').toLowerCase()
+  const type   = ev.entity_type || ''
+  const meta   = ev.metadata && typeof ev.metadata === 'object' ? ev.metadata : {}
+
+  const ENTITY_PT = {
+    task: 'tarefa', project: 'projeto', pipeline_item: 'oportunidade',
+    note: 'nota', company: 'empresa', profile: 'colaborador',
+  }
+  const entityPT = ENTITY_PT[type] || type
+
+  if (action === 'created')       return `Criou ${entityPT}${meta.title ? ` "${meta.title}"` : ''}`
+  if (action === 'completed')     return `Concluiu ${entityPT}${meta.title ? ` "${meta.title}"` : ''}`
+  if (action === 'moved')         return `Moveu ${entityPT} para ${meta.to || '?'}`
+  if (action === 'stage_changed') return `Avançou oportunidade para estágio "${meta.to || '?'}"`
+  if (action === 'updated')       return `Atualizou ${entityPT}`
+  if (action === 'deleted')       return `Excluiu ${entityPT}`
+  if (action === 'emergency')     return `🚨 Acionou emergência em ${entityPT}`
+  return ev.action || ev.details || '—'
 }
 
 const CATEGORY_META = {
@@ -471,7 +509,7 @@ export default function Logs() {
                     </span>
                   </div>
                   <div className="text-zinc-800 truncate" title={ev.action}>
-                    {ev.action || <span className="text-zinc-400 italic">sem descrição</span>}
+                    {friendlyAction(ev) || <span className="text-zinc-400 italic">sem descrição</span>}
                     {ev.details && (
                       <span className="text-xs text-zinc-500 ml-2">· {ev.details}</span>
                     )}
