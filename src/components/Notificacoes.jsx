@@ -1,16 +1,31 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { Bell, Check, CheckCheck, X, AlertCircle, Clock, CheckCircle, AlertTriangle, Info } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import { usePageTitle } from '../hooks/usePageTitle'
 import { useData } from '../contexts/DataContext'
+import { useNavigate } from 'react-router-dom'
 import { toast, confirm } from './Toast'
 
 const VL = '#5452C1'
 const TYPE_MAP = {
-  task:     { icon: CheckCircle,   color: '#10B981', bg: '#ECFDF5', label: 'Tarefa' },
-  alert:    { icon: AlertTriangle, color: '#F59E0B', bg: '#FFFBEB', label: 'Alerta' },
-  mention:  { icon: Bell,          color: VL,        bg: '#EEF2FF', label: 'Menção' },
-  system:   { icon: Info,          color: '#3B82F6', bg: '#EFF6FF', label: 'Sistema' },
-  deadline: { icon: Clock,         color: '#EF4444', bg: '#FEF2F2', label: 'Prazo' },
+  task:          { icon: CheckCircle,   color: '#10B981', bg: '#ECFDF5', label: 'Tarefa' },
+  task_assigned: { icon: CheckCircle,   color: '#5452C1', bg: '#EEF2FF', label: 'Atribuição' },
+  alert:         { icon: AlertTriangle, color: '#F59E0B', bg: '#FFFBEB', label: 'Alerta' },
+  mention:       { icon: Bell,          color: VL,        bg: '#EEF2FF', label: 'Menção' },
+  emergency:     { icon: AlertTriangle, color: '#DC2626', bg: '#FEF2F2', label: '🚨 Emergência' },
+  system:        { icon: Info,          color: '#3B82F6', bg: '#EFF6FF', label: 'Sistema' },
+  deadline:      { icon: Clock,         color: '#EF4444', bg: '#FEF2F2', label: 'Prazo' },
+}
+
+// Mapa entity_type → rota de navegação
+const ENTITY_ROUTES = {
+  task:          '/kanban',
+  task_assigned: '/kanban',
+  project:       '/timeline',
+  pipeline_item: '/captacao',
+  chat_channel:  '/chat',
+  company:       '/cadastro',
+  note:          '/notas',
 }
 
 function relTime(d) {
@@ -25,6 +40,8 @@ function relTime(d) {
 
 export default function Notificacoes() {
   const { profile } = useData()
+  usePageTitle('Notificações')
+  const navigate = useNavigate()
   const [notifs, setNotifs] = useState([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('all')
@@ -156,7 +173,15 @@ export default function Notificacoes() {
             const t = TYPE_MAP[n.type] || TYPE_MAP.system
             const Icon = t.icon
             return (
-              <div key={n.id} className={`flex items-start gap-4 px-5 py-4 transition-colors hover:bg-zinc-50 ${!n.is_read ? 'bg-violet-50/40' : ''}`}>
+              <div key={n.id}
+                onClick={() => {
+                  if (!n.is_read) markRead(n.id)
+                  const route = ENTITY_ROUTES[n.entity_type]
+                  if (route) navigate(route)
+                }}
+                className={`flex items-start gap-4 px-5 py-4 transition-colors ${
+                  ENTITY_ROUTES[n.entity_type] ? 'cursor-pointer hover:bg-violet-50' : 'hover:bg-zinc-50'
+                } ${!n.is_read ? 'bg-violet-50/40' : ''}`}>
                 <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0" style={{ background: t.bg }}>
                   <Icon className="w-4 h-4" style={{ color: t.color }} />
                 </div>

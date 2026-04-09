@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { usePageTitle } from '../hooks/usePageTitle'
 import { useData } from '../contexts/DataContext'
 
 // Leaflet via CDN — carregado dinamicamente
@@ -78,6 +79,7 @@ function Gauge({ score }) {
 
 export default function Dashboard() {
   const { profile } = useData()
+  usePageTitle('Dashboard')
   const navigate = useNavigate()
   const mapRef = useRef(null)
   const leafletMapRef = useRef(null)

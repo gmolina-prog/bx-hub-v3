@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
+import { usePageTitle } from '../hooks/usePageTitle'
 import { useData } from '../contexts/DataContext'
 import { toast, confirm } from './Toast'
 import {
@@ -83,6 +84,7 @@ const INTERACTION_TYPES = [
 
 export default function CRM() {
   const { profile } = useData()
+  usePageTitle('CRM')
   const [activeTab, setActiveTab] = useState('overview')
   const [companies, setCompanies] = useState([])
   const [proposals, setProposals] = useState([])

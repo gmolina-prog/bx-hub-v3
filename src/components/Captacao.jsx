@@ -3,6 +3,7 @@ import React, { useEffect, useState, useMemo, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { logActivity } from '../lib/activityLog'
 import { useEscapeKey } from '../hooks/useEscapeKey'
+import { usePageTitle } from '../hooks/usePageTitle'
 import { useData } from '../contexts/DataContext'
 import { toast, confirm } from './Toast'
 import {
@@ -85,6 +86,7 @@ const AGING_THRESHOLDS = {
 
 export default function Captacao() {
   const { profile } = useData()
+  usePageTitle('Captação')
   useEscapeKey(() => { setSelectedItem(null) }, !!(selectedItem))
   const [items, setItems] = useState([])
   const [institutions, setInstitutions] = useState([])

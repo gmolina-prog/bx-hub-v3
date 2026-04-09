@@ -4,6 +4,7 @@ import { toast } from './Toast'
 import { supabase } from '../lib/supabase'
 import { logActivity } from '../lib/activityLog'
 import { useEscapeKey } from '../hooks/useEscapeKey'
+import { usePageTitle } from '../hooks/usePageTitle'
 import { useData } from '../contexts/DataContext'
 
 const CH = '#2D2E39', VL = '#5452C1'
@@ -43,6 +44,7 @@ function daysColor(d) {
 
 export default function Timeline() {
   const { profile } = useData()
+  usePageTitle('Projetos')
   useEscapeKey(() => { setShowNewProject(false); setEditingProject(null) }, showNewProject || !!editingProject)
 
   async function openEdit(p) {
@@ -208,6 +210,14 @@ export default function Timeline() {
           <option value="all">Todas as empresas</option>
           {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
+        {(filterStatus !== 'all' || filterCompany !== 'all') && (
+          <button
+            onClick={() => { setFilterStatus('all'); setFilterCompany('all') }}
+            className="flex items-center gap-1 text-xs font-semibold text-rose-600 hover:text-rose-700 border border-rose-200 px-3 py-2 rounded-lg bg-rose-50 hover:bg-rose-100 transition-all"
+          >
+            <X className="w-3 h-3" /> Limpar
+          </button>
+        )}
       </div>
 
       {loading ? <div className="bg-white border border-zinc-200 rounded-xl p-12 text-center text-sm text-zinc-400">Carregando…</div>

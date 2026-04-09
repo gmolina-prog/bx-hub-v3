@@ -3,6 +3,7 @@ import { Hash, Send, Plus, X, Search, Bell, BellOff, Pin, Reply, Smile, MoreHori
 import { toast } from './Toast'
 import { supabase } from '../lib/supabase'
 import { useEscapeKey } from '../hooks/useEscapeKey'
+import { usePageTitle } from '../hooks/usePageTitle'
 import { useData } from '../contexts/DataContext'
 import { useNavigate } from 'react-router-dom'
 

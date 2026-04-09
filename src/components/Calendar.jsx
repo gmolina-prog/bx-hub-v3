@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import { useEscapeKey } from '../hooks/useEscapeKey'
+import { usePageTitle } from '../hooks/usePageTitle'
 import { useData } from '../contexts/DataContext'
 import { toast, confirm } from './Toast'
 import {
@@ -87,6 +88,7 @@ const WEEKDAY_LABELS = ['SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB', 'DOM']
 
 export default function Calendar() {
   const { profile } = useData()
+  usePageTitle('Agenda')
   useEscapeKey(() => { setShowEventForm(false); setShowCheckinForm(false) }, !!(showEventForm || showCheckinForm))
   const [activeTab, setActiveTab] = useState('checkin')
   const [showEventForm, setShowEventForm] = useState(false)

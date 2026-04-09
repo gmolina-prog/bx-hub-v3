@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import { logActivity } from '../lib/activityLog'
 import { isLeaderRole } from '../lib/roles'
 import { useEscapeKey } from '../hooks/useEscapeKey'
+import { usePageTitle } from '../hooks/usePageTitle'
 import { useData } from '../contexts/DataContext'
 import { toast, confirm } from './Toast'
 
@@ -64,6 +65,7 @@ function TaskModal({ task, projects, profiles, onClose, onSave, onDelete, onArch
   const [saving, setSaving] = useState(false)
   const [loadingComments, setLoadingComments] = useState(false)
   const { profile } = useData()
+  usePageTitle('Kanban')
   useEscapeKey(() => { setModalTask(null) }, !!(modalTask))
 
   // Load comments
@@ -364,10 +366,11 @@ export default function Kanban() {
   useEffect(() => { load() }, [load])
 
   const filtered = tasks.filter(t => {
-    const matchSearch = !search || t.title?.toLowerCase().includes(search.toLowerCase())
-    const matchProj = filterProject === 'all' || t.project_id === filterProject
-    const matchPrio = filterPriority === 'all' || t.priority === filterPriority
-    return matchSearch && matchProj && matchPrio
+    const matchSearch  = !search || t.title?.toLowerCase().includes(search.toLowerCase())
+    const matchProj    = filterProject  === 'all' || t.project_id  === filterProject
+    const matchPrio    = filterPriority === 'all' || t.priority     === filterPriority
+    const matchUser    = filterAssignee === 'all' || t.assigned_to  === filterAssignee
+    return matchSearch && matchProj && matchPrio && matchUser
   })
 
   function getColTasks(colId) {
@@ -624,6 +627,18 @@ export default function Kanban() {
           <option value="all">Todas as prioridades</option>
           {Object.entries(PRIORITY).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
         </select>
+        <select className="text-sm border border-zinc-200 rounded-lg px-3 py-2 bg-white" value={filterAssignee} onChange={e => setFilterAssignee(e.target.value)}>
+          <option value="all">Todos responsáveis</option>
+          {profilesList.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
+        </select>
+        {(filterProject !== 'all' || filterPriority !== 'all' || filterAssignee !== 'all' || search) && (
+          <button
+            onClick={() => { setFilterProject('all'); setFilterPriority('all'); setFilterAssignee('all'); setSearch('') }}
+            className="flex items-center gap-1 text-xs font-semibold text-rose-600 border border-rose-200 px-3 py-2 rounded-lg bg-rose-50 hover:bg-rose-100 transition-all whitespace-nowrap"
+          >
+            <X className="w-3 h-3" /> Limpar filtros
+          </button>
+        )}
         <button onClick={() => openNew()} className="flex items-center gap-2 bg-violet-600 text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-violet-700 transition-colors">
           <Plus className="w-4 h-4" /> Nova tarefa
         </button>

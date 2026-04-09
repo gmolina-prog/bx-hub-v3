@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
+import { usePageTitle } from '../hooks/usePageTitle'
 import { useData } from '../contexts/DataContext'
 import {
   FileText,
@@ -107,6 +108,7 @@ const CATEGORY_META = {
 
 export default function Logs() {
   const { profile } = useData()
+  usePageTitle('Logs')
   const [events, setEvents] = useState([])
   const [profilesMap, setProfilesMap] = useState(new Map())
   const [loading, setLoading] = useState(false)

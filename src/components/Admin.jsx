@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
+import { usePageTitle } from '../hooks/usePageTitle'
 import { useData } from '../contexts/DataContext'
 import { toast, confirm } from './Toast'
 import {
@@ -64,6 +65,7 @@ const INTEGRATIONS_CATALOG = [
 
 export default function Admin() {
   const { profile } = useData()
+  usePageTitle('Admin')
   const [activeTab, setActiveTab] = useState('users')
   const [profiles, setProfiles] = useState([])
   const [integrations, setIntegrations] = useState([])
