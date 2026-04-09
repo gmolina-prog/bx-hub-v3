@@ -1,5 +1,5 @@
 // src/components/Captacao.jsx
-import React, { useEffect, useState, useMemo } from 'react'
+import React, { useEffect, useState, useMemo, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useData } from '../contexts/DataContext'
 import {
@@ -21,6 +21,14 @@ import {
   Layers,
   List,
   CheckCircle,
+  Save,
+  Trash2,
+  Archive,
+  MessageSquare,
+  Edit3,
+  Phone,
+  Mail,
+  ExternalLink,
 } from 'lucide-react'
 
 // ============================================================================
@@ -606,70 +614,340 @@ export default function Captacao() {
         </div>
       )}
 
-      {/* ============== MODAL DE DETALHE ============== */}
+      {/* ============== MODAL DEAL — ESTILO TRELLO ============== */}
       {selectedItem && (
-        <div
-          className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50"
-          onClick={() => setSelectedItem(null)}
-        >
-          <div
-            className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="p-6 border-b border-zinc-100 flex items-start justify-between">
-              <div className="flex-1 min-w-0 pr-4">
-                <h2 className="text-xl font-bold text-zinc-800">{selectedItem.name}</h2>
-                {selectedItem.entity_name && (
-                  <div className="text-sm text-zinc-500 mt-1">{selectedItem.entity_name}</div>
-                )}
-              </div>
-              <button onClick={() => setSelectedItem(null)} className="p-1 hover:bg-zinc-100 rounded">
-                <X className="w-5 h-5 text-zinc-500" />
-              </button>
-            </div>
-            <div className="p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-violet-50 rounded-lg p-3">
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-violet-600">Valor</div>
-                  <div className="text-2xl font-bold text-violet-700">{formatCurrency(selectedItem.value)}</div>
-                </div>
-                <div className="bg-amber-50 rounded-lg p-3">
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-amber-600">Probabilidade</div>
-                  <div className="text-2xl font-bold text-amber-700">{selectedItem.probability || STAGE_PROBABILITIES[selectedItem.stage]}%</div>
-                </div>
-              </div>
-
-              <DetailRow icon={Layers} label="Estágio">
-                <select
-                  value={selectedItem.stage}
-                  onChange={(e) => moveItem(selectedItem.id, e.target.value)}
-                  className="text-sm border border-zinc-200 rounded px-2 py-1 bg-white"
-                >
-                  {STAGES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
-                </select>
-              </DetailRow>
-              {selectedItem.institution_name && <DetailRow icon={Landmark} label="Instituição">{selectedItem.institution_name}</DetailRow>}
-              {selectedItem.contact_name && <DetailRow icon={User} label="Contato">{selectedItem.contact_name}</DetailRow>}
-              {selectedItem.expected_close && <DetailRow icon={Calendar} label="Fechamento">{new Date(selectedItem.expected_close).toLocaleDateString('pt-BR')}</DetailRow>}
-              {selectedItem.next_action && <DetailRow icon={ChevronRight} label="Próxima ação">{selectedItem.next_action}</DetailRow>}
-              {selectedItem.last_contact && <DetailRow icon={Clock} label="Último contato">{new Date(selectedItem.last_contact).toLocaleDateString('pt-BR')}</DetailRow>}
-              {selectedItem.notes && (
-                <div className="pt-3 border-t border-zinc-100">
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1">Notas</div>
-                  <p className="text-sm text-zinc-700 whitespace-pre-wrap">{selectedItem.notes}</p>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
+        <DealModal
+          item={selectedItem}
+          stages={STAGES}
+          stageProbabilities={STAGE_PROBABILITIES}
+          profiles={profiles}
+          companies={companies}
+          institutions={institutions}
+          formatCurrency={formatCurrency}
+          onClose={() => setSelectedItem(null)}
+          onSave={async (updated) => {
+            await supabase.from('pipeline_items').update(updated).eq('id', selectedItem.id)
+            await loadAll()
+            setSelectedItem(null)
+          }}
+          onArchive={async () => {
+            await supabase.from('pipeline_items').update({ is_archived: true }).eq('id', selectedItem.id)
+            await loadAll()
+            setSelectedItem(null)
+            showSuccess('Oportunidade arquivada')
+          }}
+          onDelete={async () => {
+            if (!window.confirm('Excluir esta oportunidade permanentemente?')) return
+            await supabase.from('pipeline_items').delete().eq('id', selectedItem.id)
+            await loadAll()
+            setSelectedItem(null)
+            showSuccess('Oportunidade excluída')
+          }}
+        />
       )}
     </div>
   )
 }
 
 // ============================================================================
-// Sub-components
+// DealModal — Modal Trello-style para oportunidade de captação
 // ============================================================================
+function DealModal({ item, stages, stageProbabilities, profiles, companies, institutions, formatCurrency, onClose, onSave, onArchive, onDelete }) {
+  const VL = '#5452C1', CH = '#2D2E39'
+  const GREEN = '#10B981', AMBER = '#F59E0B', RED = '#EF4444'
+
+  const [tab, setTab] = useState('detalhes') // detalhes | historico | acao
+  const [form, setForm] = useState({
+    name:             item.name || '',
+    stage:            item.stage || 'indicacao',
+    value:            item.value || '',
+    probability:      item.probability || stageProbabilities[item.stage] || 20,
+    entity_name:      item.entity_name || '',
+    institution_name: item.institution_name || '',
+    contact_name:     item.contact_name || '',
+    expected_close:   item.expected_close ? item.expected_close.split('T')[0] : '',
+    next_action:      item.next_action || '',
+    last_contact:     item.last_contact ? item.last_contact.split('T')[0] : '',
+    notes:            item.notes || '',
+    assigned_to:      item.assigned_to || '',
+    cover_color:      item.cover_color || '',
+  })
+  const [saving, setSaving] = useState(false)
+  const [newContact, setNewContact] = useState('')
+
+  // Histórico de contato simulado a partir das notas + last_contact
+  const contacts = []
+  if (item.last_contact) contacts.push({ date: item.last_contact, text: 'Último contato registrado', type: 'phone' })
+  if (item.next_action) contacts.push({ date: item.expected_close || new Date().toISOString(), text: `Próxima ação: ${item.next_action}`, type: 'action' })
+
+  async function save() {
+    setSaving(true)
+    await onSave({
+      name:             form.name,
+      stage:            form.stage,
+      value:            parseFloat(form.value) || 0,
+      probability:      parseInt(form.probability) || stageProbabilities[form.stage],
+      entity_name:      form.entity_name || null,
+      institution_name: form.institution_name || null,
+      contact_name:     form.contact_name || null,
+      expected_close:   form.expected_close || null,
+      next_action:      form.next_action || null,
+      last_contact:     form.last_contact ? new Date(form.last_contact).toISOString() : item.last_contact,
+      notes:            form.notes || null,
+      assigned_to:      form.assigned_to || null,
+      cover_color:      form.cover_color || null,
+    })
+    setSaving(false)
+  }
+
+  const probColor = form.probability >= 80 ? GREEN : form.probability >= 50 ? AMBER : RED
+  const stage = stages.find(s => s.id === form.stage)
+
+  const COVER_COLORS = [VL,'#10B981','#F59E0B','#EF4444','#3B82F6','#8B5CF6','#EC4899','#2D2E39']
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.5)' }}
+      onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
+
+        {/* Cover strip */}
+        {form.cover_color && <div className="h-2 w-full" style={{ background: form.cover_color }} />}
+
+        {/* Header */}
+        <div className="flex items-start justify-between px-6 py-4 border-b border-zinc-100">
+          <div className="flex-1 min-w-0 pr-4">
+            <input
+              className="w-full text-xl font-bold text-zinc-800 border-0 outline-none focus:border-b-2 pb-0.5 bg-transparent"
+              style={{ borderBottomColor: VL }}
+              value={form.name}
+              onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
+              placeholder="Nome da oportunidade…"
+            />
+            {item.entity_name && <div className="text-xs text-zinc-400 mt-1">{item.entity_name}</div>}
+          </div>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button onClick={onArchive} className="p-1.5 text-zinc-400 hover:text-amber-500 transition-colors" title="Arquivar">
+              <Archive className="w-4 h-4" />
+            </button>
+            <button onClick={onDelete} className="p-1.5 text-zinc-400 hover:text-red-500 transition-colors" title="Excluir">
+              <Trash2 className="w-4 h-4" />
+            </button>
+            <button onClick={onClose} className="p-1.5 text-zinc-400 hover:text-zinc-600">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Stage selector — highlight visual */}
+        <div className="flex items-center gap-1 px-6 pt-3 pb-2 overflow-x-auto">
+          {stages.map(s => (
+            <button key={s.id} onClick={() => setForm(p => ({ ...p, stage: s.id, probability: stageProbabilities[s.id] }))}
+              className="flex-shrink-0 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all"
+              style={form.stage === s.id
+                ? { background: VL, color: '#fff' }
+                : { background: '#F2F2F2', color: '#6B7280' }}>
+              {s.label.split(' - ')[0]}
+            </button>
+          ))}
+        </div>
+
+        {/* Tabs */}
+        <div className="flex border-b border-zinc-100 px-6">
+          {[['detalhes','Detalhes'],['historico','Contatos'],['acao','Próximas Ações']].map(([id, label]) => (
+            <button key={id} onClick={() => setTab(id)}
+              className={`px-4 py-2 text-xs font-semibold border-b-2 -mb-px transition-colors ${tab === id ? 'border-violet-500 text-violet-600' : 'border-transparent text-zinc-500 hover:text-zinc-700'}`}>
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto px-6 py-4">
+
+          {tab === 'detalhes' && (
+            <div className="space-y-4">
+              {/* KPIs editáveis */}
+              <div className="grid grid-cols-3 gap-3">
+                <div className="bg-violet-50 rounded-xl p-3">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-violet-500 mb-1">Valor (R$)</div>
+                  <input type="number" className="w-full text-xl font-bold text-violet-700 bg-transparent border-0 outline-none"
+                    value={form.value} onChange={e => setForm(p => ({ ...p, value: e.target.value }))} placeholder="0" />
+                </div>
+                <div className="bg-amber-50 rounded-xl p-3">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-amber-500 mb-1">Prob. (%)</div>
+                  <input type="number" min="0" max="100" className="w-full text-xl font-bold bg-transparent border-0 outline-none"
+                    style={{ color: probColor }}
+                    value={form.probability} onChange={e => setForm(p => ({ ...p, probability: parseInt(e.target.value) || 0 }))} />
+                </div>
+                <div className="rounded-xl p-3 border border-zinc-200">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1">Ponderado</div>
+                  <div className="text-xl font-bold text-zinc-700">
+                    {formatCurrency((parseFloat(form.value) || 0) * (parseInt(form.probability) || 0) / 100)}
+                  </div>
+                </div>
+              </div>
+
+              {/* Barra de probabilidade */}
+              <div className="h-1.5 bg-zinc-100 rounded-full overflow-hidden">
+                <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(100, form.probability)}%`, background: probColor }} />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Empresa cliente</label>
+                  <select className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-400" value={form.entity_name || ''} onChange={e => setForm(p => ({ ...p, entity_name: e.target.value }))}>
+                    <option value="">— selecione —</option>
+                    {companies.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Instituição</label>
+                  <select className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-400" value={form.institution_name || ''} onChange={e => setForm(p => ({ ...p, institution_name: e.target.value }))}>
+                    <option value="">— selecione —</option>
+                    {institutions.map(i => <option key={i.id} value={i.name}>{i.name} ({i.type})</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Contato</label>
+                  <input className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-400"
+                    value={form.contact_name || ''} onChange={e => setForm(p => ({ ...p, contact_name: e.target.value }))} placeholder="Nome do contato…" />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Responsável</label>
+                  <select className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-400" value={form.assigned_to || ''} onChange={e => setForm(p => ({ ...p, assigned_to: e.target.value }))}>
+                    <option value="">— nenhum —</option>
+                    {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Previsão fechamento</label>
+                  <input type="date" className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-400"
+                    value={form.expected_close || ''} onChange={e => setForm(p => ({ ...p, expected_close: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Último contato</label>
+                  <input type="date" className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-400"
+                    value={form.last_contact || ''} onChange={e => setForm(p => ({ ...p, last_contact: e.target.value }))} />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Notas</label>
+                <textarea className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-400 resize-none" rows={3}
+                  value={form.notes || ''} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} placeholder="Observações, contexto, condições…" />
+              </div>
+
+              {/* Cover color */}
+              <div>
+                <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-2 block">Cor do card</label>
+                <div className="flex gap-1.5">
+                  {COVER_COLORS.map(c => (
+                    <button key={c} onClick={() => setForm(p => ({ ...p, cover_color: p.cover_color === c ? '' : c }))}
+                      className="w-6 h-6 rounded-full ring-offset-1 transition-all"
+                      style={{ background: c, outline: form.cover_color === c ? `2px solid ${c}` : 'none', outlineOffset: 2 }} />
+                  ))}
+                  {form.cover_color && (
+                    <button onClick={() => setForm(p => ({ ...p, cover_color: '' }))} className="text-[10px] text-zinc-400 hover:text-zinc-600 ml-1">limpar</button>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {tab === 'historico' && (
+            <div>
+              <div className="text-xs text-zinc-500 mb-4">Registro de interações com a instituição/contato</div>
+              {contacts.length === 0 ? (
+                <div className="text-center py-8">
+                  <Phone className="w-8 h-8 text-zinc-200 mx-auto mb-2" />
+                  <p className="text-xs text-zinc-400">Nenhum contato registrado</p>
+                </div>
+              ) : (
+                <div className="space-y-3 mb-4">
+                  {contacts.map((c, i) => (
+                    <div key={i} className="flex gap-3 p-3 bg-zinc-50 rounded-lg">
+                      <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0" style={{ background: '#EEF2FF' }}>
+                        {c.type === 'phone' ? <Phone className="w-4 h-4" style={{ color: VL }} /> : <Edit3 className="w-4 h-4" style={{ color: AMBER }} />}
+                      </div>
+                      <div>
+                        <div className="text-sm font-semibold text-zinc-800">{c.text}</div>
+                        <div className="text-[10px] text-zinc-400 mt-0.5">{c.date ? new Date(c.date).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="border-t border-zinc-100 pt-4">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-2">Registrar novo contato</div>
+                <div className="flex gap-2">
+                  <input className="flex-1 border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-400"
+                    value={newContact} onChange={e => setNewContact(e.target.value)} placeholder="Descreva o contato…"
+                    onKeyDown={e => { if (e.key === 'Enter' && newContact.trim()) { setForm(p => ({ ...p, notes: `[${new Date().toLocaleDateString('pt-BR')}] ${newContact}\n` + (p.notes || '') })); setNewContact('') } }} />
+                  <button onClick={() => { if (newContact.trim()) { setForm(p => ({ ...p, notes: `[${new Date().toLocaleDateString('pt-BR')}] ${newContact}\n` + (p.notes || '') })); setNewContact('') } }}
+                    className="px-3 py-2 text-white text-xs font-bold rounded-lg" style={{ background: VL }}>
+                    + Log
+                  </button>
+                </div>
+                <div className="text-[10px] text-zinc-400 mt-1">Registrado nas Notas · Enter para salvar</div>
+              </div>
+            </div>
+          )}
+
+          {tab === 'acao' && (
+            <div className="space-y-4">
+              <div>
+                <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Próxima ação</label>
+                <textarea className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-400 resize-none" rows={3}
+                  value={form.next_action || ''} onChange={e => setForm(p => ({ ...p, next_action: e.target.value }))}
+                  placeholder="Descreva o próximo passo para avançar este deal…" />
+              </div>
+              <div>
+                <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Data da próxima ação</label>
+                <input type="date" className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-400"
+                  value={form.expected_close || ''} onChange={e => setForm(p => ({ ...p, expected_close: e.target.value }))} />
+              </div>
+
+              {/* Checklist de etapas por estágio */}
+              <div>
+                <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-2 block">Checklist — {stage?.label}</label>
+                {[
+                  { stage: 'indicacao',    items: ['Identificar decisor', 'Mapear necessidade de crédito', 'Definir produto/linha', 'Agendar apresentação'] },
+                  { stage: 'documentacao', items: ['Receber documentação da empresa', 'Validar balanços e DREs', 'Preparar kit banco', 'Enviar para instituição'] },
+                  { stage: 'comite',       items: ['Acompanhar análise interna', 'Responder diligências', 'Negociar condições (taxa, prazo, garantias)', 'Aguardar deliberação'] },
+                  { stage: 'aprovado',     items: ['Receber term sheet', 'Revisar condições com cliente', 'Assinar documentos', 'Formalizar contratos'] },
+                  { stage: 'liberado',     items: ['Confirmar liberação do recurso', 'Emitir NF de honorários', 'Arquivar documentação', 'Solicitar feedback do cliente'] },
+                ].find(c => c.stage === form.stage)?.items.map((item, i) => (
+                  <div key={i} className="flex items-center gap-2 py-2 border-b border-zinc-50">
+                    <input type="checkbox" className="w-4 h-4 rounded accent-violet-600" id={`chk-${i}`} />
+                    <label htmlFor={`chk-${i}`} className="text-sm text-zinc-700 cursor-pointer">{item}</label>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between px-6 py-4 border-t border-zinc-100">
+          <div className="text-[10px] text-zinc-400">
+            Criado em {item.created_at ? new Date(item.created_at).toLocaleDateString('pt-BR') : '—'}
+            {item.updated_at && ` · Atualizado ${new Date(item.updated_at).toLocaleDateString('pt-BR')}`}
+          </div>
+          <div className="flex gap-2">
+            <button onClick={onClose} className="text-sm text-zinc-500 hover:text-zinc-700 px-4 py-2">Cancelar</button>
+            <button onClick={save} disabled={saving || !form.name.trim()}
+              className="flex items-center gap-1.5 text-white text-sm font-bold px-5 py-2 rounded-xl hover:opacity-90 disabled:opacity-50 transition-all"
+              style={{ background: VL }}>
+              <Save className="w-4 h-4" />{saving ? 'Salvando…' : 'Salvar'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 
 function Kpi({ label, value, icon: Icon, accent }) {
   const accents = {
