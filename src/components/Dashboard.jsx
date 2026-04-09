@@ -1,484 +1,465 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useData } from '../contexts/DataContext'
-import { MapPin, Bell, Clock, AlertTriangle, CheckCircle, Zap, TrendingUp, Users, Activity } from 'lucide-react'
 
-// Leaflet via CDN — injetado uma vez
-function useLeaflet() {
-  const [ready, setReady] = useState(!!window.L)
-  useEffect(() => {
-    if (window.L) { setReady(true); return }
+// Leaflet via CDN — carregado dinamicamente
+function loadLeaflet() {
+  return new Promise((resolve) => {
+    if (window.L) { resolve(window.L); return }
     const link = document.createElement('link')
     link.rel = 'stylesheet'
-    link.href = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css'
+    link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'
     document.head.appendChild(link)
     const script = document.createElement('script')
-    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js'
-    script.onload = () => setReady(true)
+    script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
+    script.onload = () => resolve(window.L)
     document.head.appendChild(script)
-  }, [])
-  return ready
+  })
 }
 
-const STATUS_COLORS = {
-  escritorio: '#5452C1',
-  cliente:    '#10B981',
-  remoto:     '#0EA5E9',
-  viagem:     '#F59E0B',
-}
-const STATUS_LABELS = {
-  escritorio: 'Escritório',
-  cliente:    'Cliente',
-  remoto:     'Remoto',
-  viagem:     'Viagem',
-}
-// SP coords spread por status
-const STATUS_COORDS = {
-  escritorio: [-23.5613, -46.6558],
-  cliente:    [-23.5955, -46.6889],
-  remoto:     [-23.5629, -46.6823],
-  viagem:     [-23.5329, -46.6395],
+const CH = '#2D2E39', VL = '#5452C1'
+const GREEN = '#10B981', AMBER = '#F59E0B', RED = '#EF4444', BLUE = '#3B82F6'
+
+const CHECKIN_TYPES = {
+  escritorio: { label: 'Escritório', icon: '🏢', color: BLUE, lat: -23.5951, lng: -46.6872 },
+  cliente:    { label: 'No Cliente', icon: '🤝', color: GREEN, lat: -23.5700, lng: -46.6400 },
+  remoto:     { label: 'Remoto',     icon: '🏠', color: '#8B5CF6', lat: null, lng: null },
+  viagem:     { label: 'Em Viagem',  icon: '✈️', color: AMBER, lat: null, lng: null },
 }
 
-function MapCheckin({ members }) {
-  const leafletReady = useLeaflet()
-  const mapRef = useRef(null)
-  const instanceRef = useRef(null)
-  const markersRef = useRef({})
+function fmtBRL(n) {
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 0 }).format(n || 0)
+}
 
-  useEffect(() => {
-    if (!leafletReady || !mapRef.current) return
-    if (instanceRef.current) return
-    const L = window.L
-    const map = L.map(mapRef.current, { zoomControl: false, attributionControl: false }).setView([-23.5613, -46.6558], 12)
-    L.control.zoom({ position: 'topright' }).addTo(map)
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map)
-    instanceRef.current = map
-    members.forEach(m => addMarker(map, m))
-  }, [leafletReady, members])
+function relTime(d) {
+  if (!d) return ''
+  const diff = (Date.now() - new Date(d)) / 1000
+  if (diff < 60) return 'agora'
+  if (diff < 3600) return `${Math.floor(diff / 60)}min`
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h`
+  return `${Math.floor(diff / 86400)}d`
+}
 
-  function addMarker(map, m) {
-    const L = window.L
-    const color = STATUS_COLORS[m.status] || '#5452C1'
-    const coords = STATUS_COORDS[m.status] || [-23.5613 + (Math.random()-0.5)*0.02, -46.6558 + (Math.random()-0.5)*0.02]
-    const html = `<div style="width:32px;height:32px;border-radius:50%;background:${color};border:3px solid white;box-shadow:0 4px 12px rgba(0,0,0,0.25);display:flex;align-items:center;justify-content:center;color:white;font-size:10px;font-weight:700;font-family:Montserrat,sans-serif;">${m.initials || '?'}</div>`
-    const icon = L.divIcon({ className: '', html, iconSize: [32, 32], iconAnchor: [16, 16] })
-    const marker = L.marker(coords, { icon }).addTo(map)
-    marker.bindPopup(`<div style="font-family:Montserrat,sans-serif;padding:4px;"><b>${m.full_name}</b><br><span style="color:#71717A;font-size:11px;">${STATUS_LABELS[m.status] || m.status}</span></div>`)
-    markersRef.current[m.id] = { marker, coords }
-  }
+function greeting() {
+  const h = new Date().getHours()
+  if (h < 12) return { text: 'Bom dia', icon: '🌅' }
+  if (h < 18) return { text: 'Boa tarde', icon: '☀️' }
+  return { text: 'Boa noite', icon: '🌙' }
+}
 
-  function flyTo(memberId) {
-    if (!instanceRef.current) return
-    const ref = markersRef.current[memberId]
-    if (!ref) return
-    instanceRef.current.flyTo(ref.coords, 16, { duration: 1.2 })
-    ref.marker.openPopup()
-  }
-
-  return { mapRef, flyTo }
+// Mini gauge SVG
+function Gauge({ score }) {
+  const color = score >= 80 ? GREEN : score >= 60 ? AMBER : RED
+  const label = score >= 80 ? 'Excelente' : score >= 60 ? 'Bom' : score >= 40 ? 'Atenção' : 'Crítico'
+  const pct = Math.max(0, Math.min(100, score)) / 100
+  const endAngle = Math.PI * pct
+  const ex = 110 + 100 * Math.cos(Math.PI - endAngle)
+  const ey = 130 - 100 * Math.sin(Math.PI - endAngle)
+  const large = pct > 0.5 ? 1 : 0
+  return (
+    <div className="text-center">
+      <svg width="220" height="140">
+        <defs>
+          <linearGradient id="gGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor={RED} />
+            <stop offset="50%" stopColor={AMBER} />
+            <stop offset="100%" stopColor={GREEN} />
+          </linearGradient>
+        </defs>
+        <path d="M 30 130 A 100 100 0 0 1 190 130" stroke="#E8E8EE" strokeWidth="12" fill="none" strokeLinecap="round" />
+        {pct > 0 && <path d={`M 30 130 A 100 100 0 ${large} 1 ${ex} ${ey}`} stroke="url(#gGrad)" strokeWidth="12" fill="none" strokeLinecap="round" />}
+        <text x="110" y="102" fontSize="42" fontWeight="700" textAnchor="middle" fill={color} fontFamily="Montserrat">{score}</text>
+        <text x="110" y="122" fontSize="12" textAnchor="middle" fill="#999" fontFamily="Montserrat">{label}</text>
+      </svg>
+    </div>
+  )
 }
 
 export default function Dashboard() {
   const { profile } = useData()
-  const [tasks, setTasks] = useState([])
-  const [projects, setProjects] = useState([])
-  const [members, setMembers] = useState([])
-  const [checkIns, setCheckIns] = useState([])
-  const [activity, setActivity] = useState([])
-  const [routines, setRoutines] = useState([])
-  const [routineCompletions, setRoutineCompletions] = useState([])
+  const navigate = useNavigate()
+  const mapRef = useRef(null)
+  const leafletMapRef = useRef(null)
+  const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [activeTeamMember, setActiveTeamMember] = useState(null)
-
-  const today = new Date().toISOString().split('T')[0]
+  const clockRef = useRef(null)
 
   const load = useCallback(async () => {
     if (!profile) return
-    setLoading(true)
-    const [tasksRes, projRes, profRes, ciRes, actRes, routRes, compRes] = await Promise.allSettled([
-      supabase.from('tasks').select('*').eq('org_id', profile.org_id).is('deleted_at', null).order('created_at', { ascending: false }).limit(50),
-      supabase.from('projects').select('*, companies(name,criticality)').eq('org_id', profile.org_id),
-      supabase.from('profiles').select('*').eq('org_id', profile.org_id).order('full_name'),
-      supabase.from('check_ins').select('*').eq('org_id', profile.org_id).eq('date', today).order('check_in_time', { ascending: false }),
-      supabase.from('activity_log').select('*, profiles(full_name,initials,avatar_color)').eq('org_id', profile.org_id).order('created_at', { ascending: false }).limit(12),
-      supabase.from('routines').select('*').eq('org_id', profile.org_id).eq('is_active', true),
-      supabase.from('routine_completions').select('*').eq('org_id', profile.org_id).eq('reference_date', today),
+    const today = new Date().toISOString().split('T')[0]
+    const [tasksR, pipeR, projR, ciR, profR, routR] = await Promise.allSettled([
+      supabase.from('tasks').select('id,column_id,priority,assigned_to,due_date,title,project_id,updated_at').eq('org_id', profile.org_id).is('deleted_at', null),
+      supabase.from('pipeline_items').select('id,stage,value,probability,name').eq('org_id', profile.org_id).eq('is_archived', false),
+      supabase.from('projects').select('id,name,status,deadline').eq('org_id', profile.org_id),
+      supabase.from('check_ins').select('id,user_id,date,status,location,latitude,longitude').eq('org_id', profile.org_id).eq('date', today),
+      supabase.from('profiles').select('id,full_name,initials,avatar_color,role').eq('org_id', profile.org_id).order('full_name'),
+      supabase.from('routines').select('id,is_active,frequency').eq('org_id', profile.org_id).eq('is_active', true),
     ])
-    if (tasksRes.status === 'fulfilled' && !tasksRes.value.error) setTasks(tasksRes.value.data || [])
-    if (projRes.status === 'fulfilled' && !projRes.value.error) setProjects(projRes.value.data || [])
-    if (profRes.status === 'fulfilled' && !profRes.value.error) setMembers(profRes.value.data || [])
-    if (ciRes.status === 'fulfilled' && !ciRes.value.error) setCheckIns(ciRes.value.data || [])
-    if (actRes.status === 'fulfilled' && !actRes.value.error) setActivity(actRes.value.data || [])
-    if (routRes.status === 'fulfilled' && !routRes.value.error) setRoutines(routRes.value.data || [])
-    if (compRes.status === 'fulfilled' && !compRes.value.error) setRoutineCompletions(compRes.value.data || [])
+
+    const tasks = tasksR.status === 'fulfilled' && !tasksR.value.error ? tasksR.value.data || [] : []
+    const pipeline = pipeR.status === 'fulfilled' && !pipeR.value.error ? pipeR.value.data || [] : []
+    const projects = projR.status === 'fulfilled' && !projR.value.error ? projR.value.data || [] : []
+    const checkins = ciR.status === 'fulfilled' && !ciR.value.error ? ciR.value.data || [] : []
+    const profiles = profR.status === 'fulfilled' && !profR.value.error ? profR.value.data || [] : []
+    const routines = routR.status === 'fulfilled' && !routR.value.error ? routR.value.data || [] : []
+
+    const now = new Date()
+    const todo = tasks.filter(t => t.column_id === 'todo' || t.column_id === 'backlog').length
+    const doing = tasks.filter(t => t.column_id === 'doing').length
+    const done = tasks.filter(t => t.column_id === 'done').length
+    const overdue = tasks.filter(t => t.due_date && new Date(t.due_date) < now && t.column_id !== 'done').length
+    const doneWeek = tasks.filter(t => t.column_id === 'done' && t.updated_at && (now - new Date(t.updated_at)) < 604800000).length
+
+    const pipeTotal = pipeline.reduce((s, p) => s + (p.value || 0), 0)
+    const pipeWeighted = pipeline.reduce((s, p) => s + (p.value || 0) * (p.probability || 0) / 100, 0)
+
+    const activeProjs = projects.filter(p => !['Cancelado','Completo','cancelled','complete'].includes(p.status))
+    const profMap = {}
+    profiles.forEach(p => { profMap[p.id] = p })
+
+    const ciByStatus = { escritorio: 0, cliente: 0, remoto: 0, viagem: 0 }
+    checkins.forEach(c => { const s = (c.status || '').toLowerCase().replace(/ /g, ''); if (ciByStatus[s] !== undefined) ciByStatus[s]++ })
+
+    const memberLoad = {}
+    tasks.filter(t => t.column_id !== 'done').forEach(t => {
+      const name = profMap[t.assigned_to]?.full_name || 'Não atribuído'
+      memberLoad[name] = (memberLoad[name] || 0) + 1
+    })
+    const memberLoadArr = Object.entries(memberLoad).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count)
+
+    const recentActivity = [...tasks].sort((a, b) => new Date(b.updated_at || 0) - new Date(a.updated_at || 0)).slice(0, 5)
+
+    let health = 50
+    health -= overdue * 5
+    health += doneWeek * 2
+    if (pipeTotal > 1000000) health += 15
+    else if (pipeTotal > 500000) health += 8
+    const ciPct = profiles.length > 0 ? checkins.length / profiles.length : 0
+    if (ciPct > 0.5) health += 10
+    health = Math.max(0, Math.min(100, Math.round(health)))
+
+    const statusIcon = overdue >= 3 ? '🔴' : overdue >= 1 ? '🟡' : '🟢'
+    const statusText = overdue >= 3 ? `${overdue} alertas críticos` : overdue >= 1 ? `${overdue} tarefa(s) vencida(s)` : 'Operação estável — 0 alertas'
+
+    const pipeStages = [
+      { label: 'Indicação', id: 'indicacao', color: '#9CA3AF' },
+      { label: 'Comitê',    id: 'comite',    color: AMBER },
+      { label: 'Liberado',  id: 'liberado',  color: GREEN },
+    ].map(st => ({
+      ...st,
+      count: pipeline.filter(p => p.stage === st.id).length,
+      value: pipeline.filter(p => p.stage === st.id).reduce((s, p) => s + (p.value || 0), 0),
+    }))
+
+    const firstName = profile.full_name?.split(' ')[0] || 'Gabriel'
+
+    setData({ tasks, pipeline, projects, checkins, profiles, routines, todo, doing, done, overdue, doneWeek, pipeTotal, pipeWeighted, activeProjs, profMap, ciByStatus, memberLoadArr, recentActivity, health, statusIcon, statusText, pipeStages, firstName, ciPct })
     setLoading(false)
-  }, [profile, today])
+  }, [profile])
 
   useEffect(() => { load() }, [load])
 
-  // Enrich members with today's check-in status
-  const membersWithStatus = members.map(m => {
-    const ci = checkIns.find(c => c.user_id === m.id)
-    return { ...m, status: ci?.status || 'pendente', location: ci?.location || '' }
-  })
+  // Mapa Leaflet
+  useEffect(() => {
+    if (!data || !mapRef.current) return
+    loadLeaflet().then(L => {
+      if (leafletMapRef.current) {
+        leafletMapRef.current.remove()
+        leafletMapRef.current = null
+      }
+      const map = L.map(mapRef.current, { zoom: 12, zoomControl: true, attributionControl: false })
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map)
+      leafletMapRef.current = map
 
-  const { mapRef, flyTo } = MapCheckin({ members: membersWithStatus })
+      const office = [-23.5951, -46.6872]
+      const positioned = []
 
-  // KPIs
-  const overdueCount = tasks.filter(t => t.due_date && new Date(t.due_date) < new Date() && t.column_id !== 'done').length
-  const inProgressCount = tasks.filter(t => t.column_id === 'doing').length
-  const criticalProjects = projects.filter(p => p.companies?.criticality === 'critico').length
-  const doneToday = routineCompletions.length
-  const compliance = routines.length > 0 ? Math.round(doneToday / routines.length * 100) : 0
+      // Marcar escritório
+      L.circle(office, { radius: 200, color: BLUE, fillColor: BLUE, fillOpacity: 0.15 }).addTo(map)
 
-  // Status counts for map pills
-  const statusCounts = membersWithStatus.reduce((acc, m) => { acc[m.status] = (acc[m.status] || 0) + 1; return acc }, {})
+      // Markers por check-in
+      data.checkins.forEach(ci => {
+        const prof = data.profMap[ci.user_id]
+        if (!prof) return
+        const initials = prof.initials || prof.full_name?.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() || '?'
+        const color = prof.avatar_color || VL
+        const s = (ci.status || '').toLowerCase()
+        let lat, lng
+        if (ci.latitude && ci.longitude) { lat = parseFloat(ci.latitude); lng = parseFloat(ci.longitude) }
+        else if (s === 'escritorio') { lat = office[0] + (Math.random() - 0.5) * 0.003; lng = office[1] + (Math.random() - 0.5) * 0.003 }
+        else { lat = office[0] + (Math.random() - 0.5) * 0.02; lng = office[1] + (Math.random() - 0.5) * 0.02 }
+        positioned.push([lat, lng])
 
-  function fmtRelTime(d) {
-    const diff = Math.floor((Date.now() - new Date(d)) / 1000)
-    if (diff < 60) return 'agora'
-    if (diff < 3600) return `${Math.floor(diff / 60)}min atrás`
-    if (diff < 86400) return `${Math.floor(diff / 3600)}h atrás`
-    return `${Math.floor(diff / 86400)}d atrás`
-  }
+        const icon = L.divIcon({
+          html: `<div style="background:${color};color:white;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;font-family:Montserrat,sans-serif;border:2px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.3)">${initials}</div>`,
+          className: '', iconAnchor: [16, 16],
+        })
+        const typeInfo = CHECKIN_TYPES[s] || { icon: '📍', label: s }
+        L.marker([lat, lng], { icon }).addTo(map)
+          .bindPopup(`<b style="font-family:Montserrat">${prof.full_name}</b><br>${typeInfo.icon} ${typeInfo.label}<br>${ci.location || ''}`)
+      })
 
-  const greeting = () => {
-    const h = new Date().getHours()
-    if (h < 12) return 'Bom dia'
-    if (h < 18) return 'Boa tarde'
-    return 'Boa noite'
-  }
+      // Membros sem check-in
+      data.profiles.filter(p => !data.checkins.find(c => c.user_id === p.id)).forEach(p => {
+        const initials = p.initials || p.full_name?.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() || '?'
+        const lat = office[0] + (Math.random() - 0.5) * 0.04
+        const lng = office[1] + (Math.random() - 0.5) * 0.04
+        positioned.push([lat, lng])
+        const icon = L.divIcon({
+          html: `<div style="background:#9CA3AF;color:white;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;font-family:Montserrat,sans-serif;border:2px solid white;opacity:0.6">${initials}</div>`,
+          className: '', iconAnchor: [14, 14],
+        })
+        L.marker([lat, lng], { icon }).addTo(map).bindPopup(`<b>${p.full_name}</b><br>Sem check-in hoje`)
+      })
 
-  const now = new Date()
-  const dayNames = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado']
-  const weekday = dayNames[now.getDay()]
-  const dateStr = now.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })
+      if (positioned.length > 0) map.fitBounds(L.latLngBounds([office, ...positioned]).pad(0.3))
+      else map.setView(office, 13)
+    })
+    return () => { if (leafletMapRef.current) { leafletMapRef.current.remove(); leafletMapRef.current = null } }
+  }, [data])
 
-  const priorityTasks = tasks.filter(t => t.column_id !== 'done').sort((a, b) => {
-    const pri = { urgent: 0, high: 1, medium: 2 }
-    return (pri[a.priority] ?? 3) - (pri[b.priority] ?? 3)
-  }).slice(0, 7)
+  // Clock
+  useEffect(() => {
+    const tick = () => { if (clockRef.current) clockRef.current.textContent = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) }
+    tick()
+    const id = setInterval(tick, 30000)
+    return () => clearInterval(id)
+  }, [])
 
-  const dueBadge = (t) => {
-    if (!t.due_date) return null
-    const d = new Date(t.due_date)
-    const diff = Math.ceil((d - new Date()) / 86400000)
-    if (diff < 0) return { label: `${Math.abs(diff)}d`, cls: 'bg-red-500 text-white' }
-    if (diff === 0) return { label: 'hoje', cls: 'bg-amber-400 text-white' }
-    if (diff === 1) return { label: 'amanhã', cls: 'bg-sky-500 text-white' }
-    return null
-  }
+  if (loading) return <div className="p-6 text-center text-sm text-zinc-400">Carregando…</div>
+  if (!data) return null
 
-  const priorityBorder = (t) => {
-    if (t.priority === 'urgent') return 'border-l-red-500'
-    if (t.priority === 'high') return 'border-l-amber-400'
-    return 'border-l-sky-400'
-  }
-
-  const priorityBg = (t) => {
-    if (t.priority === 'urgent') return 'bg-red-50'
-    if (t.priority === 'high') return 'bg-amber-50'
-    return 'bg-zinc-50'
-  }
+  const { todo, doing, done, overdue, pipeTotal, pipeWeighted, activeProjs, profiles, checkins, ciByStatus, memberLoadArr, recentActivity, health, statusIcon, statusText, pipeStages, firstName, ciPct } = data
+  const gr = greeting()
+  const dateStr = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
 
   return (
-    <div className="flex flex-col min-h-screen bg-zinc-50">
+    <div className="p-6 max-w-[1600px] mx-auto font-['Montserrat',system-ui,sans-serif]">
 
-      {/* HERO: Mapa + Central de Comando */}
-      <div className="grid" style={{ gridTemplateColumns: '1.6fr 1fr', height: 440 }}>
-
-        {/* MAPA LEAFLET */}
-        <div className="relative bg-zinc-200">
-          <div ref={mapRef} className="w-full h-full" />
-          {/* Pills de status */}
-          <div className="absolute top-4 left-4 z-[500] flex gap-2 flex-wrap pointer-events-none">
-            {Object.entries(statusCounts).filter(([k]) => k !== 'pendente').map(([status, count]) => (
-              <div key={status} className="flex items-center gap-1.5 bg-white/95 backdrop-blur px-3 py-1.5 rounded-full text-xs font-semibold shadow-md pointer-events-auto">
-                <div className="w-2 h-2 rounded-full" style={{ background: STATUS_COLORS[status] || '#aaa' }} />
-                {count} {STATUS_LABELS[status] || status}
-              </div>
-            ))}
-            {(statusCounts['pendente'] || 0) > 0 && (
-              <div className="flex items-center gap-1.5 bg-white/95 backdrop-blur px-3 py-1.5 rounded-full text-xs font-semibold shadow-md">
-                <div className="w-2 h-2 rounded-full bg-zinc-400" />
-                {statusCounts['pendente']} sem check-in
-              </div>
-            )}
-          </div>
-          {/* Legenda */}
-          <div className="absolute bottom-4 left-4 z-[500] flex gap-4 bg-white/95 backdrop-blur px-3 py-2 rounded-full text-[10px] font-semibold shadow-md">
-            {Object.entries(STATUS_LABELS).map(([k, v]) => (
-              <div key={k} className="flex items-center gap-1.5 text-zinc-600">
-                <div className="w-2 h-2 rounded-full border border-white shadow-sm" style={{ background: STATUS_COLORS[k] }} />
-                {v}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* CENTRAL DE COMANDO */}
-        <div className="bg-zinc-800 text-white flex flex-col gap-3 p-6 overflow-y-auto">
-          {/* Saudação + data */}
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <div className="text-[9px] font-bold uppercase tracking-widest text-white/50 mb-1">Central de comando</div>
-              <div className="text-[22px] font-black leading-tight tracking-tight">{greeting()}, {profile?.full_name?.split(' ')[0] || 'Gabriel'}</div>
+      {/* ── HERO GREETING ── */}
+      <div className="rounded-2xl p-7 mb-6 relative overflow-hidden text-white" style={{ background: CH }}>
+        <div className="absolute top-[-30px] right-[-30px] w-48 h-48 rounded-full" style={{ background: `radial-gradient(circle, ${VL}33 0%, transparent 70%)` }} />
+        <div className="flex justify-between items-start relative z-10 flex-wrap gap-4">
+          <div>
+            <div className="flex items-center gap-3 mb-2">
+              <span className="text-3xl">{gr.icon}</span>
+              <h1 className="text-2xl font-bold">{gr.text}, {firstName}!</h1>
             </div>
-            <div className="bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-right shrink-0">
-              <div className="text-[9px] text-white/50 font-bold uppercase tracking-wider">{weekday}</div>
-              <div className="text-lg font-black leading-tight">{dateStr}</div>
-              <div className="text-[9px] text-teal-400 font-bold uppercase tracking-wide mt-0.5">
-                Q{Math.ceil((now.getMonth() + 1) / 3)} · Sem {Math.ceil(now.getDate() / 7 + (now.getMonth() * 4.33))}
-              </div>
+            <p className="text-sm text-zinc-400 ml-11">{dateStr}</p>
+            <div className="mt-3 ml-11 inline-flex items-center gap-2 bg-white/10 rounded-lg px-3 py-1.5 text-sm">
+              <span>{statusIcon}</span><span>{statusText}</span>
             </div>
           </div>
-
-          {/* Alerta urgência */}
-          {overdueCount > 0 && (
-            <div className="flex items-center gap-3 bg-red-500/15 border border-red-500/30 rounded-xl p-3">
-              <div className="w-8 h-8 rounded-lg bg-red-500 flex items-center justify-center shrink-0">
-                <Zap className="w-4 h-4 text-white" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-[9px] font-bold uppercase tracking-wide text-red-300">Atenção</div>
-                <div className="text-xs font-semibold text-white">{overdueCount} tarefa{overdueCount !== 1 ? 's' : ''} vencida{overdueCount !== 1 ? 's' : ''}</div>
-              </div>
-              <div className="text-[10px] font-bold bg-white text-zinc-800 px-2 py-1 rounded-lg cursor-pointer">Ver</div>
-            </div>
-          )}
-
-          {/* Mini KPIs */}
-          <div className="grid grid-cols-4 gap-2">
-            {[
-              { label: 'Vencidas',    val: overdueCount,    cls: overdueCount > 0 ? 'text-red-300' : 'text-white' },
-              { label: 'Em andamento',val: inProgressCount, cls: 'text-blue-300' },
-              { label: 'Críticos',    val: criticalProjects,cls: criticalProjects > 0 ? 'text-amber-300' : 'text-white' },
-              { label: 'Conformidade',val: `${compliance}%`,cls: compliance >= 80 ? 'text-emerald-300' : 'text-amber-300' },
-            ].map(k => (
-              <div key={k.label} className="bg-white/5 border border-white/8 rounded-xl p-2.5">
-                <div className="text-[8px] text-white/50 font-bold uppercase tracking-wider">{k.label}</div>
-                <div className={`text-xl font-black leading-tight mt-1 ${k.cls}`}>{k.val}</div>
-              </div>
-            ))}
-          </div>
-
-          {/* Próxima reunião / placeholder */}
-          <div className="flex items-center gap-3 bg-violet-600/80 rounded-xl p-3">
-            <div className="w-9 h-9 rounded-lg bg-white/15 flex items-center justify-center shrink-0">
-              <Clock className="w-4 h-4 text-white" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="text-[9px] text-white/70 font-bold uppercase tracking-wider">Projetos ativos</div>
-              <div className="text-xs font-bold text-white">{projects.length} projeto{projects.length !== 1 ? 's' : ''} · {members.length} colaboradores</div>
-            </div>
-            <div className="text-[10px] font-black bg-white text-violet-700 px-2 py-1 rounded-lg">{tasks.filter(t => t.column_id !== 'done').length} tasks</div>
+          <div className="text-right">
+            <div ref={clockRef} className="text-4xl font-bold tracking-widest" />
+            <p className="text-xs text-zinc-500 mt-1">BX Project Hub v3</p>
           </div>
         </div>
       </div>
 
-      {/* CONTENT */}
-      <div className="p-6 flex flex-col gap-5">
-
-        {/* ROW 1: Tarefas prioritárias + Carga da equipe */}
-        <div className="grid gap-4" style={{ gridTemplateColumns: '1.5fr 1fr' }}>
-
-          <div className="bg-white border border-zinc-200 rounded-xl p-5">
-            <div className="flex items-center justify-between mb-4">
-              <div className="text-xs font-bold uppercase tracking-wider text-zinc-700 flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-violet-500" />Tarefas prioritárias</div>
-              {overdueCount > 0 && <span className="text-[10px] font-bold bg-red-100 text-red-700 px-2 py-0.5 rounded-full">{overdueCount} vencidas</span>}
-            </div>
-            <div className="space-y-1.5">
-              {priorityTasks.length === 0 ? (
-                <div className="text-xs text-zinc-400 py-4 text-center">Nenhuma tarefa pendente 🎉</div>
-              ) : priorityTasks.map(t => {
-                const badge = dueBadge(t)
-                const assignee = members.find(m => m.id === t.assigned_to)
-                return (
-                  <div key={t.id} className={`flex items-center gap-2.5 px-3 py-2 rounded-lg border-l-2 ${priorityBorder(t)} ${priorityBg(t)} cursor-pointer hover:opacity-80`}>
-                    <div className="w-3.5 h-3.5 rounded border-2 border-zinc-300 shrink-0" />
-                    <div className="flex-1 text-xs font-semibold text-zinc-800 truncate">{t.title}</div>
-                    {badge && <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0 ${badge.cls}`}>{badge.label}</span>}
-                    {assignee && (
-                      <div className="w-5 h-5 rounded-full text-[8px] font-bold text-white flex items-center justify-center shrink-0" style={{ background: assignee.avatar_color || '#5452C1' }}>
-                        {assignee.initials || '?'}
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
+      {/* ── MAPA + EQUIPE HOJE ── */}
+      <div className="bg-white border border-zinc-200 rounded-2xl overflow-hidden mb-6">
+        <div className="flex items-center justify-between px-5 py-3 border-b border-zinc-100">
+          <div>
+            <h2 className="text-sm font-bold text-zinc-800">Localização da Equipe</h2>
+            <p className="text-xs text-zinc-500">{checkins.length}/{profiles.length} check-ins hoje</p>
           </div>
-
-          <div className="bg-white border border-zinc-200 rounded-xl p-5">
-            <div className="flex items-center justify-between mb-4">
-              <div className="text-xs font-bold uppercase tracking-wider text-zinc-700 flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-violet-500" />Carga da equipe</div>
-            </div>
-            <div className="space-y-3">
-              {members.slice(0, 6).map(m => {
-                const count = tasks.filter(t => t.assigned_to === m.id && t.column_id !== 'done').length
-                const max = 15
-                const pct = Math.min(100, Math.round(count / max * 100))
-                const barColor = pct > 85 ? 'bg-red-500' : pct > 60 ? 'bg-amber-400' : 'bg-emerald-500'
-                const textColor = pct > 85 ? 'text-red-600' : pct > 60 ? 'text-amber-600' : 'text-emerald-600'
+          <button onClick={() => navigate('/time')} className="text-xs font-semibold text-violet-600 hover:text-violet-700">Ver Time →</button>
+        </div>
+        <div className="flex flex-col md:flex-row">
+          {/* Mapa */}
+          <div ref={mapRef} className="flex-1 min-h-[280px]" style={{ zIndex: 0 }} />
+          {/* Painel check-in */}
+          <div className="w-full md:w-64 shrink-0 border-t md:border-t-0 md:border-l border-zinc-100 p-4">
+            <div className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-3">Status Hoje</div>
+            {Object.entries(CHECKIN_TYPES).map(([key, t]) => (
+              <div key={key} className={`flex items-center justify-between px-3 py-2 rounded-lg mb-1.5 ${ciByStatus[key] > 0 ? 'bg-zinc-50' : ''}`}>
+                <div className="flex items-center gap-2">
+                  <span className="text-base">{t.icon}</span>
+                  <span className="text-xs font-medium text-zinc-700">{t.label}</span>
+                </div>
+                <span className="text-sm font-bold" style={{ color: ciByStatus[key] > 0 ? t.color : '#DDD' }}>{ciByStatus[key] || 0}</span>
+              </div>
+            ))}
+            {profiles.length - checkins.length > 0 && (
+              <div className="mt-2 text-center text-xs text-zinc-400 bg-zinc-50 rounded-lg py-2">{profiles.length - checkins.length} sem check-in</div>
+            )}
+            {/* Lista de membros com avatar */}
+            <div className="mt-4 space-y-2">
+              {profiles.slice(0, 6).map(p => {
+                const ci = checkins.find(c => c.user_id === p.id)
+                const s = ci ? (ci.status || '').toLowerCase() : null
+                const t = s ? CHECKIN_TYPES[s] : null
                 return (
-                  <div key={m.id}>
-                    <div className="flex items-center justify-between mb-1">
-                      <div className="flex items-center gap-2">
-                        <div className="w-5 h-5 rounded-full text-[8px] font-bold text-white flex items-center justify-center shrink-0" style={{ background: m.avatar_color || '#5452C1' }}>
-                          {m.initials || '?'}
-                        </div>
-                        <span className="text-xs font-semibold text-zinc-700 truncate max-w-[100px]">{m.full_name}</span>
-                      </div>
-                      <span className={`text-[10px] font-bold ${textColor}`}>{count} tasks</span>
+                  <div key={p.id} className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0" style={{ background: p.avatar_color || VL }}>
+                      {p.initials || p.full_name?.slice(0, 2).toUpperCase()}
                     </div>
-                    <div className="h-1.5 bg-zinc-100 rounded-full overflow-hidden">
-                      <div className={`h-full rounded-full ${barColor}`} style={{ width: `${pct}%` }} />
-                    </div>
+                    <span className="text-xs text-zinc-700 flex-1 truncate">{p.full_name?.split(' ')[0]}</span>
+                    <span className="text-sm">{t ? t.icon : '⚪'}</span>
                   </div>
                 )
               })}
             </div>
           </div>
         </div>
+      </div>
 
-        {/* ROW 2: Projetos heatmap + Conformidade */}
-        <div className="grid gap-4" style={{ gridTemplateColumns: '1.5fr 1fr' }}>
-
-          <div className="bg-white border border-zinc-200 rounded-xl overflow-hidden">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-100">
-              <div className="text-xs font-bold uppercase tracking-wider text-zinc-700 flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-violet-500" />Heatmap operacional</div>
-              <span className="text-[10px] font-bold text-zinc-500">{projects.length} projetos</span>
-            </div>
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="text-[9px] uppercase tracking-wider text-zinc-400 border-b border-zinc-100">
-                  <th className="text-left px-5 py-2 font-bold">Projeto</th>
-                  <th className="text-center px-3 py-2 font-bold">Vencidas</th>
-                  <th className="text-center px-3 py-2 font-bold">Abertas</th>
-                  <th className="text-center px-3 py-2 font-bold">Progresso</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-zinc-50">
-                {projects.slice(0, 6).map(p => {
-                  const pTasks = tasks.filter(t => t.project_id === p.id)
-                  const overdue = pTasks.filter(t => t.due_date && new Date(t.due_date) < new Date() && t.column_id !== 'done').length
-                  const open = pTasks.filter(t => t.column_id !== 'done').length
-                  const progress = p.progress || 0
-                  const flagColor = p.companies?.criticality === 'critico' ? 'bg-red-500' : p.companies?.criticality === 'alto' ? 'bg-amber-400' : 'bg-emerald-500'
-                  const cell = (v, thresholds) => {
-                    if (v === 0) return 'bg-zinc-100 text-zinc-400'
-                    if (v >= thresholds[1]) return 'bg-red-100 text-red-700'
-                    if (v >= thresholds[0]) return 'bg-amber-100 text-amber-700'
-                    return 'bg-emerald-100 text-emerald-700'
-                  }
-                  return (
-                    <tr key={p.id} className="hover:bg-zinc-50 cursor-pointer">
-                      <td className="px-5 py-2.5">
-                        <div className="flex items-center gap-2">
-                          <div className={`w-1 h-5 rounded-full shrink-0 ${flagColor}`} />
-                          <span className="font-semibold text-zinc-800 truncate max-w-[140px]">{p.name}</span>
-                          {p.companies?.name && <span className="text-[9px] bg-zinc-100 text-zinc-500 px-1.5 py-0.5 rounded font-bold">{p.companies.name.split(' ')[0]}</span>}
-                        </div>
-                      </td>
-                      <td className="text-center px-3 py-2.5">
-                        <span className={`inline-block min-w-[28px] px-1.5 py-0.5 rounded text-[10px] font-bold ${cell(overdue, [1, 3])}`}>{overdue}</span>
-                      </td>
-                      <td className="text-center px-3 py-2.5">
-                        <span className={`inline-block min-w-[28px] px-1.5 py-0.5 rounded text-[10px] font-bold ${cell(open, [5, 10])}`}>{open}</span>
-                      </td>
-                      <td className="text-center px-3 py-2.5">
-                        <span className={`inline-block min-w-[36px] px-1.5 py-0.5 rounded text-[10px] font-bold ${parseInt(progress) >= 70 ? 'bg-emerald-100 text-emerald-700' : parseInt(progress) >= 40 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>{progress}%</span>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="bg-white border border-zinc-200 rounded-xl p-5">
-            <div className="flex items-center justify-between mb-4">
-              <div className="text-xs font-bold uppercase tracking-wider text-zinc-700 flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-violet-500" />Conformidade rotinas</div>
-              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${compliance >= 80 ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>{compliance}%</span>
-            </div>
-            {/* Ring SVG */}
-            <div className="flex items-center gap-4 mb-4">
-              <svg width="90" height="90" viewBox="0 0 90 90">
-                <circle cx="45" cy="45" r="36" fill="none" stroke="#F4F4F5" strokeWidth="9" />
-                <circle cx="45" cy="45" r="36" fill="none" stroke={compliance >= 80 ? '#10B981' : compliance >= 60 ? '#F59E0B' : '#EF4444'} strokeWidth="9"
-                  strokeDasharray="226" strokeDashoffset={226 - (226 * compliance / 100)}
-                  strokeLinecap="round" transform="rotate(-90 45 45)" />
-                <text x="45" y="49" textAnchor="middle" fontSize="18" fontWeight="800" fill="#2D2E39" fontFamily="Montserrat">{compliance}%</text>
-              </svg>
-              <div className="flex-1 space-y-1.5">
-                <div className="flex justify-between text-xs"><span className="text-zinc-500">Total rotinas</span><span className="font-bold">{routines.length}</span></div>
-                <div className="flex justify-between text-xs"><span className="text-zinc-500">Concluídas hoje</span><span className="font-bold text-emerald-600">{doneToday}</span></div>
-                <div className="flex justify-between text-xs"><span className="text-zinc-500">Pendentes</span><span className={`font-bold ${routines.length - doneToday > 0 ? 'text-red-500' : 'text-zinc-600'}`}>{routines.length - doneToday}</span></div>
+      {/* ── HEALTH SCORE + SEMÁFORO ── */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        <div className="bg-white border border-zinc-200 rounded-xl p-5">
+          <h3 className="text-sm font-bold text-zinc-700 mb-2 text-center">Saúde Operacional</h3>
+          <Gauge score={health} />
+        </div>
+        <div className="bg-white border border-zinc-200 rounded-xl p-5">
+          <h3 className="text-sm font-bold text-zinc-700 mb-4">Semáforo Executivo</h3>
+          {[
+            { icon: '📋', name: 'Tarefas', color: overdue === 0 ? GREEN : overdue <= 3 ? AMBER : RED, status: overdue === 0 ? 'Tudo em dia' : `${overdue} atrasadas`, metric: `${todo + doing} abertas` },
+            { icon: '💰', name: 'Pipeline', color: pipeTotal > 1000000 ? GREEN : pipeTotal > 500000 ? AMBER : RED, status: pipeTotal > 1000000 ? 'Strong' : pipeTotal > 500000 ? 'Moderate' : 'Baixo', metric: fmtBRL(pipeTotal) },
+            { icon: '📍', name: 'Equipe', color: ciPct > 0.7 ? GREEN : ciPct > 0.3 ? AMBER : RED, status: `${Math.round(ciPct * 100)}%`, metric: `${checkins.length}/${profiles.length} check-ins` },
+            { icon: '📁', name: 'Projetos', color: activeProjs.length > 0 ? GREEN : AMBER, status: `${activeProjs.length} ativos`, metric: `${data.projects.length} total` },
+          ].map(s => (
+            <div key={s.name} className="flex items-center justify-between p-3 bg-zinc-50 rounded-lg mb-2" style={{ borderLeft: `3px solid ${s.color}` }}>
+              <div className="flex items-center gap-3">
+                <span className="text-lg">{s.icon}</span>
+                <div>
+                  <p className="text-xs font-semibold text-zinc-800">{s.name}</p>
+                  <p className="text-[10px] text-zinc-500">{s.status}</p>
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="w-3 h-3 rounded-full mb-1 ml-auto" style={{ background: s.color }} />
+                <p className="text-xs font-semibold text-zinc-700">{s.metric}</p>
               </div>
             </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── KPIs ── */}
+      <div className="text-[10px] font-bold uppercase tracking-widest text-violet-600 mb-3 flex items-center gap-2">
+        <span className="w-5 h-0.5 bg-violet-600 rounded inline-block" />Métricas Operacionais
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
+        {[
+          { label: 'Projetos Ativos', value: activeProjs.length, sub: `${data.projects.length} total`, color: AMBER, icon: '📁', to: '/portfolio' },
+          { label: 'Pipeline Total', value: fmtBRL(pipeTotal), sub: `${fmtBRL(pipeWeighted)} pond.`, color: GREEN, icon: '💰', to: '/captacao' },
+          { label: 'Tarefas Abertas', value: todo + doing, sub: `${done} concluídas`, color: BLUE, icon: '📋', to: '/kanban' },
+          { label: 'Vencidas', value: overdue, sub: overdue === 0 ? 'tudo em dia' : 'ação imediata', color: overdue > 0 ? RED : GREEN, icon: overdue > 0 ? '🚨' : '✅', to: '/kanban' },
+          { label: 'Check-ins', value: `${checkins.length}/${profiles.length}`, sub: `${Math.round(ciPct * 100)}%`, color: '#8B5CF6', icon: '📍', to: '/time' },
+          { label: 'Rotinas Ativas', value: data.routines?.length || 0, sub: 'configuradas', color: '#06B6D4', icon: '⏱️', to: '/rotinas' },
+        ].map((k, i) => (
+          <div key={i} onClick={() => navigate(k.to)} className="rounded-xl p-4 cursor-pointer hover:opacity-90 transition-all" style={{ background: CH, borderLeft: `4px solid ${k.color}` }}>
+            <div className="flex justify-between items-start mb-1">
+              <p className="text-[9px] font-bold uppercase tracking-wider text-zinc-400">{k.label}</p>
+              <span className="text-base opacity-80">{k.icon}</span>
+            </div>
+            <p className="text-xl font-bold text-white">{k.value}</p>
+            <p className="text-[10px] text-zinc-500 mt-0.5">{k.sub}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* ── VISÃO OPERACIONAL ── */}
+      <div className="text-[10px] font-bold uppercase tracking-widest text-violet-600 mb-3 flex items-center gap-2">
+        <span className="w-5 h-0.5 bg-violet-600 rounded inline-block" />Visão Operacional
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        {/* Funil Pipeline */}
+        <div className="bg-white border border-zinc-200 rounded-xl p-5">
+          <h3 className="text-sm font-bold text-zinc-800 mb-4">Funil Pipeline</h3>
+          {pipeStages.map((st, i) => (
+            <div key={st.id} className="flex items-center gap-3 mb-2">
+              <div className="flex-1 rounded-lg px-4 py-3 flex justify-between items-center" style={{ background: `${st.color}18`, borderLeft: `4px solid ${st.color}`, marginLeft: `${i * 5}%`, transition: 'all 0.3s' }}>
+                <span className="text-xs font-semibold text-zinc-700">{st.label}</span>
+                <div className="text-right">
+                  <span className="text-base font-bold" style={{ color: st.color }}>{st.count}</span>
+                  <span className="text-xs text-zinc-400 ml-2">{fmtBRL(st.value)}</span>
+                </div>
+              </div>
+            </div>
+          ))}
+          <div className="mt-3 p-3 rounded-lg flex justify-between" style={{ background: CH }}>
+            <div><p className="text-[9px] text-zinc-400 uppercase">Total</p><p className="text-white font-bold text-sm mt-0.5">{fmtBRL(pipeTotal)}</p></div>
+            <div className="text-right"><p className="text-[9px] text-zinc-400 uppercase">Ponderado</p><p className="font-bold text-sm mt-0.5" style={{ color: VL }}>{fmtBRL(pipeWeighted)}</p></div>
           </div>
         </div>
 
-        {/* ROW 3: Equipe agora + Atividade recente */}
-        <div className="grid gap-4" style={{ gridTemplateColumns: '1.5fr 1fr' }}>
-
-          <div className="bg-white border border-zinc-200 rounded-xl p-5">
-            <div className="flex items-center justify-between mb-4">
-              <div className="text-xs font-bold uppercase tracking-wider text-zinc-700 flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-violet-500" />Equipe agora</div>
-              <span className="text-[10px] font-bold text-zinc-500">{members.length} colaboradores</span>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              {membersWithStatus.map(m => {
-                const isActive = activeTeamMember === m.id
-                const statusColor = STATUS_COLORS[m.status] || '#A1A1AA'
-                const statusDot = m.status !== 'pendente' ? statusColor : '#A1A1AA'
-                return (
-                  <div key={m.id} onClick={() => { setActiveTeamMember(m.id); flyTo(m.id) }}
-                    className={`flex items-center gap-2.5 p-2.5 rounded-xl cursor-pointer border-l-2 transition-all ${isActive ? 'border-l-violet-500 bg-violet-50' : 'border-l-transparent bg-zinc-50 hover:bg-zinc-100'}`}>
-                    <div className="relative shrink-0">
-                      <div className="w-8 h-8 rounded-full text-[10px] font-bold text-white flex items-center justify-center" style={{ background: m.avatar_color || '#5452C1' }}>
-                        {m.initials || '?'}
-                      </div>
-                      <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-white" style={{ background: statusDot }} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-xs font-bold text-zinc-800 truncate">{m.full_name}</div>
-                      <div className="text-[10px] text-zinc-500 truncate">{m.location || STATUS_LABELS[m.status] || 'Sem check-in'}</div>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-
-          <div className="bg-white border border-zinc-200 rounded-xl p-5">
-            <div className="flex items-center justify-between mb-4">
-              <div className="text-xs font-bold uppercase tracking-wider text-zinc-700 flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-violet-500" />Atividade recente</div>
-              <div className="flex items-center gap-1 text-[9px] text-emerald-600 font-bold"><div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />live</div>
-            </div>
-            <div className="space-y-3 max-h-80 overflow-y-auto">
-              {activity.length === 0 ? (
-                <div className="text-xs text-zinc-400 text-center py-4">Nenhuma atividade recente.</div>
-              ) : activity.map(a => {
-                const actor = a.profiles
-                return (
-                  <div key={a.id} className="flex gap-2.5 items-start">
-                    <div className="w-1.5 h-1.5 rounded-full bg-violet-500 mt-1.5 shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <div className="text-xs text-zinc-700 leading-snug">
-                        <span className="font-bold">{actor?.full_name?.split(' ')[0] || 'Sistema'}</span> {a.action}
-                        {a.details && <span className="text-zinc-500"> — {String(a.details).slice(0, 40)}</span>}
-                      </div>
-                      <div className="text-[9px] text-zinc-400 mt-0.5">{fmtRelTime(a.created_at)}</div>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
+        {/* Carga por membro */}
+        <div className="bg-white border border-zinc-200 rounded-xl p-5">
+          <h3 className="text-sm font-bold text-zinc-800 mb-4">Carga por Membro</h3>
+          {memberLoadArr.length === 0 ? (
+            <p className="text-xs text-zinc-400 text-center py-6">Sem tarefas atribuídas</p>
+          ) : memberLoadArr.slice(0, 7).map(m => {
+            const max = memberLoadArr[0].count || 1
+            const pct = Math.max(8, m.count / max * 100)
+            const color = m.count > 8 ? RED : m.count > 5 ? AMBER : VL
+            return (
+              <div key={m.name} className="mb-3">
+                <div className="flex justify-between mb-1">
+                  <span className="text-xs font-medium text-zinc-700">{m.name.split(' ')[0]}</span>
+                  <span className="text-xs font-bold" style={{ color }}>{m.count}</span>
+                </div>
+                <div className="h-1.5 bg-zinc-100 rounded-full overflow-hidden">
+                  <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: color }} />
+                </div>
+              </div>
+            )
+          })}
         </div>
 
+        {/* Atividade recente */}
+        <div className="bg-white border border-zinc-200 rounded-xl p-5">
+          <h3 className="text-sm font-bold text-zinc-800 mb-4">Atividade Recente</h3>
+          {recentActivity.length === 0 ? (
+            <p className="text-xs text-zinc-400 text-center py-6">Nenhuma atividade</p>
+          ) : recentActivity.map(t => {
+            const sColor = t.column_id === 'done' ? GREEN : t.column_id === 'doing' ? BLUE : AMBER
+            const sLabel = t.column_id === 'done' ? 'Concluído' : t.column_id === 'doing' ? 'Executando' : t.column_id === 'review' ? 'Revisão' : 'A Fazer'
+            return (
+              <div key={t.id} className="border-b border-zinc-50 pb-2 mb-2 last:border-0">
+                <p className="text-xs font-medium text-zinc-800 truncate mb-1">{(t.title || 'Sem título').slice(0, 45)}</p>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: `${sColor}18`, color: sColor }}>{sLabel}</span>
+                  <span className="text-[10px] text-zinc-400">{relTime(t.updated_at)}</span>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* ── PROJETOS ── */}
+      <div className="bg-white border border-zinc-200 rounded-xl p-5">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-sm font-bold text-zinc-800">Saúde dos Projetos</h3>
+          <button onClick={() => navigate('/portfolio')} className="text-xs font-semibold text-violet-600 hover:text-violet-700">Ver Portfolio →</button>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          {activeProjs.slice(0, 6).map(p => {
+            const projTasks = data.tasks.filter(t => t.project_id === p.id)
+            const projDone = projTasks.filter(t => t.column_id === 'done').length
+            const projOverdue = projTasks.filter(t => t.due_date && new Date(t.due_date) < new Date() && t.column_id !== 'done').length
+            const pct = projTasks.length > 0 ? Math.round(projDone / projTasks.length * 100) : 0
+            const hColor = projOverdue > 2 ? RED : projOverdue > 0 ? AMBER : GREEN
+            const hIcon = projOverdue > 2 ? '🔴' : projOverdue > 0 ? '🟡' : '🟢'
+            return (
+              <div key={p.id} className="p-3 border border-zinc-100 rounded-xl" style={{ borderLeft: `4px solid ${hColor}` }}>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm">{hIcon}</span>
+                    <span className="text-xs font-bold text-zinc-800 truncate max-w-[140px]">{p.name}</span>
+                  </div>
+                  <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: `${hColor}18`, color: hColor }}>{pct}%</span>
+                </div>
+                <div className="h-1.5 bg-zinc-100 rounded-full overflow-hidden">
+                  <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: hColor }} />
+                </div>
+              </div>
+            )
+          })}
+        </div>
       </div>
     </div>
   )
