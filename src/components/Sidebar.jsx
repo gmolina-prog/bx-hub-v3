@@ -68,7 +68,7 @@ export default function Sidebar() {
 
     async function loadBadges() {
       const [notifR] = await Promise.allSettled([
-        supabase.from('notifications').select('id', { count: 'exact', head: true }).eq('org_id', profile.org_id).eq('user_id', profile.id).eq('read', false),
+        supabase.from('notifications').select('id', { count: 'exact', head: true }).eq('org_id', profile.org_id).eq('user_id', profile.id).eq('is_read', false),
       ])
       if (!mounted) return
       if (notifR.status === 'fulfilled' && !notifR.value.error) {

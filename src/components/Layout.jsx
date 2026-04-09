@@ -28,14 +28,14 @@ function NotificationPanel({ profile, onClose }) {
   }, [profile])
 
   async function markRead(id) {
-    await supabase.from('notifications').update({ read: true }).eq('id', id)
-    setNotifs(prev => prev.map(n => n.id === id ? { ...n, read: true } : n))
+    await supabase.from('notifications').update({ is_read: true }).eq('id', id)
+    setNotifs(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n))
   }
 
   async function markAll() {
-    const ids = notifs.filter(n => !n.read).map(n => n.id)
-    if (ids.length > 0) await supabase.from('notifications').update({ read: true }).in('id', ids)
-    setNotifs(prev => prev.map(n => ({ ...n, read: true })))
+    const ids = notifs.filter(n => !n.is_read).map(n => n.id)
+    if (ids.length > 0) await supabase.from('notifications').update({ is_read: true }).in('id', ids)
+    setNotifs(prev => prev.map(n => ({ ...n, is_read: true })))
   }
 
   function relTime(d) {
@@ -47,7 +47,7 @@ function NotificationPanel({ profile, onClose }) {
   }
 
   const TYPE_ICONS = { task: '📋', alert: '⚠️', mention: '💬', system: 'ℹ️', deadline: '⏰' }
-  const unread = notifs.filter(n => !n.read).length
+  const unread = notifs.filter(n => !n.is_read).length
 
   return (
     <div className="absolute right-0 top-12 w-96 bg-white rounded-2xl shadow-2xl border border-zinc-200 z-50 overflow-hidden" style={{ maxHeight: '70vh' }}>
@@ -78,14 +78,14 @@ function NotificationPanel({ profile, onClose }) {
           </div>
         ) : notifs.map(n => (
           <div key={n.id} onClick={() => markRead(n.id)}
-            className={`flex items-start gap-3 px-4 py-3 border-b border-zinc-50 cursor-pointer hover:bg-zinc-50 transition-colors ${!n.read ? 'bg-violet-50/50' : ''}`}>
+            className={`flex items-start gap-3 px-4 py-3 border-b border-zinc-50 cursor-pointer hover:bg-zinc-50 transition-colors ${!n.is_read ? 'bg-violet-50/50' : ''}`}>
             <span className="text-lg shrink-0 mt-0.5">{TYPE_ICONS[n.type] || 'ℹ️'}</span>
             <div className="flex-1 min-w-0">
-              <div className={`text-sm font-semibold ${n.read ? 'text-zinc-700' : 'text-zinc-900'} leading-tight`}>{n.title}</div>
+              <div className={`text-sm font-semibold ${n.is_read ? 'text-zinc-700' : 'text-zinc-900'} leading-tight`}>{n.title}</div>
               {n.message && <div className="text-xs text-zinc-500 mt-0.5 leading-relaxed">{n.message}</div>}
               <div className="text-[10px] text-zinc-400 mt-1">{relTime(n.created_at)}</div>
             </div>
-            {!n.read && <div className="w-2 h-2 rounded-full mt-1.5 shrink-0" style={{ background: VL }} />}
+            {!n.is_read && <div className="w-2 h-2 rounded-full mt-1.5 shrink-0" style={{ background: VL }} />}
           </div>
         ))}
       </div>
@@ -312,7 +312,7 @@ export default function Layout({ children }) {
     const today = new Date().toISOString().split('T')[0]
 
     Promise.allSettled([
-      supabase.from('notifications').select('id', { count: 'exact', head: true }).eq('org_id', profile.org_id).eq('user_id', profile.id).eq('read', false),
+      supabase.from('notifications').select('id', { count: 'exact', head: true }).eq('org_id', profile.org_id).eq('user_id', profile.id).eq('is_read', false),
       supabase.from('check_ins').select('status').eq('user_id', profile.id).eq('org_id', profile.org_id).eq('date', today).is('check_out_time', null).limit(1),
     ]).then(([notifR, ciR]) => {
       if (notifR.status === 'fulfilled' && !notifR.value.error) setUnreadCount(notifR.value.count || 0)
@@ -326,7 +326,7 @@ export default function Layout({ children }) {
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${profile.id}` },
         () => setUnreadCount(p => p + 1))
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'notifications', filter: `user_id=eq.${profile.id}` },
-        () => supabase.from('notifications').select('id', { count: 'exact', head: true }).eq('org_id', profile.org_id).eq('user_id', profile.id).eq('read', false).then(({ count }) => setUnreadCount(count || 0)))
+        () => supabase.from('notifications').select('id', { count: 'exact', head: true }).eq('org_id', profile.org_id).eq('user_id', profile.id).eq('is_read', false).then(({ count }) => setUnreadCount(count || 0)))
       .subscribe()
 
     return () => supabase.removeChannel(ch)

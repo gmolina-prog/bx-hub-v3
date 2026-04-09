@@ -49,16 +49,16 @@ export default function Notificacoes() {
   }, [profile])
 
   async function markRead(id) {
-    await supabase.from('notifications').update({ read: true }).eq('id', id)
-    setNotifs(prev => prev.map(n => n.id === id ? {...n, read: true} : n))
+    await supabase.from('notifications').update({ is_read: true }).eq('id', id)
+    setNotifs(prev => prev.map(n => n.id === id ? {...n, is_read: true} : n))
   }
 
   async function markAllRead() {
     setActing(true)
-    const ids = notifs.filter(n => !n.read).map(n => n.id)
+    const ids = notifs.filter(n => !n.is_read).map(n => n.id)
     if (ids.length > 0) {
-      await supabase.from('notifications').update({ read: true }).in('id', ids)
-      setNotifs(prev => prev.map(n => ({...n, read: true})))
+      await supabase.from('notifications').update({ is_read: true }).in('id', ids)
+      setNotifs(prev => prev.map(n => ({...n, is_read: true})))
     }
     setActing(false)
   }
@@ -76,11 +76,11 @@ export default function Notificacoes() {
   }
 
   const filtered = notifs.filter(n => {
-    const mf = filter === 'all' || (filter === 'unread' && !n.read) || (filter === 'read' && n.read)
+    const mf = filter === 'all' || (filter === 'unread' && !n.is_read) || (filter === 'read' && n.is_read)
     const mt = typeFilter === 'all' || n.type === typeFilter
     return mf && mt
   })
-  const unread = notifs.filter(n => !n.read).length
+  const unread = notifs.filter(n => !n.is_read).length
 
   return (
     <div className="p-6 max-w-[1000px] mx-auto">
@@ -95,7 +95,7 @@ export default function Notificacoes() {
           </div>
           <div className="flex gap-3 flex-wrap">
             {Object.entries(TYPE_MAP).map(([key, t]) => {
-              const count = notifs.filter(n => n.type === key && !n.read).length
+              const count = notifs.filter(n => n.type === key && !n.is_read).length
               if (count === 0) return null
               return (
                 <div key={key} className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-center min-w-[60px]">
@@ -142,20 +142,20 @@ export default function Notificacoes() {
             const t = TYPE_MAP[n.type] || TYPE_MAP.system
             const Icon = t.icon
             return (
-              <div key={n.id} className={`flex items-start gap-4 px-5 py-4 transition-colors hover:bg-zinc-50 ${!n.read ? 'bg-violet-50/40' : ''}`}>
+              <div key={n.id} className={`flex items-start gap-4 px-5 py-4 transition-colors hover:bg-zinc-50 ${!n.is_read ? 'bg-violet-50/40' : ''}`}>
                 <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0" style={{ background: t.bg }}>
                   <Icon className="w-4 h-4" style={{ color: t.color }} />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-start justify-between gap-2">
-                    <div className={`text-sm font-semibold ${n.read ? 'text-zinc-700' : 'text-zinc-900'}`}>{n.title}</div>
+                    <div className={`text-sm font-semibold ${n.is_read ? 'text-zinc-700' : 'text-zinc-900'}`}>{n.title}</div>
                     <div className="flex items-center gap-2 shrink-0">
                       <span className="text-[10px] text-zinc-400 whitespace-nowrap">{relTime(n.created_at)}</span>
-                      {!n.read && <div className="w-2 h-2 rounded-full shrink-0" style={{ background: VL }} />}
+                      {!n.is_read && <div className="w-2 h-2 rounded-full shrink-0" style={{ background: VL }} />}
                     </div>
                   </div>
                   {n.message && <div className="text-xs text-zinc-500 mt-0.5 leading-relaxed">{n.message}</div>}
-                  {!n.read && (
+                  {!n.is_read && (
                     <button onClick={() => markRead(n.id)} className="flex items-center gap-1 text-[10px] font-semibold mt-1.5 transition-colors" style={{ color: VL }}>
                       <Check className="w-3 h-3" /> Marcar como lida
                     </button>

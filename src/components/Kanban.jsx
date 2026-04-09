@@ -80,7 +80,7 @@ function TaskModal({ task, projects, profiles, onClose, onSave, onDelete, onArch
     if (!newComment.trim() || !task.id || task.id === 'new') return
     const { data } = await supabase.from('task_comments').insert({
       task_id: task.id, org_id: profile.org_id,
-      author_id: profile.id, content: newComment,
+      user_id: profile.id, user_name: profile.full_name, content: newComment, type: 'comment',
     }).select().single()
     if (data) setComments(prev => [...prev, data])
     setNewComment('')
@@ -270,7 +270,7 @@ function TaskModal({ task, projects, profiles, onClose, onSave, onDelete, onArch
               ) : (
                 <div className="space-y-3 mb-4">
                   {comments.map(c => {
-                    const prof = profiles.find(p => p.id === c.author_id)
+                    const prof = profiles.find(p => p.id === c.user_id)
                     return (
                       <div key={c.id} className="flex gap-3">
                         <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0" style={{ background: prof?.avatar_color || '#5452C1' }}>
@@ -278,7 +278,7 @@ function TaskModal({ task, projects, profiles, onClose, onSave, onDelete, onArch
                         </div>
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-1">
-                            <span className="text-xs font-bold text-zinc-700">{prof?.full_name || 'Usuário'}</span>
+                            <span className="text-xs font-bold text-zinc-700">{c.user_name || prof?.full_name || 'Usuário'}</span>
                             <span className="text-[10px] text-zinc-400">{new Date(c.created_at).toLocaleDateString('pt-BR')}</span>
                           </div>
                           <div className="bg-zinc-50 rounded-xl px-3 py-2 text-sm text-zinc-700">{c.content}</div>

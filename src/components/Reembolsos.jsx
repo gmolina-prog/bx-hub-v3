@@ -42,10 +42,10 @@ export default function Reembolsos() {
     if (profR.status === 'fulfilled' && !profR.value.error) setProfilesList(profR.value.data || [])
     setReports(reps)
     if (reps.length > 0) {
-      const { data: itemData } = await supabase.from('expense_items').select('*').in('expense_report_id', reps.map(r => r.id))
+      const { data: itemData } = await supabase.from('expense_items').select('*').in('report_id', reps.map(r => r.id))
       const grouped = {}
       reps.forEach(r => { grouped[r.id] = [] })
-      ;(itemData || []).forEach(it => { if (grouped[it.expense_report_id]) grouped[it.expense_report_id].push(it) })
+      ;(itemData || []).forEach(it => { if (grouped[it.report_id]) grouped[it.report_id].push(it) })
       setItems(grouped)
     }
     setLoading(false)
@@ -56,7 +56,7 @@ export default function Reembolsos() {
   async function createReport() {
     if (!newTitle.trim()) return
     setSaving(true)
-    await supabase.from('expense_reports').insert({ org_id: profile.org_id, user_id: profile.id, title: newTitle, status: 'rascunho', total_value: 0 })
+    await supabase.from('expense_reports').insert({ org_id: profile.org_id, submitted_by: profile.id, title: newTitle, status: 'rascunho', total_amount: 0 })
     setShowNew(false); setNewTitle(''); await load(); setSaving(false)
   }
 
@@ -68,7 +68,7 @@ export default function Reembolsos() {
 
   async function deleteReport(id) {
     if (!window.confirm('Excluir este relatório?')) return
-    await supabase.from('expense_items').delete().eq('expense_report_id', id)
+    await supabase.from('expense_items').delete().eq('report_id', id)
     await supabase.from('expense_reports').delete().eq('id', id); await load()
   }
 
@@ -76,22 +76,22 @@ export default function Reembolsos() {
     if (!newItem.description.trim() || !newItem.value) return
     setSaving(true)
     const val = parseFloat(newItem.value.replace(',', '.'))
-    await supabase.from('expense_items').insert({ expense_report_id: reportId, category: newItem.category, description: newItem.description, value: val, date: newItem.date || new Date().toISOString().split('T')[0] })
+    await supabase.from('expense_items').insert({ report_id: reportId, category: newItem.category, description: newItem.description, amount: val, date: newItem.date || new Date().toISOString().split('T')[0] })
     const repItems = [...(items[reportId] || []), { value: val }]
-    const total = repItems.reduce((s, it) => s + (parseFloat(it.value) || 0), 0)
-    await supabase.from('expense_reports').update({ total_value: total }).eq('id', reportId)
+    const total = repItems.reduce((s, it) => s + (parseFloat(it.amount) || 0), 0)
+    await supabase.from('expense_reports').update({ total_amount: total }).eq('id', reportId)
     setAddingItem(null); setNewItem({ category: 'refeicao', description: '', value: '', date: '' }); await load(); setSaving(false)
   }
 
   async function deleteItem(reportId, itemId) {
     await supabase.from('expense_items').delete().eq('id', itemId)
     const remaining = (items[reportId] || []).filter(it => it.id !== itemId)
-    const total = remaining.reduce((s, it) => s + (parseFloat(it.value) || 0), 0)
-    await supabase.from('expense_reports').update({ total_value: total }).eq('id', reportId); await load()
+    const total = remaining.reduce((s, it) => s + (parseFloat(it.amount) || 0), 0)
+    await supabase.from('expense_reports').update({ total_amount: total }).eq('id', reportId); await load()
   }
 
   const filtered = filterStatus === 'all' ? reports : reports.filter(r => r.status === filterStatus)
-  const totalPendente = reports.filter(r => r.status === 'submetido').reduce((s, r) => s + (parseFloat(r.total_value) || 0), 0)
+  const totalPendente = reports.filter(r => r.status === 'submetido').reduce((s, r) => s + (parseFloat(r.total_amount) || 0), 0)
   const profMap = {}; profiles.forEach(p => { profMap[p.id] = p })
 
   return (
@@ -160,10 +160,10 @@ export default function Reembolsos() {
                   </button>
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-bold text-zinc-800">{report.title}</div>
-                    <div className="text-xs text-zinc-500 mt-0.5">{profMap[report.user_id]?.full_name || '—'} · {repItems.length} item{repItems.length !== 1 ? 's' : ''}</div>
+                    <div className="text-xs text-zinc-500 mt-0.5">{profMap[report.submitted_by]?.full_name || '—'} · {repItems.length} item{repItems.length !== 1 ? 's' : ''}</div>
                   </div>
                   <div className="text-right shrink-0">
-                    <div className="text-sm font-bold text-zinc-800">{fmtBRL(report.total_value)}</div>
+                    <div className="text-sm font-bold text-zinc-800">{fmtBRL(report.total_amount)}</div>
                     <span className="text-[10px] font-bold px-2 py-0.5 rounded" style={{ background: st.bg, color: st.color }}>{st.label}</span>
                   </div>
                   {st.next && (
@@ -195,14 +195,14 @@ export default function Reembolsos() {
                               </td>
                               <td className="px-4 py-2.5 text-zinc-700">{it.description}</td>
                               <td className="px-4 py-2.5 text-zinc-500 text-xs">{it.date ? new Date(it.date).toLocaleDateString('pt-BR') : '—'}</td>
-                              <td className="px-4 py-2.5 text-right font-semibold text-zinc-800">{fmtBRL(it.value)}</td>
+                              <td className="px-4 py-2.5 text-right font-semibold text-zinc-800">{fmtBRL(it.amount)}</td>
                               <td className="px-4 py-2.5"><button onClick={() => deleteItem(report.id, it.id)} className="text-zinc-300 hover:text-red-400"><X className="w-3.5 h-3.5" /></button></td>
                             </tr>
                           ))}
                         </tbody>
                         <tfoot><tr className="border-t-2 border-zinc-200 bg-zinc-50">
                           <td colSpan={3} className="px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-zinc-600">Total</td>
-                          <td className="px-4 py-2.5 text-right font-bold text-zinc-900">{fmtBRL(report.total_value)}</td>
+                          <td className="px-4 py-2.5 text-right font-bold text-zinc-900">{fmtBRL(report.total_amount)}</td>
                           <td />
                         </tr></tfoot>
                       </table>
