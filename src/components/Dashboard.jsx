@@ -87,6 +87,7 @@ export default function Dashboard() {
 
   const load = useCallback(async () => {
     if (!profile) return
+    setLoading(true)
     const today = new Date().toISOString().split('T')[0]
     const [tasksR, pipeR, projR, ciR, profR, routR] = await Promise.allSettled([
       supabase.from('tasks').select('id,column_id,priority,assigned_to,due_date,title,project_id,updated_at').eq('org_id', profile.org_id).is('deleted_at', null),

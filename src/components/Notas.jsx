@@ -225,6 +225,7 @@ export default function Notas() {
   const [expandProjects, setExpandProjects] = useState(false)
   const [expandCompanies, setExpandCompanies] = useState(false)
   const [saveStatus, setSaveStatus] = useState('Salvo ✓')
+  const [toolbarTick, setToolbarTick] = useState(0) // força re-render da toolbar
   const saveTimerRef = useRef(null)
   const editorRef = useRef(null)
   const titleRef = useRef(null)
@@ -484,6 +485,9 @@ export default function Notas() {
                 className="text-sm leading-relaxed outline-none min-h-[200px]"
                 style={{ color: CH, fontFamily: 'Montserrat, system-ui, sans-serif' }}
                 dangerouslySetInnerHTML={{ __html: selected.content_html || '' }}
+                onSelect={() => setToolbarTick(t => t + 1)}
+                onKeyUp={() => setToolbarTick(t => t + 1)}
+                onMouseUp={() => setToolbarTick(t => t + 1)}
                 onInput={e => {
                   // B-13: NÃO atualizar state durante digitação
                   // Isso causaria re-render → dangerouslySetInnerHTML → perda de cursor
@@ -496,18 +500,30 @@ export default function Notas() {
 
             {/* Toolbar */}
             <div className="px-4 py-2 border-t border-zinc-100 flex items-center gap-1 flex-wrap" style={{ background: '#FAFAFA' }}>
+              {/* toolbarTick={toolbarTick} → força queryCommandState a ser reavaliado */}
               {[
-                { cmd: 'bold',               val: null, label: <b>B</b>, title: 'Negrito' },
-                { cmd: 'italic',             val: null, label: <i>I</i>, title: 'Itálico' },
-                { cmd: 'formatBlock',        val: 'H2', label: 'H', title: 'Título' },
-                { cmd: 'insertUnorderedList',val: null, label: '☰', title: 'Lista' },
-                { cmd: 'formatBlock',        val: 'BLOCKQUOTE', label: '❝', title: 'Citação' },
-              ].map((t, i) => (
-                <button key={i} onMouseDown={e => { e.preventDefault(); execCmd(t.cmd, t.val) }} title={t.title}
-                  className="px-2.5 py-1 border border-zinc-200 rounded text-sm bg-white hover:bg-violet-50 hover:border-violet-400 transition-colors" style={{ fontFamily: 'Montserrat' }}>
-                  {t.label}
-                </button>
-              ))}
+                { cmd: 'bold',               val: null,        label: <b>B</b>,  title: 'Negrito',  check: 'bold' },
+                { cmd: 'italic',             val: null,        label: <i>I</i>,  title: 'Itálico',  check: 'italic' },
+                { cmd: 'formatBlock',        val: 'H2',        label: 'H',       title: 'Título',   check: null },
+                { cmd: 'insertUnorderedList',val: null,        label: '☰',       title: 'Lista',    check: 'insertUnorderedList' },
+                { cmd: 'formatBlock',        val: 'BLOCKQUOTE',label: '❝',       title: 'Citação',  check: null },
+              ].map((t, i) => {
+                // Detectar estado ativo via queryCommandState (funciona para bold/italic/list)
+                let isActive = false
+                try { if (t.check) isActive = document.queryCommandState(t.check) } catch(e) {}
+                return (
+                  <button key={i} onMouseDown={e => { e.preventDefault(); execCmd(t.cmd, t.val) }} title={t.title}
+                    className="px-2.5 py-1 border rounded text-sm transition-colors"
+                    style={{
+                      fontFamily: 'Montserrat',
+                      background: isActive ? '#5452C1' : 'white',
+                      color: isActive ? 'white' : '#2D2E39',
+                      borderColor: isActive ? '#5452C1' : '#E5E5E5',
+                    }}>
+                    {t.label}
+                  </button>
+                )
+              })}
               <span className="ml-auto text-[11px] text-zinc-400">{saveStatus}</span>
               <button onClick={() => archiveNote(selected.id)} className="px-2.5 py-1 border border-red-200 rounded text-xs text-red-500 hover:bg-red-50 transition-colors">
                 🗑️ Arquivar

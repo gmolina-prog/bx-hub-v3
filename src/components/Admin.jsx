@@ -187,6 +187,9 @@ export default function Admin() {
     try {
       // NOTE: real invite via auth requires admin API / edge function.
       // Here we just create a pending profile row.
+      // Gerar initials automaticamente
+      const initials = inviteData.full_name.trim().split(' ')
+        .map(w => w[0]).join('').toUpperCase().slice(0, 2)
       const { error: iErr } = await supabase
         .from('profiles')
         .insert([{
@@ -194,6 +197,8 @@ export default function Admin() {
           email: inviteData.email.trim(),
           full_name: inviteData.full_name.trim(),
           role: inviteData.role,
+          initials,
+          is_active: true,
         }])
       if (iErr) throw iErr
       setInviteData({ email: '', full_name: '', role: 'analyst' })

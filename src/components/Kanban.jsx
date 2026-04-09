@@ -396,7 +396,7 @@ export default function Kanban() {
         org_id: profile.org_id,
         title: form.title, description: form.description, priority: form.priority,
         column_id: form.column_id, assigned_to: form.assigned_to || null,
-        project_id: form.project_id || null,
+        project_id: form.project_id || null, created_by: profile.id,
         due_date: form.due_date || null, hours_logged: form.hours_logged ? parseFloat(form.hours_logged) : null,
         is_emergency: form.is_emergency || false, checklist: form.checklist || [],
       })

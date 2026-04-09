@@ -210,20 +210,32 @@ export default function Time() {
         routines: myRoutines,
         checkIns: myCheckIns,
         kudosReceived,
+        streak: streakByUser[p.id] || 0,
         kudosGiven,
       })
     })
     return m
   }, [profiles, tasks, routines, checkins, kudos])
 
+  // B-26: pesos unificados com Produtividade.jsx
+  const SCORE_W = { taskDone: 10, routine: 8, checkIn: 3, kudo: 8, streakBonus: 5 }
+
+  function calcScore(stats) {
+    const base = (stats.tasksDone || 0) * SCORE_W.taskDone
+               + (stats.routines  || 0) * SCORE_W.routine
+               + (stats.checkIns  || 0) * SCORE_W.checkIn
+               + (stats.kudosReceived || 0) * SCORE_W.kudo
+    // Streak: dias consecutivos de check-in (mesmo algoritmo do Produtividade)
+    const streak = stats.streak || 0
+    const streakPts = streak >= 3 ? Math.min(streak, 14) * SCORE_W.streakBonus : 0
+    return base + streakPts
+  }
+
   const ranked = useMemo(() => {
     return [...profiles].sort((a, b) => {
-      const sa = profileStats.get(a.id)
-      const sb = profileStats.get(b.id)
-      if (!sa || !sb) return 0
-      const scoreA = sa.tasksDone * 10 + sa.routines * 5 + sa.checkIns * 3 + sa.kudosReceived * 8
-      const scoreB = sb.tasksDone * 10 + sb.routines * 5 + sb.checkIns * 3 + sb.kudosReceived * 8
-      return scoreB - scoreA
+      const sa = profileStats.get(a.id) || {}
+      const sb = profileStats.get(b.id) || {}
+      return calcScore(sb) - calcScore(sa)
     })
   }, [profiles, profileStats])
 
@@ -473,7 +485,7 @@ export default function Time() {
           <div className="divide-y divide-zinc-100">
             {ranked.map((p, idx) => {
               const stats = profileStats.get(p.id) || {}
-              const score = stats.tasksDone * 10 + stats.routines * 5 + stats.checkIns * 3 + stats.kudosReceived * 8
+              const score = calcScore(stats)
               const initials = p.initials || (p.full_name || '?').split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase()
               const avatarStyle = p.avatar_color ? { background: p.avatar_color } : {}
               const avatarClass = p.avatar_color
