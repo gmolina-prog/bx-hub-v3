@@ -41,8 +41,18 @@ export default function App() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#F2F2F2]">
-        <div className="text-sm font-semibold text-zinc-500">Carregando BX Hub…</div>
+      <div className="min-h-screen flex flex-col items-center justify-center bg-[#F2F2F2] gap-4">
+        <div style={{ fontFamily: 'Montserrat, sans-serif', textAlign: 'center' }}>
+          <div style={{ fontSize: 32, marginBottom: 16 }}>⚡</div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: '#2D2E39', marginBottom: 8 }}>BX Project Hub</div>
+          <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 16 }}>Iniciando sistema…</div>
+          <div style={{ width: 200, height: 3, background: '#E5E7EB', borderRadius: 4, overflow: 'hidden', margin: '0 auto' }}>
+            <div style={{ height: '100%', background: '#5452C1', borderRadius: 4, width: '70%', animation: 'pulse 1.5s ease-in-out infinite' }} />
+          </div>
+          <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 16 }}>
+            Conexão lenta? <button onClick={() => window.location.reload()} style={{ color: '#5452C1', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', fontSize: 11 }}>Recarregar</button>
+          </div>
+        </div>
       </div>
     )
   }

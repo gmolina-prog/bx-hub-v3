@@ -38,22 +38,23 @@ export function DataProvider({ children }) {
   useEffect(() => {
     let mounted = true
 
-    // Timeout de segurança — se demorar mais de 8s, libera o loading
+    // Timeout de segurança — garante que o loading nunca fica infinito
     const safetyTimeout = setTimeout(() => {
       if (mounted) {
-        console.warn('[DataContext] Timeout — liberando loading')
+        console.warn('[DataContext] Safety timeout — liberando loading após 5s')
         setLoading(false)
       }
-    }, 8000)
+    }, 5000)
 
     async function init() {
       try {
-        const { data: { session: s } } = await supabase.auth.getSession()
+        const { data: { session: s }, error } = await supabase.auth.getSession()
+        if (error) console.error('[DataContext] getSession error:', error.message)
         if (!mounted) return
         setSession(s)
         if (s?.user) await loadProfile(s.user)
       } catch (err) {
-        console.error('[DataContext] Init error:', err.message)
+        console.error('[DataContext] Init crash:', err.message)
       } finally {
         if (mounted) {
           clearTimeout(safetyTimeout)
