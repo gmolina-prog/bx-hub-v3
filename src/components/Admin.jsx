@@ -166,6 +166,7 @@ export default function Admin() {
         .from('profiles')
         .update({ role: newRole })
         .eq('id', profileId)
+        .eq('org_id', profile.org_id)
       if (uErr) throw uErr
       await loadProfiles()
       showSuccess('Role atualizada')

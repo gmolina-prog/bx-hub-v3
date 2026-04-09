@@ -334,6 +334,7 @@ export default function Kanban() {
   const [search, setSearch] = useState('')
   const [filterProject, setFilterProject] = useState('all')
   const [filterPriority, setFilterPriority] = useState('all')
+  const [filterAssignee, setFilterAssignee] = useState('all')
   const [modalTask, setModalTask] = useState(null)
   const [error, setError] = useState(null)
   const [dragging, setDragging] = useState(null)

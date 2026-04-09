@@ -218,7 +218,7 @@ function CheckInPanel({ profile, onClose }) {
   async function doCheckOut() {
     if (!currentCI) return
     setSaving(true)
-    await supabase.from('check_ins').update({ check_out_time: new Date().toISOString() }).eq('id', currentCI.id)
+    await supabase.from('check_ins').update({ check_out_time: new Date().toISOString() }).eq('id', currentCI.id).eq('org_id', profile.org_id)
     setCurrentCI(null)
     setSaving(false)
   }

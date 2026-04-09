@@ -229,6 +229,7 @@ export default function CRM() {
         .from('proposals')
         .update(updates)
         .eq('id', proposalId)
+        .eq('org_id', profile.org_id)
       if (uErr) throw uErr
       await loadAll()
       showSuccess('Status atualizado')

@@ -200,6 +200,7 @@ export default function Captacao() {
           last_contact: new Date().toISOString(),
         })
         .eq('id', itemId)
+        .eq('org_id', profile.org_id)
       if (uErr) throw uErr
       await loadAll()
       showSuccess('Movido para ' + STAGES.find(s => s.id === newStage)?.label)

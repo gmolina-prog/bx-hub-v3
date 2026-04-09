@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { GitBranch, Building2 } from 'lucide-react'
+import { toast } from './Toast'
 import { supabase } from '../lib/supabase'
+import { useEscapeKey } from '../hooks/useEscapeKey'
 import { useData } from '../contexts/DataContext'
 
 const CH = '#2D2E39', VL = '#5452C1'
@@ -40,6 +42,29 @@ function daysColor(d) {
 
 export default function Timeline() {
   const { profile } = useData()
+  useEscapeKey(() => setShowNewProject(false), showNewProject)
+
+  async function createProject() {
+    if (!newProj.name.trim()) { toast.warning('Preencha o nome do projeto'); return }
+    setSavingProj(true)
+    const { error } = await supabase.from('projects').insert({
+      org_id: profile.org_id,
+      name: newProj.name.trim(),
+      type: newProj.type,
+      status: newProj.status,
+      company_id: newProj.company_id || null,
+      analyst_id: newProj.analyst_id || null,
+      deadline: newProj.deadline || null,
+      priority: newProj.priority,
+      progress: 0,
+    })
+    if (error) { toast.error('Erro ao criar projeto: ' + error.message); setSavingProj(false); return }
+    setShowNewProject(false)
+    setNewProj({ name:'', type:'Diagnóstico', status:'Planejamento', company_id:'', analyst_id:'', deadline:'', priority:'medium' })
+    await load()
+    toast.success('Projeto criado')
+    setSavingProj(false)
+  }
   const [projects, setProjects] = useState([])
   const [companies, setCompanies] = useState([])
   const [profiles, setProfilesList] = useState([])
@@ -48,6 +73,9 @@ export default function Timeline() {
   const [filterStatus, setFilterStatus] = useState('all')
   const [filterCompany, setFilterCompany] = useState('all')
   const [view, setView] = useState('gantt')
+  const [showNewProject, setShowNewProject] = useState(false)
+  const [newProj, setNewProj] = useState({ name:'', type:'Diagnóstico', status:'Planejamento', company_id:'', analyst_id:'', deadline:'', priority:'medium' })
+  const [savingProj, setSavingProj] = useState(false)
 
   const load = useCallback(async () => {
     if (!profile) return
@@ -263,6 +291,83 @@ export default function Timeline() {
           </table>
         </div>
       )}
+    {/* ── Modal Novo Projeto ── */}
+    {showNewProject && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+        style={{ background: 'rgba(0,0,0,0.45)' }}
+        onClick={e => e.target === e.currentTarget && setShowNewProject(false)}>
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+          <div className="flex items-center justify-between mb-5">
+            <h3 className="text-base font-bold text-zinc-800">Novo Projeto</h3>
+            <button onClick={() => setShowNewProject(false)} className="text-zinc-400 hover:text-zinc-600">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+          <div className="space-y-3">
+            <div>
+              <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Nome *</label>
+              <input autoFocus className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                value={newProj.name} onChange={e => setNewProj(p => ({...p, name: e.target.value}))}
+                placeholder="Ex: Diagnóstico Financeiro — Empresa X..." />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Tipo</label>
+                <select className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                  value={newProj.type} onChange={e => setNewProj(p => ({...p, type: e.target.value}))}>
+                  <option>Diagnóstico</option>
+                  <option>RJ</option>
+                  <option>M&A</option>
+                  <option>Reestruturação</option>
+                  <option>Assessoria</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Status</label>
+                <select className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                  value={newProj.status} onChange={e => setNewProj(p => ({...p, status: e.target.value}))}>
+                  <option>Planejamento</option>
+                  <option value="active">Em andamento</option>
+                  <option>Concluído</option>
+                  <option>Pausado</option>
+                </select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Empresa</label>
+                <select className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                  value={newProj.company_id} onChange={e => setNewProj(p => ({...p, company_id: e.target.value}))}>
+                  <option value="">— nenhuma —</option>
+                  {companies.map(co => <option key={co.id} value={co.id}>{co.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Analista</label>
+                <select className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                  value={newProj.analyst_id} onChange={e => setNewProj(p => ({...p, analyst_id: e.target.value}))}>
+                  <option value="">— nenhum —</option>
+                  {profilesList.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
+                </select>
+              </div>
+            </div>
+            <div>
+              <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Prazo</label>
+              <input type="date" className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                value={newProj.deadline} onChange={e => setNewProj(p => ({...p, deadline: e.target.value}))} />
+            </div>
+            <div className="flex gap-3 pt-2">
+              <button onClick={createProject} disabled={savingProj || !newProj.name.trim()}
+                className="flex-1 py-2.5 text-sm font-bold text-white rounded-xl hover:opacity-90 disabled:opacity-50"
+                style={{ background: '#5452C1' }}>
+                {savingProj ? 'Criando…' : 'Criar Projeto'}
+              </button>
+              <button onClick={() => setShowNewProject(false)} className="px-4 text-sm text-zinc-500 hover:text-zinc-700">Cancelar</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
     </div>
   )
 }

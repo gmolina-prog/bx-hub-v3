@@ -417,7 +417,14 @@ export default function Chat() {
     else users.push(profile.id)
     if (users.length === 0) delete reactions[emoji]
     else reactions[emoji] = users
-    await supabase.from('chat_messages').update({ reactions }).eq('id', msgId)
+    // Optimistic update
+    setMessages(prev => prev.map(m => m.id === msgId ? { ...m, reactions } : m))
+    const { error } = await supabase.from('chat_messages')
+      .update({ reactions }).eq('id', msgId).eq('org_id', profile.org_id)
+    if (error) {
+      // Reverter em caso de falha
+      setMessages(prev => prev.map(m => m.id === msgId ? { ...m, reactions: msg.reactions } : m))
+    }
   }
 
   // ── Pin message ──
