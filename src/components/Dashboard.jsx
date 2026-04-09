@@ -87,6 +87,7 @@ export default function Dashboard() {
   const navigate = useNavigate()
   const mapRef = useRef(null)
   const leafletMapRef = useRef(null)
+  const markersRef = useRef({})  // user_id → marker Leaflet
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const clockRef = useRef(null)
@@ -198,6 +199,7 @@ export default function Dashboard() {
       if (leafletMapRef.current) {
         leafletMapRef.current.remove()
         leafletMapRef.current = null
+        markersRef.current = {}
       }
       const map = L.map(mapRef.current, { zoom: 12, zoomControl: true, attributionControl: false })
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map)
@@ -238,8 +240,9 @@ export default function Dashboard() {
           className: '', iconAnchor: [16, 16],
         })
         const typeInfo = CHECKIN_TYPES[s] || { icon: '📍', label: s }
-        L.marker([lat, lng], { icon }).addTo(map)
+        const marker = L.marker([lat, lng], { icon }).addTo(map)
           .bindPopup(`<b style="font-family:Montserrat">${prof.full_name}</b><br>${typeInfo.icon} ${typeInfo.label}<br>${ci.location || ''}`)
+        markersRef.current[ci.user_id] = { marker, lat, lng }
       })
 
       // Membros sem check-in — posição determinística no entorno do escritório
@@ -253,7 +256,8 @@ export default function Dashboard() {
           html: `<div style="background:#9CA3AF;color:white;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;font-family:Montserrat,sans-serif;border:2px solid white;opacity:0.6">${initials}</div>`,
           className: '', iconAnchor: [14, 14],
         })
-        L.marker([lat, lng], { icon }).addTo(map).bindPopup(`<b>${p.full_name}</b><br>Sem check-in hoje`)
+        const mNoCi = L.marker([lat, lng], { icon }).addTo(map).bindPopup(`<b>${p.full_name}</b><br>Sem check-in hoje`)
+        markersRef.current[p.id] = { marker: mNoCi, lat, lng }
       })
 
       if (positioned.length > 0) map.fitBounds(L.latLngBounds([office, ...positioned]).pad(0.3))
@@ -269,6 +273,13 @@ export default function Dashboard() {
     const id = setInterval(tick, 30000)
     return () => clearInterval(id)
   }, [])
+
+  function focusUser(userId) {
+    const entry = markersRef.current[userId]
+    if (!entry || !leafletMapRef.current) return
+    leafletMapRef.current.flyTo([entry.lat, entry.lng], 15, { animate: true, duration: 0.8 })
+    setTimeout(() => entry.marker.openPopup(), 850)
+  }
 
   if (loading) return <div className="p-6 text-center text-sm text-zinc-400">Carregando…</div>
   if (!data) return null
@@ -323,7 +334,19 @@ export default function Dashboard() {
           <div className="w-full md:w-64 shrink-0 border-t md:border-t-0 md:border-l border-zinc-100 p-4">
             <div className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-3">Status Hoje</div>
             {Object.entries(CHECKIN_TYPES).map(([key, t]) => (
-              <div key={key} className={`flex items-center justify-between px-3 py-2 rounded-lg mb-1.5 ${ciByStatus[key] > 0 ? 'bg-zinc-50' : ''}`}>
+              <div key={key}
+                onClick={() => {
+                  if (!ciByStatus[key]) return
+                  const usersInStatus = checkins.filter(ci => (ci.status||'').toLowerCase().replace(/ /g,'') === key).map(ci => ci.user_id)
+                  if (usersInStatus.length === 1) { focusUser(usersInStatus[0]); return }
+                  // múltiplos: fitBounds de todos
+                  const entries = usersInStatus.map(uid => markersRef.current[uid]).filter(Boolean)
+                  if (entries.length && leafletMapRef.current) {
+                    const bounds = window.L?.latLngBounds(entries.map(e => [e.lat, e.lng]))
+                    if (bounds) leafletMapRef.current.flyToBounds(bounds.pad(0.3), { animate: true, duration: 0.8 })
+                  }
+                }}
+                className={`flex items-center justify-between px-3 py-2 rounded-lg mb-1.5 transition-all ${ciByStatus[key] > 0 ? 'bg-zinc-50 cursor-pointer hover:bg-violet-50 hover:border-violet-200 border border-transparent' : 'border border-transparent'}`}>
                 <div className="flex items-center gap-2">
                   <span className="text-base">{t.icon}</span>
                   <span className="text-xs font-medium text-zinc-700">{t.label}</span>
@@ -341,7 +364,9 @@ export default function Dashboard() {
                 const s = ci ? (ci.status || '').toLowerCase() : null
                 const t = s ? CHECKIN_TYPES[s] : null
                 return (
-                  <div key={p.id} className="flex items-center gap-2">
+                  <div key={p.id}
+                    onClick={() => focusUser(p.id)}
+                    className="flex items-center gap-2 px-2 py-1 rounded-lg cursor-pointer hover:bg-violet-50 hover:border hover:border-violet-200 border border-transparent transition-all -mx-2">
                     <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0" style={{ background: p.avatar_color || VL }}>
                       {p.initials || p.full_name?.slice(0, 2).toUpperCase()}
                     </div>
