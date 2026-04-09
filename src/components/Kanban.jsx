@@ -1,673 +1,489 @@
-import React, { useEffect, useState, useMemo, useRef } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
+import { Plus, X, Save, Trash2, AlertCircle, Search, ChevronDown, Paperclip, MessageSquare, Clock, CheckSquare, Square } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useData } from '../contexts/DataContext'
-import {
-  KanbanSquare,
-  Plus,
-  Search,
-  Filter,
-  User,
-  Calendar,
-  Clock,
-  AlertCircle,
-  Loader2,
-  X,
-  Trash2,
-  Edit3,
-  CheckCircle2,
-  Circle,
-  PlayCircle,
-} from 'lucide-react'
 
-// ============================================================================
-// Kanban.jsx — Round 6 · Board de tarefas com DnD nativo
-// ----------------------------------------------------------------------------
-// 3 colunas fixas (todo/doing/done) lendo tasks do Supabase.
-// Drag-and-drop HTML5 nativo (zero deps), optimistic updates com rollback.
-// Modal de edição inline, filtros por projeto e prioridade.
-// ============================================================================
-
+// 5 colunas exatamente como no mockup
 const COLUMNS = [
-  { id: 'todo', label: 'A Fazer', icon: Circle, color: 'zinc' },
-  { id: 'doing', label: 'Em Execução', icon: PlayCircle, color: 'violet' },
-  { id: 'done', label: 'Concluídas', icon: CheckCircle2, color: 'emerald' },
+  { id: 'backlog',  label: 'Backlog',       dot: '#A1A1AA', wip: null },
+  { id: 'todo',     label: 'A fazer',        dot: '#0EA5E9', wip: null },
+  { id: 'doing',    label: 'Em andamento',   dot: '#5452C1', wip: 10 },
+  { id: 'review',   label: 'Em revisão',     dot: '#F59E0B', wip: null },
+  { id: 'done',     label: 'Concluído',      dot: '#10B981', wip: null },
 ]
 
 const PRIORITIES = [
-  { id: 'urgent', label: 'Urgente', bg: 'bg-red-100', text: 'text-red-700', border: 'border-red-200' },
-  { id: 'high', label: 'Alta', bg: 'bg-orange-100', text: 'text-orange-700', border: 'border-orange-200' },
-  { id: 'medium', label: 'Média', bg: 'bg-amber-100', text: 'text-amber-700', border: 'border-amber-200' },
-  { id: 'low', label: 'Baixa', bg: 'bg-zinc-100', text: 'text-zinc-600', border: 'border-zinc-200' },
+  { value: 'urgent', label: 'Urgente',  border: 'border-l-red-500',   bg: 'bg-red-50',    badge: 'bg-red-100 text-red-700' },
+  { value: 'high',   label: 'Alta',     border: 'border-l-amber-400', bg: 'bg-amber-50',  badge: 'bg-amber-100 text-amber-700' },
+  { value: 'medium', label: 'Média',    border: 'border-l-sky-400',   bg: '',             badge: 'bg-sky-100 text-sky-700' },
+  { value: 'low',    label: 'Baixa',    border: 'border-l-zinc-300',  bg: '',             badge: 'bg-zinc-100 text-zinc-600' },
 ]
 
-export default function Kanban() {
-  const { profile } = useData()
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
-  const [savingId, setSavingId] = useState(null)
+function PriBorder(priority) { return PRIORITIES.find(p => p.value === priority)?.border || 'border-l-zinc-300' }
+function PriBg(priority) { return PRIORITIES.find(p => p.value === priority)?.bg || '' }
+function PriBadge(priority) { return PRIORITIES.find(p => p.value === priority)?.badge || 'bg-zinc-100 text-zinc-600' }
+function PriLabel(priority) { return PRIORITIES.find(p => p.value === priority)?.label || priority }
 
-  const [tasks, setTasks] = useState([])
-  const [projects, setProjects] = useState([])
-  const [profiles, setProfiles] = useState([])
-
-  // Filtros
-  const [search, setSearch] = useState('')
-  const [projectFilter, setProjectFilter] = useState('todos')
-  const [priorityFilter, setPriorityFilter] = useState('todas')
-
-  // DnD state
-  const [draggedId, setDraggedId] = useState(null)
-  const [dragOverColumn, setDragOverColumn] = useState(null)
-
-  // Modal
-  const [editingTask, setEditingTask] = useState(null)
-  const [showNewModal, setShowNewModal] = useState(false)
-  const [newTaskColumn, setNewTaskColumn] = useState('todo')
-
-  useEffect(function () {
-    if (profile?.org_id) loadAll()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profile?.org_id])
-
-  async function loadAll() {
-    setLoading(true)
-    setError(null)
-    try {
-      const orgId = profile?.org_id
-      if (!orgId) throw new Error('Perfil sem org_id')
-
-      const [tRes, prRes, profRes] = await Promise.all([
-        supabase.from('tasks').select('*').eq('org_id', orgId).order('created_at', { ascending: false }),
-        supabase.from('projects').select('id, name').eq('org_id', orgId),
-        supabase.from('profiles').select('id, full_name').eq('org_id', orgId).order('full_name', { ascending: true }),
-      ])
-
-      if (tRes.error) throw tRes.error
-      if (prRes.error) throw prRes.error
-      if (profRes.error) throw profRes.error
-
-      setTasks(tRes.data || [])
-      setProjects(prRes.data || [])
-      setProfiles(profRes.data || [])
-    } catch (err) {
-      console.error('Kanban loadAll error:', err)
-      setError(err.message || 'Erro ao carregar kanban')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  // ──────────────────────────────────────────────────────────────────────
-  // Helpers
-  // ──────────────────────────────────────────────────────────────────────
-  const projectMap = useMemo(function () {
-    const m = {}
-    projects.forEach(function (p) { m[p.id] = p.name })
-    return m
-  }, [projects])
-
-  const profileMap = useMemo(function () {
-    const m = {}
-    profiles.forEach(function (p) { m[p.id] = p.full_name })
-    return m
-  }, [profiles])
-
-  const filteredTasks = useMemo(function () {
-    return tasks.filter(function (t) {
-      if (projectFilter !== 'todos' && t.project_id !== projectFilter) return false
-      if (priorityFilter !== 'todas' && t.priority !== priorityFilter) return false
-      if (search.trim()) {
-        const q = search.trim().toLowerCase()
-        const title = (t.title || '').toLowerCase()
-        if (title.indexOf(q) === -1) return false
-      }
-      return true
-    })
-  }, [tasks, search, projectFilter, priorityFilter])
-
-  const tasksByColumn = useMemo(function () {
-    const grouped = { todo: [], doing: [], done: [] }
-    filteredTasks.forEach(function (t) {
-      const col = t.column_id || 'todo'
-      if (grouped[col]) grouped[col].push(t)
-    })
-    return grouped
-  }, [filteredTasks])
-
-  // ──────────────────────────────────────────────────────────────────────
-  // DnD handlers
-  // ──────────────────────────────────────────────────────────────────────
-  function handleDragStart(e, taskId) {
-    setDraggedId(taskId)
-    e.dataTransfer.effectAllowed = 'move'
-    // Firefox quirk: precisa setar dataTransfer pra drag funcionar
-    try { e.dataTransfer.setData('text/plain', taskId) } catch (_) {}
-  }
-
-  function handleDragEnd() {
-    setDraggedId(null)
-    setDragOverColumn(null)
-  }
-
-  function handleDragOver(e, columnId) {
-    e.preventDefault()
-    e.dataTransfer.dropEffect = 'move'
-    if (dragOverColumn !== columnId) setDragOverColumn(columnId)
-  }
-
-  function handleDragLeave(e, columnId) {
-    // Só limpa se saiu DE FATO da coluna (não de um filho)
-    if (e.currentTarget.contains(e.relatedTarget)) return
-    if (dragOverColumn === columnId) setDragOverColumn(null)
-  }
-
-  async function handleDrop(e, targetColumnId) {
-    e.preventDefault()
-    const taskId = draggedId
-    setDraggedId(null)
-    setDragOverColumn(null)
-    if (!taskId) return
-
-    const task = tasks.find(function (t) { return t.id === taskId })
-    if (!task) return
-    if (task.column_id === targetColumnId) return
-
-    // Optimistic update
-    const previousColumn = task.column_id
-    setTasks(function (prev) {
-      return prev.map(function (t) {
-        if (t.id === taskId) return { ...t, column_id: targetColumnId }
-        return t
-      })
-    })
-    setSavingId(taskId)
-
-    try {
-      const { error: upErr } = await supabase
-        .from('tasks')
-        .update({ column_id: targetColumnId, updated_at: new Date().toISOString() })
-        .eq('id', taskId)
-      if (upErr) throw upErr
-    } catch (err) {
-      console.error('Drop update error:', err)
-      // Rollback
-      setTasks(function (prev) {
-        return prev.map(function (t) {
-          if (t.id === taskId) return { ...t, column_id: previousColumn }
-          return t
-        })
-      })
-      setError('Erro ao mover tarefa: ' + (err.message || 'desconhecido'))
-    } finally {
-      setSavingId(null)
-    }
-  }
-
-  // ──────────────────────────────────────────────────────────────────────
-  // CRUD
-  // ──────────────────────────────────────────────────────────────────────
-  async function saveTask(data) {
-    try {
-      if (data.id) {
-        const { error: upErr } = await supabase
-          .from('tasks')
-          .update({
-            title: data.title,
-            priority: data.priority,
-            project_id: data.project_id || null,
-            assigned_to: data.assigned_to || null,
-            due_date: data.due_date || null,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', data.id)
-        if (upErr) throw upErr
-      } else {
-        const { error: insErr } = await supabase
-          .from('tasks')
-          .insert({
-            org_id: profile.org_id,
-            title: data.title,
-            column_id: data.column_id || 'todo',
-            priority: data.priority || 'medium',
-            project_id: data.project_id || null,
-            assigned_to: data.assigned_to || null,
-            due_date: data.due_date || null,
-          })
-        if (insErr) throw insErr
-      }
-      setEditingTask(null)
-      setShowNewModal(false)
-      loadAll()
-    } catch (err) {
-      console.error('saveTask error:', err)
-      alert('Erro ao salvar: ' + (err.message || 'desconhecido'))
-    }
-  }
-
-  async function deleteTask(taskId) {
-    if (!confirm('Excluir esta tarefa? Esta ação não pode ser desfeita.')) return
-    try {
-      const { error: delErr } = await supabase.from('tasks').delete().eq('id', taskId)
-      if (delErr) throw delErr
-      setEditingTask(null)
-      loadAll()
-    } catch (err) {
-      console.error('deleteTask error:', err)
-      alert('Erro ao excluir: ' + (err.message || 'desconhecido'))
-    }
-  }
-
-  // Badge de prioridade
-  function PriorityBadge(props) {
-    const pri = PRIORITIES.find(function (p) { return p.id === props.priority }) || PRIORITIES[2]
-    return (
-      <span className={'text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded border ' + pri.bg + ' ' + pri.text + ' ' + pri.border}>
-        {pri.label}
-      </span>
-    )
-  }
-
-  // Formatação de data
-  function formatDate(iso) {
-    if (!iso) return null
-    try {
-      return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
-    } catch (_) { return null }
-  }
-
-  // ──────────────────────────────────────────────────────────────────────
-  // Render
-  // ──────────────────────────────────────────────────────────────────────
-  if (loading) {
-    return (
-      <div className="p-6 max-w-[1800px] mx-auto">
-        <div className="flex items-center justify-center py-24">
-          <Loader2 className="w-8 h-8 text-violet animate-spin" />
-          <span className="ml-3 text-sm text-zinc-500">Carregando board...</span>
-        </div>
-      </div>
-    )
-  }
-
-  return (
-    <div className="p-6 max-w-[1800px] mx-auto">
-      {/* HERO */}
-      <div className="bg-gradient-to-br from-zinc-800 to-zinc-900 rounded-2xl p-6 mb-6 text-white">
-        <div className="flex items-start justify-between">
-          <div>
-            <div className="text-xs font-bold uppercase tracking-wider text-violet-300 mb-1 flex items-center gap-2">
-              <KanbanSquare className="w-3 h-3" />
-              Board de Tarefas
-            </div>
-            <h1 className="text-2xl font-bold mb-1">Kanban</h1>
-            <p className="text-sm text-zinc-300">
-              Arraste cards entre as colunas para atualizar o status · {tasks.length} tarefas totais
-            </p>
-          </div>
-          <button
-            onClick={function () { setNewTaskColumn('todo'); setShowNewModal(true) }}
-            className="flex items-center gap-2 px-4 py-2 bg-violet hover:bg-violet/90 rounded-lg text-sm font-semibold transition-all"
-          >
-            <Plus className="w-4 h-4" />
-            Nova Tarefa
-          </button>
-        </div>
-
-        <div className="grid grid-cols-3 gap-3 mt-5">
-          {COLUMNS.map(function (col) {
-            return (
-              <div key={col.id} className="bg-white/5 border border-white/10 rounded-lg p-3">
-                <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1">{col.label}</div>
-                <div className="text-2xl font-bold">{tasksByColumn[col.id].length}</div>
-              </div>
-            )
-          })}
-        </div>
-      </div>
-
-      {/* TOOLBAR */}
-      <div className="bg-white border border-zinc-200 rounded-xl p-4 mb-6 flex flex-wrap items-center gap-3">
-        <div className="flex-1 min-w-[200px] relative">
-          <Search className="w-4 h-4 text-zinc-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-          <input
-            type="text"
-            value={search}
-            onChange={function (e) { setSearch(e.target.value) }}
-            placeholder="Buscar por título..."
-            className="w-full pl-10 pr-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg text-sm focus:outline-none focus:border-violet focus:bg-white transition-all"
-          />
-        </div>
-
-        <div className="flex items-center gap-2">
-          <Filter className="w-4 h-4 text-zinc-400" />
-          <select
-            value={projectFilter}
-            onChange={function (e) { setProjectFilter(e.target.value) }}
-            className="px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg text-sm font-semibold text-zinc-700 focus:outline-none focus:border-violet"
-          >
-            <option value="todos">Todos projetos</option>
-            {projects.map(function (p) {
-              return <option key={p.id} value={p.id}>{p.name}</option>
-            })}
-          </select>
-        </div>
-
-        <select
-          value={priorityFilter}
-          onChange={function (e) { setPriorityFilter(e.target.value) }}
-          className="px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg text-sm font-semibold text-zinc-700 focus:outline-none focus:border-violet"
-        >
-          <option value="todas">Todas prioridades</option>
-          {PRIORITIES.map(function (p) {
-            return <option key={p.id} value={p.id}>{p.label}</option>
-          })}
-        </select>
-      </div>
-
-      {error && (
-        <div className="bg-red-50 border border-red-200 rounded-xl p-3 mb-4 flex items-start gap-2">
-          <AlertCircle className="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5" />
-          <div className="text-sm text-red-800 flex-1">{error}</div>
-          <button onClick={function () { setError(null) }} className="text-red-600 hover:text-red-800">
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-      )}
-
-      {/* BOARD */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {COLUMNS.map(function (col) {
-          const Icon = col.icon
-          const columnTasks = tasksByColumn[col.id]
-          const isDragOver = dragOverColumn === col.id
-
-          return (
-            <div
-              key={col.id}
-              onDragOver={function (e) { handleDragOver(e, col.id) }}
-              onDragLeave={function (e) { handleDragLeave(e, col.id) }}
-              onDrop={function (e) { handleDrop(e, col.id) }}
-              className={'bg-zinc-50 rounded-xl p-3 min-h-[500px] transition-all ' + (isDragOver ? 'bg-violet/10 ring-2 ring-violet/40' : 'border border-zinc-200')}
-            >
-              {/* Header da coluna */}
-              <div className="flex items-center justify-between mb-3 px-1">
-                <div className="flex items-center gap-2">
-                  <Icon className={'w-4 h-4 ' + (col.color === 'violet' ? 'text-violet' : col.color === 'emerald' ? 'text-emerald-600' : 'text-zinc-500')} />
-                  <h2 className="text-xs font-bold uppercase tracking-wide text-zinc-700">{col.label}</h2>
-                  <span className="text-[10px] font-bold text-zinc-500 bg-white border border-zinc-200 rounded px-1.5 py-0.5">
-                    {columnTasks.length}
-                  </span>
-                </div>
-                <button
-                  onClick={function () { setNewTaskColumn(col.id); setShowNewModal(true) }}
-                  className="p-1 rounded hover:bg-white text-zinc-400 hover:text-violet transition-all"
-                  title="Adicionar tarefa nesta coluna"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                </button>
-              </div>
-
-              {/* Cards */}
-              <div className="space-y-2">
-                {columnTasks.length === 0 ? (
-                  <div className={'text-center py-8 rounded-lg border-2 border-dashed transition-all ' + (isDragOver ? 'border-violet/50 bg-violet/5' : 'border-zinc-200')}>
-                    <div className="text-xs text-zinc-400">
-                      {isDragOver ? 'Solte aqui' : 'Vazio'}
-                    </div>
-                  </div>
-                ) : (
-                  columnTasks.map(function (task) {
-                    const isDragging = draggedId === task.id
-                    const isSaving = savingId === task.id
-                    const projectName = projectMap[task.project_id] || null
-                    const assigneeName = profileMap[task.assigned_to] || null
-                    const dueText = formatDate(task.due_date)
-
-                    return (
-                      <div
-                        key={task.id}
-                        draggable={true}
-                        onDragStart={function (e) { handleDragStart(e, task.id) }}
-                        onDragEnd={handleDragEnd}
-                        onClick={function () { setEditingTask(task) }}
-                        className={
-                          'bg-white border rounded-lg p-3 cursor-move hover:shadow-md hover:border-violet/30 transition-all select-none ' +
-                          (isDragging ? 'opacity-40 scale-95' : 'opacity-100') + ' ' +
-                          (isSaving ? 'ring-2 ring-violet/40 animate-pulse' : 'border-zinc-200')
-                        }
-                      >
-                        {/* Topo: prioridade */}
-                        <div className="flex items-center justify-between mb-2">
-                          <PriorityBadge priority={task.priority} />
-                          {isSaving && <Loader2 className="w-3 h-3 text-violet animate-spin" />}
-                        </div>
-
-                        {/* Título */}
-                        <div className="text-sm font-semibold text-zinc-800 mb-2 leading-snug">
-                          {task.title || 'Sem título'}
-                        </div>
-
-                        {/* Projeto */}
-                        {projectName && (
-                          <div className="text-[10px] text-zinc-500 mb-2 truncate">
-                            📁 {projectName}
-                          </div>
-                        )}
-
-                        {/* Rodapé: assignee + due date */}
-                        <div className="flex items-center justify-between text-[10px] text-zinc-500 pt-2 border-t border-zinc-100">
-                          {assigneeName ? (
-                            <div className="flex items-center gap-1 truncate max-w-[60%]">
-                              <User className="w-3 h-3 flex-shrink-0" />
-                              <span className="truncate">{assigneeName.split(' ')[0]}</span>
-                            </div>
-                          ) : <div />}
-                          {dueText && (
-                            <div className="flex items-center gap-1">
-                              <Calendar className="w-3 h-3" />
-                              <span>{dueText}</span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )
-                  })
-                )}
-              </div>
-            </div>
-          )
-        })}
-      </div>
-
-      <div className="mt-8 text-center text-[10px] text-zinc-400 font-semibold uppercase tracking-wider">
-        BX Hub v3 · Kanban · {filteredTasks.length} de {tasks.length} tarefas visíveis
-      </div>
-
-      {/* MODAL: Editar tarefa */}
-      {editingTask && (
-        <TaskModal
-          task={editingTask}
-          projects={projects}
-          profiles={profiles}
-          onClose={function () { setEditingTask(null) }}
-          onSave={saveTask}
-          onDelete={deleteTask}
-        />
-      )}
-
-      {/* MODAL: Nova tarefa */}
-      {showNewModal && (
-        <TaskModal
-          task={{ title: '', priority: 'medium', column_id: newTaskColumn, project_id: '', assigned_to: '', due_date: '' }}
-          projects={projects}
-          profiles={profiles}
-          onClose={function () { setShowNewModal(false) }}
-          onSave={saveTask}
-          isNew={true}
-        />
-      )}
-    </div>
-  )
+function fmtDate(d) {
+  if (!d) return ''
+  const diff = Math.ceil((new Date(d) - new Date()) / 86400000)
+  if (diff < 0) return { label: `${Math.abs(diff)}d atrás`, cls: 'bg-red-500 text-white' }
+  if (diff === 0) return { label: 'Hoje', cls: 'bg-amber-400 text-white' }
+  if (diff === 1) return { label: 'Amanhã', cls: 'bg-sky-500 text-white' }
+  return { label: new Date(d).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }), cls: 'bg-zinc-100 text-zinc-600' }
 }
 
-// ============================================================================
-// TaskModal — componente interno reutilizado para novo/editar
-// ============================================================================
-function TaskModal(props) {
+// ── MODAL DE TAREFA ──────────────────────────────────────────────────────────
+function TaskModal({ task, projects, profiles, onClose, onSave, onDelete }) {
   const [form, setForm] = useState({
-    id: props.task.id || null,
-    title: props.task.title || '',
-    priority: props.task.priority || 'medium',
-    column_id: props.task.column_id || 'todo',
-    project_id: props.task.project_id || '',
-    assigned_to: props.task.assigned_to || '',
-    due_date: props.task.due_date ? props.task.due_date.slice(0, 10) : '',
+    title: task?.title || '',
+    description: task?.description || '',
+    column_id: task?.column_id || 'todo',
+    priority: task?.priority || 'medium',
+    assigned_to: task?.assigned_to || '',
+    project_id: task?.project_id || '',
+    due_date: task?.due_date || '',
+    hours_logged: task?.hours_logged || '',
   })
+  const [subtasks, setSubtasks] = useState(task?.subtasks || [])
+  const [newSubtask, setNewSubtask] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState(null)
 
-  function handleSubmit() {
-    if (!form.title.trim()) {
-      alert('Título é obrigatório')
-      return
-    }
-    props.onSave(form)
+  async function handleSave() {
+    if (!form.title.trim()) { setError('Título obrigatório'); return }
+    setSaving(true); setError(null)
+    await onSave({ ...form, subtasks, id: task?.id })
+    setSaving(false)
   }
 
-  function update(key, value) {
-    setForm(function (prev) {
-      const next = { ...prev }
-      next[key] = value
-      return next
-    })
+  function addSubtask() {
+    if (!newSubtask.trim()) return
+    setSubtasks(prev => [...prev, { text: newSubtask.trim(), done: false }])
+    setNewSubtask('')
   }
+
+  function toggleSubtask(i) {
+    setSubtasks(prev => prev.map((s, idx) => idx === i ? { ...s, done: !s.done } : s))
+  }
+
+  function removeSubtask(i) {
+    setSubtasks(prev => prev.filter((_, idx) => idx !== i))
+  }
+
+  const doneSubtasks = subtasks.filter(s => s.done).length
 
   return (
-    <div
-      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-      onClick={props.onClose}
-    >
-      <div
-        className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto"
-        onClick={function (e) { e.stopPropagation() }}
-      >
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl">
         {/* Header */}
-        <div className="bg-gradient-to-br from-zinc-800 to-zinc-900 text-white p-5 rounded-t-2xl flex items-start justify-between">
-          <div>
-            <div className="text-[10px] font-bold uppercase tracking-wider text-violet-300 mb-1">
-              {props.isNew ? 'Nova Tarefa' : 'Editar Tarefa'}
-            </div>
-            <h2 className="text-lg font-bold">{props.isNew ? 'Criar nova tarefa' : (props.task.title || 'Editar')}</h2>
-          </div>
-          <button onClick={props.onClose} className="text-zinc-400 hover:text-white">
-            <X className="w-5 h-5" />
-          </button>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-100">
+          <div className="text-sm font-bold text-zinc-800">{task?.id ? 'Editar tarefa' : 'Nova tarefa'}</div>
+          <button onClick={onClose} className="text-zinc-400 hover:text-zinc-600"><X className="w-5 h-5" /></button>
         </div>
 
-        {/* Body */}
-        <div className="p-5 space-y-4">
+        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
+          {error && <div className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{error}</div>}
+
+          {/* Título */}
           <div>
-            <label className="text-xs font-bold uppercase tracking-wide text-zinc-600 mb-1 block">Título *</label>
-            <input
-              type="text"
-              value={form.title}
-              onChange={function (e) { update('title', e.target.value) }}
-              className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg text-sm focus:outline-none focus:border-violet focus:bg-white"
-              autoFocus={true}
-            />
+            <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Título *</label>
+            <input className="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm font-semibold focus:outline-none focus:border-violet-500"
+              value={form.title} onChange={e => setForm(p => ({...p, title: e.target.value}))} placeholder="Nome da tarefa…" />
           </div>
 
+          {/* Descrição */}
+          <div>
+            <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Descrição</label>
+            <textarea className="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-violet-500 resize-none leading-relaxed"
+              rows={3} value={form.description || ''} onChange={e => setForm(p => ({...p, description: e.target.value}))} placeholder="Descreva a tarefa…" />
+          </div>
+
+          {/* Row: Status + Prioridade */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-bold uppercase tracking-wide text-zinc-600 mb-1 block">Status</label>
-              <select
-                value={form.column_id}
-                onChange={function (e) { update('column_id', e.target.value) }}
-                className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg text-sm focus:outline-none focus:border-violet"
-              >
-                <option value="todo">A Fazer</option>
-                <option value="doing">Em Execução</option>
-                <option value="done">Concluída</option>
+              <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Status</label>
+              <select className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                value={form.column_id} onChange={e => setForm(p => ({...p, column_id: e.target.value}))}>
+                {COLUMNS.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
               </select>
             </div>
             <div>
-              <label className="text-xs font-bold uppercase tracking-wide text-zinc-600 mb-1 block">Prioridade</label>
-              <select
-                value={form.priority}
-                onChange={function (e) { update('priority', e.target.value) }}
-                className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg text-sm focus:outline-none focus:border-violet"
-              >
-                <option value="urgent">Urgente</option>
-                <option value="high">Alta</option>
-                <option value="medium">Média</option>
-                <option value="low">Baixa</option>
+              <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Prioridade</label>
+              <select className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                value={form.priority} onChange={e => setForm(p => ({...p, priority: e.target.value}))}>
+                {PRIORITIES.map(pr => <option key={pr.value} value={pr.value}>{pr.label}</option>)}
               </select>
             </div>
           </div>
 
-          <div>
-            <label className="text-xs font-bold uppercase tracking-wide text-zinc-600 mb-1 block">Projeto</label>
-            <select
-              value={form.project_id}
-              onChange={function (e) { update('project_id', e.target.value) }}
-              className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg text-sm focus:outline-none focus:border-violet"
-            >
-              <option value="">— Sem projeto —</option>
-              {props.projects.map(function (p) {
-                return <option key={p.id} value={p.id}>{p.name}</option>
-              })}
-            </select>
+          {/* Row: Responsável + Projeto */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Responsável</label>
+              <select className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                value={form.assigned_to} onChange={e => setForm(p => ({...p, assigned_to: e.target.value}))}>
+                <option value="">— nenhum —</option>
+                {profiles.map(pr => <option key={pr.id} value={pr.id}>{pr.full_name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Projeto</label>
+              <select className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                value={form.project_id} onChange={e => setForm(p => ({...p, project_id: e.target.value}))}>
+                <option value="">— nenhum —</option>
+                {projects.map(pr => <option key={pr.id} value={pr.id}>{pr.name}</option>)}
+              </select>
+            </div>
           </div>
 
-          <div>
-            <label className="text-xs font-bold uppercase tracking-wide text-zinc-600 mb-1 block">Responsável</label>
-            <select
-              value={form.assigned_to}
-              onChange={function (e) { update('assigned_to', e.target.value) }}
-              className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg text-sm focus:outline-none focus:border-violet"
-            >
-              <option value="">— Não atribuído —</option>
-              {props.profiles.map(function (p) {
-                return <option key={p.id} value={p.id}>{p.full_name}</option>
-              })}
-            </select>
+          {/* Row: Prazo + Horas */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Prazo</label>
+              <input type="date" className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                value={form.due_date} onChange={e => setForm(p => ({...p, due_date: e.target.value}))} />
+            </div>
+            <div>
+              <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Horas registradas</label>
+              <input type="number" min="0" step="0.5" className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                placeholder="0.0h" value={form.hours_logged || ''} onChange={e => setForm(p => ({...p, hours_logged: e.target.value}))} />
+            </div>
           </div>
 
+          {/* Subtarefas / Checklist */}
           <div>
-            <label className="text-xs font-bold uppercase tracking-wide text-zinc-600 mb-1 block">Data Limite</label>
-            <input
-              type="date"
-              value={form.due_date}
-              onChange={function (e) { update('due_date', e.target.value) }}
-              className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg text-sm focus:outline-none focus:border-violet"
-            />
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">
+                Checklist {subtasks.length > 0 && `(${doneSubtasks}/${subtasks.length})`}
+              </label>
+            </div>
+            {subtasks.length > 0 && (
+              <div className="mb-3 bg-zinc-50 rounded-xl p-3 space-y-2">
+                {/* Progress bar */}
+                {subtasks.length > 0 && (
+                  <div className="h-1.5 bg-zinc-200 rounded-full overflow-hidden mb-2">
+                    <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${Math.round(doneSubtasks / subtasks.length * 100)}%` }} />
+                  </div>
+                )}
+                {subtasks.map((s, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <button onClick={() => toggleSubtask(i)} className="shrink-0 text-zinc-400 hover:text-violet-600">
+                      {s.done ? <CheckSquare className="w-4 h-4 text-emerald-500" /> : <Square className="w-4 h-4" />}
+                    </button>
+                    <span className={`flex-1 text-xs ${s.done ? 'line-through text-zinc-400' : 'text-zinc-700'}`}>{s.text}</span>
+                    <button onClick={() => removeSubtask(i)} className="text-zinc-300 hover:text-red-400"><X className="w-3.5 h-3.5" /></button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="flex gap-2">
+              <input className="flex-1 border border-zinc-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-violet-500"
+                placeholder="Adicionar subitem…" value={newSubtask} onChange={e => setNewSubtask(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && addSubtask()} />
+              <button onClick={addSubtask} disabled={!newSubtask.trim()} className="bg-zinc-100 hover:bg-zinc-200 text-zinc-600 text-xs font-semibold px-3 py-2 rounded-lg disabled:opacity-40 transition-colors">
+                <Plus className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
         </div>
 
         {/* Footer */}
-        <div className="p-5 border-t border-zinc-100 flex items-center justify-between gap-3">
-          {!props.isNew && props.onDelete && (
-            <button
-              onClick={function () { props.onDelete(form.id) }}
-              className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 rounded-lg transition-all"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-              Excluir
+        <div className="flex items-center gap-3 px-6 py-4 border-t border-zinc-100">
+          <button onClick={handleSave} disabled={saving || !form.title.trim()}
+            className="flex items-center gap-2 bg-violet-600 text-white text-sm font-semibold px-5 py-2.5 rounded-xl hover:bg-violet-700 disabled:opacity-50 transition-colors">
+            <Save className="w-4 h-4" />{saving ? 'Salvando…' : 'Salvar'}
+          </button>
+          {task?.id && (
+            <button onClick={() => { if(window.confirm('Excluir esta tarefa?')) onDelete(task.id) }}
+              className="flex items-center gap-1.5 text-sm font-semibold text-zinc-400 hover:text-red-500 border border-zinc-200 hover:border-red-300 px-4 py-2.5 rounded-xl transition-colors">
+              <Trash2 className="w-4 h-4" /> Excluir
             </button>
           )}
-          <div className="flex-1" />
-          <button
-            onClick={props.onClose}
-            className="px-4 py-2 text-sm font-semibold text-zinc-600 hover:bg-zinc-100 rounded-lg transition-all"
-          >
-            Cancelar
-          </button>
-          <button
-            onClick={handleSubmit}
-            className="px-4 py-2 text-sm font-semibold bg-violet hover:bg-violet/90 text-white rounded-lg transition-all"
-          >
-            {props.isNew ? 'Criar' : 'Salvar'}
-          </button>
+          <button onClick={onClose} className="ml-auto text-sm text-zinc-500 hover:text-zinc-700 px-4 py-2.5">Cancelar</button>
         </div>
       </div>
+    </div>
+  )
+}
+
+// ── KANBAN PRINCIPAL ─────────────────────────────────────────────────────────
+export default function Kanban() {
+  const { profile } = useData()
+  const [tasks, setTasks] = useState([])
+  const [projects, setProjects] = useState([])
+  const [profiles, setProfilesList] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState('')
+  const [filterProject, setFilterProject] = useState('all')
+  const [filterPriority, setFilterPriority] = useState('all')
+  const [dragging, setDragging] = useState(null)
+  const [dragOverCol, setDragOverCol] = useState(null)
+  const [modal, setModal] = useState(null)   // null | 'new' | task object
+  const [newColId, setNewColId] = useState('todo')
+  const [error, setError] = useState(null)
+  const [saving, setSaving] = useState(null)
+
+  const load = useCallback(async () => {
+    if (!profile) return
+    setLoading(true)
+    const [tasksRes, projRes, profRes] = await Promise.allSettled([
+      supabase.from('tasks').select('*').eq('org_id', profile.org_id).is('deleted_at', null).order('created_at', { ascending: false }),
+      supabase.from('projects').select('id,name').eq('org_id', profile.org_id).order('name'),
+      supabase.from('profiles').select('id,full_name,initials,avatar_color').eq('org_id', profile.org_id).order('full_name'),
+    ])
+    if (tasksRes.status === 'fulfilled' && !tasksRes.value.error) setTasks(tasksRes.value.data || [])
+    if (projRes.status === 'fulfilled' && !projRes.value.error) setProjects(projRes.value.data || [])
+    if (profRes.status === 'fulfilled' && !profRes.value.error) setProfilesList(profRes.value.data || [])
+    setLoading(false)
+  }, [profile])
+
+  useEffect(() => { load() }, [load])
+
+  function filteredTasks(colId) {
+    return tasks.filter(t => {
+      if (t.column_id !== colId) return false
+      if (search && !t.title.toLowerCase().includes(search.toLowerCase())) return false
+      if (filterProject !== 'all' && t.project_id !== filterProject) return false
+      if (filterPriority !== 'all' && t.priority !== filterPriority) return false
+      return true
+    })
+  }
+
+  // DnD
+  function handleDragStart(e, task) {
+    setDragging(task)
+    e.dataTransfer.effectAllowed = 'move'
+  }
+  function handleDragOver(e, colId) {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    setDragOverCol(colId)
+  }
+  function handleDragLeave() { setDragOverCol(null) }
+  async function handleDrop(e, colId) {
+    e.preventDefault()
+    setDragOverCol(null)
+    if (!dragging || dragging.column_id === colId) { setDragging(null); return }
+    // Optimistic update
+    setTasks(prev => prev.map(t => t.id === dragging.id ? { ...t, column_id: colId } : t))
+    setDragging(null)
+    const { error } = await supabase.from('tasks').update({ column_id: colId }).eq('id', dragging.id)
+    if (error) { setError(error.message); await load() }
+  }
+  function handleDragEnd() { setDragging(null); setDragOverCol(null) }
+
+  async function saveTask(form) {
+    setSaving(true)
+    const subtasksJson = form.subtasks ? JSON.stringify(form.subtasks) : null
+    if (form.id) {
+      const { error } = await supabase.from('tasks').update({
+        title: form.title, description: form.description, column_id: form.column_id,
+        priority: form.priority, assigned_to: form.assigned_to || null,
+        project_id: form.project_id || null, due_date: form.due_date || null,
+        hours_logged: form.hours_logged ? parseFloat(form.hours_logged) : null,
+        updated_at: new Date().toISOString(),
+      }).eq('id', form.id)
+      if (error) { setError(error.message); setSaving(false); return }
+    } else {
+      const { error } = await supabase.from('tasks').insert({
+        org_id: profile.org_id, title: form.title, description: form.description,
+        column_id: form.column_id, priority: form.priority,
+        assigned_to: form.assigned_to || null, project_id: form.project_id || null,
+        due_date: form.due_date || null,
+      })
+      if (error) { setError(error.message); setSaving(false); return }
+    }
+    await load(); setModal(null); setSaving(false)
+  }
+
+  async function deleteTask(id) {
+    await supabase.from('tasks').update({ deleted_at: new Date().toISOString() }).eq('id', id)
+    await load(); setModal(null)
+  }
+
+  const projectName = (id) => projects.find(p => p.id === id)?.name || ''
+  const profileFor = (id) => profiles.find(p => p.id === id)
+
+  const totalTasks = tasks.length
+  const doingCount = tasks.filter(t => t.column_id === 'doing').length
+  const overdueCount = tasks.filter(t => t.due_date && new Date(t.due_date) < new Date() && t.column_id !== 'done').length
+  const doneToday = tasks.filter(t => t.column_id === 'done' && t.updated_at?.startsWith(new Date().toISOString().split('T')[0])).length
+
+  return (
+    <div className="flex flex-col min-h-screen">
+      {/* HERO */}
+      <div className="bg-zinc-800 text-white px-8 py-7">
+        <div className="flex items-start justify-between mb-6">
+          <div>
+            <div className="text-[9px] font-bold uppercase tracking-widest text-white/50 mb-1">Fluxo de trabalho</div>
+            <h1 className="text-[26px] font-black leading-tight tracking-tight">Kanban operacional</h1>
+            <div className="text-xs text-white/60 mt-1">{totalTasks} tarefas no board · {doingCount} em andamento{doingCount > 10 ? ' · WIP excedido' : ''}</div>
+          </div>
+          <div className="flex gap-2">
+            <button className="flex items-center gap-1.5 bg-white/8 border border-white/12 text-white text-xs font-semibold px-3.5 py-2 rounded-lg hover:bg-white/15 transition-colors">
+              <Search className="w-3.5 h-3.5" />Filtros
+            </button>
+            <button onClick={() => { setNewColId('todo'); setModal('new') }}
+              className="flex items-center gap-1.5 bg-violet-600 text-white text-xs font-semibold px-3.5 py-2 rounded-lg hover:bg-violet-500 transition-colors">
+              <Plus className="w-3.5 h-3.5" />Nova tarefa
+            </button>
+          </div>
+        </div>
+        {/* KPIs */}
+        <div className="grid grid-cols-6 gap-3">
+          {[
+            { label: 'Total no board',    val: totalTasks,   cls: 'text-indigo-200' },
+            { label: 'Em andamento',      val: doingCount,   cls: 'text-blue-300' },
+            { label: 'Bloqueadas',        val: 0,            cls: 'text-red-300' },
+            { label: 'Vencidas',          val: overdueCount, cls: overdueCount > 0 ? 'text-red-300' : 'text-white' },
+            { label: 'Concluídas hoje',   val: doneToday,    cls: 'text-emerald-300' },
+            { label: 'Cycle time médio',  val: '—',          cls: 'text-white' },
+          ].map(k => (
+            <div key={k.label} className="bg-white/5 border border-white/10 rounded-xl px-4 py-3">
+              <div className="text-[9px] text-white/50 font-bold uppercase tracking-wider">{k.label}</div>
+              <div className={`text-2xl font-black leading-tight mt-1 ${k.cls}`}>{k.val}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Toolbar */}
+      <div className="flex items-center gap-3 px-6 py-3 bg-white border-b border-zinc-200 flex-wrap">
+        <div className="flex items-center gap-2 bg-zinc-50 border border-zinc-200 rounded-lg px-3 py-2 w-56">
+          <Search className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+          <input className="flex-1 text-sm bg-transparent outline-none placeholder:text-zinc-400" placeholder="Buscar tarefas…" value={search} onChange={e => setSearch(e.target.value)} />
+          {search && <button onClick={() => setSearch('')}><X className="w-3 h-3 text-zinc-400" /></button>}
+        </div>
+        <select className="text-sm border border-zinc-200 rounded-lg px-3 py-2 bg-white" value={filterProject} onChange={e => setFilterProject(e.target.value)}>
+          <option value="all">Todos os projetos</option>
+          {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+        </select>
+        <select className="text-sm border border-zinc-200 rounded-lg px-3 py-2 bg-white" value={filterPriority} onChange={e => setFilterPriority(e.target.value)}>
+          <option value="all">Todas as prioridades</option>
+          {PRIORITIES.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+        </select>
+        {/* Avatares da equipe */}
+        <div className="flex ml-2">
+          {profiles.slice(0, 5).map((pr, i) => (
+            <div key={pr.id} className="w-7 h-7 rounded-full text-[10px] font-bold text-white flex items-center justify-center border-2 border-white" style={{ background: pr.avatar_color || '#5452C1', marginLeft: i > 0 ? -6 : 0 }}>
+              {pr.initials || '?'}
+            </div>
+          ))}
+          {profiles.length > 5 && <div className="w-7 h-7 rounded-full text-[10px] font-bold text-zinc-600 bg-zinc-100 flex items-center justify-center border-2 border-white" style={{ marginLeft: -6 }}>+{profiles.length - 5}</div>}
+        </div>
+      </div>
+
+      {error && (
+        <div className="mx-6 mt-3 flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg px-4 py-2 text-xs text-red-600">
+          <AlertCircle className="w-3.5 h-3.5 shrink-0" />{error}
+          <button className="ml-auto" onClick={() => setError(null)}><X className="w-3.5 h-3.5" /></button>
+        </div>
+      )}
+
+      {/* BOARD */}
+      {loading ? (
+        <div className="flex-1 flex items-center justify-center text-sm text-zinc-400">Carregando…</div>
+      ) : (
+        <div className="flex-1 overflow-x-auto">
+          <div className="flex gap-3.5 p-6 min-w-max min-h-full">
+            {COLUMNS.map(col => {
+              const colTasks = filteredTasks(col.id)
+              const wipExceeded = col.wip && colTasks.length > col.wip
+              const isDragTarget = dragOverCol === col.id
+              return (
+                <div key={col.id} className={`w-64 shrink-0 flex flex-col rounded-xl transition-all ${isDragTarget ? 'ring-2 ring-violet-400' : ''}`}
+                  onDragOver={e => handleDragOver(e, col.id)}
+                  onDragLeave={handleDragLeave}
+                  onDrop={e => handleDrop(e, col.id)}>
+                  {/* Col header */}
+                  <div className={`flex items-center justify-between px-3 py-2.5 rounded-t-xl ${isDragTarget ? 'bg-violet-100' : 'bg-zinc-100'}`}>
+                    <div className="flex items-center gap-2 text-xs font-bold text-zinc-700 uppercase tracking-wide">
+                      <div className="w-2 h-2 rounded-full" style={{ background: col.dot }} />
+                      {col.label}
+                    </div>
+                    <div className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${wipExceeded ? 'bg-amber-400 text-white' : 'bg-white text-zinc-700'}`}>
+                      {colTasks.length}{col.wip ? ` / ${col.wip}` : ''}
+                    </div>
+                  </div>
+
+                  {/* Cards */}
+                  <div className={`flex-1 flex flex-col gap-2 p-2 rounded-b-xl min-h-40 ${isDragTarget ? 'bg-violet-50' : 'bg-zinc-100'}`}>
+                    {colTasks.map(task => {
+                      const assignee = profileFor(task.assigned_to)
+                      const due = fmtDate(task.due_date)
+                      const proj = projectName(task.project_id)
+                      const isDone = task.column_id === 'done'
+                      return (
+                        <div key={task.id}
+                          draggable
+                          onDragStart={e => handleDragStart(e, task)}
+                          onDragEnd={handleDragEnd}
+                          onClick={() => setModal(task)}
+                          className={`bg-white rounded-xl px-3 pt-3 pb-2.5 cursor-pointer border-l-[3px] hover:shadow-md transition-all select-none ${PriBorder(task.priority)} ${PriBg(task.priority)} ${isDone ? 'opacity-65' : ''}`}>
+                          {/* Tags */}
+                          <div className="flex gap-1 mb-1.5 flex-wrap">
+                            {proj && <span className="text-[8.5px] font-bold px-1.5 py-0.5 rounded-md bg-violet-50 text-violet-600 uppercase tracking-wide">{proj.split(' ')[0]}</span>}
+                            {task.priority === 'urgent' && <span className="text-[8.5px] font-bold px-1.5 py-0.5 rounded-md bg-red-100 text-red-700 uppercase tracking-wide">Urgente</span>}
+                            {task.priority === 'high' && <span className="text-[8.5px] font-bold px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-700 uppercase tracking-wide">Alta</span>}
+                          </div>
+                          {/* Título */}
+                          <div className={`text-xs font-bold text-zinc-800 leading-snug mb-2 ${isDone ? 'line-through' : ''}`}>{task.title}</div>
+                          {/* Meta row */}
+                          <div className="flex items-center justify-between gap-1">
+                            <div className="flex items-center gap-2 text-[10px] text-zinc-400">
+                              {task.hours_logged > 0 && <span className="flex items-center gap-0.5"><Clock className="w-2.5 h-2.5" />{task.hours_logged}h</span>}
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              {due && <span className={`text-[8.5px] font-bold px-1.5 py-0.5 rounded ${due.cls}`}>{due.label}</span>}
+                              {assignee && (
+                                <div className="w-5 h-5 rounded-full text-[8px] font-bold text-white flex items-center justify-center shrink-0" style={{ background: assignee.avatar_color || '#5452C1' }}>
+                                  {assignee.initials || '?'}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          {/* Checklist hint */}
+                          {task.subtasks?.length > 0 && (
+                            <div className="mt-1.5 text-[9.5px] text-zinc-400 flex items-center gap-1">
+                              <CheckSquare className="w-2.5 h-2.5" />
+                              {task.subtasks.filter(s => s.done).length}/{task.subtasks.length} subitens
+                            </div>
+                          )}
+                          {/* Progress */}
+                          {task.subtasks?.length > 0 && (
+                            <div className="mt-1.5 h-1 bg-zinc-100 rounded-full overflow-hidden">
+                              <div className="h-full bg-emerald-400 rounded-full" style={{ width: `${Math.round(task.subtasks.filter(s => s.done).length / task.subtasks.length * 100)}%` }} />
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+
+                    {/* Add button */}
+                    <button onClick={() => { setNewColId(col.id); setModal('new') }}
+                      className="mt-1 py-2 border-2 border-dashed border-zinc-300 rounded-xl text-xs font-semibold text-zinc-400 hover:border-violet-400 hover:text-violet-500 transition-colors">
+                      + Adicionar
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* MODAL */}
+      {modal && (
+        <TaskModal
+          task={modal === 'new' ? { column_id: newColId } : modal}
+          projects={projects}
+          profiles={profiles}
+          onClose={() => setModal(null)}
+          onSave={saveTask}
+          onDelete={deleteTask}
+        />
+      )}
     </div>
   )
 }
