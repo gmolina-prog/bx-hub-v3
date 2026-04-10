@@ -57,6 +57,25 @@ const STAGES = [
   { id: 'perdida', label: 'Perdida', icon: XCircle, color: 'rose', pct: 0 },
 ]
 
+// SLA máximo em dias por fase
+const STAGE_SLA = {
+  rascunho:   null,   // sem SLA — ainda não enviada
+  enviada:    14,     // 14 dias para resposta
+  negociando: 30,     // 30 dias em negociação
+  aceita:     null,   // fechada — sem SLA
+  perdida:    null,   // encerrada — sem SLA
+}
+
+function getSLAStatus(proposal) {
+  const sla = STAGE_SLA[proposal.status]
+  if (!sla) return null
+  const updated = new Date(proposal.updated_at || proposal.created_at)
+  const dias = Math.floor((Date.now() - updated) / 86400000)
+  if (dias >= sla) return { dias, level: 'critico', label: `${dias}d parada`, color: '#DC2626', bg: '#FEF2F2' }
+  if (dias >= sla * 0.7) return { dias, level: 'alerta', label: `${dias}d`, color: '#D97706', bg: '#FFFBEB' }
+  return { dias, level: 'ok', label: `${dias}d`, color: '#059669', bg: '#ECFDF5' }
+}
+
 const STAGE_COLORS = {
   zinc: { bg: 'bg-zinc-50', border: 'border-zinc-300', text: 'text-zinc-700', chip: 'bg-zinc-100 text-zinc-700' },
   violet: { bg: 'bg-violet-50', border: 'border-violet-300', text: 'text-violet-700', chip: 'bg-violet-100 text-violet-700' },
@@ -107,6 +126,8 @@ export default function CRM() {
     status: 'rascunho',
     contact_name: '',
     notes: '',
+    lost_reason: '',
+    expected_close: '',
   })
   const [interactionForm, setInteractionForm] = useState({
     company_id: '',
@@ -177,10 +198,18 @@ export default function CRM() {
         contact_name: proposalForm.contact_name?.trim() || null,
         notes: proposalForm.notes?.trim() || null,
         sent_date: proposalForm.status === 'enviada' ? new Date().toISOString().slice(0, 10) : null,
+        expected_close: proposalForm.expected_close || null,
+        lost_reason: proposalForm.status === 'perdida' ? (proposalForm.lost_reason || null) : null,
+      }
+      // Validar motivo de perda obrigatório
+      if (proposalForm.status === 'perdida' && !proposalForm.lost_reason) {
+        toast.warning('Informe o motivo da perda antes de salvar')
+        setSubmitting(false)
+        return
       }
       const { error: iErr } = await supabase.from('proposals').insert([payload])
       if (iErr) throw iErr
-      setProposalForm({ company_id: '', title: '', service_type: 'diagnostico', value: '', status: 'rascunho', contact_name: '', notes: '' })
+      setProposalForm({ company_id: '', title: '', service_type: 'diagnostico', value: '', status: 'rascunho', contact_name: '', notes: '', lost_reason: '', expected_close: '' })
       setShowProposalForm(false)
       await loadAll()
       toast.success('Proposta criada com sucesso')
@@ -455,6 +484,37 @@ export default function CRM() {
                 <option key={s.id} value={s.id}>{s.label}</option>
               ))}
             </select>
+            <input
+              type="date"
+              placeholder="Previsão de fechamento"
+              value={proposalForm.expected_close}
+              onChange={(e) => setProposalForm({ ...proposalForm, expected_close: e.target.value })}
+              className="px-3 py-2 text-sm border border-zinc-200 rounded-lg focus:border-violet-500 focus:outline-none"
+              title="Previsão de fechamento"
+            />
+            <input
+              type="text"
+              placeholder="Nome do contato"
+              value={proposalForm.contact_name}
+              onChange={(e) => setProposalForm({ ...proposalForm, contact_name: e.target.value })}
+              className="px-3 py-2 text-sm border border-zinc-200 rounded-lg focus:border-violet-500 focus:outline-none"
+            />
+            {proposalForm.status === 'perdida' && (
+              <select
+                value={proposalForm.lost_reason}
+                onChange={(e) => setProposalForm({ ...proposalForm, lost_reason: e.target.value })}
+                className="px-3 py-2 text-sm border border-red-300 bg-red-50 rounded-lg focus:border-red-500 focus:outline-none md:col-span-2"
+              >
+                <option value="">⚠️ Motivo da perda (obrigatório)…</option>
+                <option value="preco">Preço acima do mercado</option>
+                <option value="concorrente">Perdeu para concorrente</option>
+                <option value="sem_budget">Cliente sem budget</option>
+                <option value="timing">Timing inadequado</option>
+                <option value="nao_priorizou">Cliente não priorizou</option>
+                <option value="proposta_fraca">Proposta insuficiente</option>
+                <option value="outro">Outro motivo</option>
+              </select>
+            )}
           </div>
           <div className="flex gap-2 justify-end">
             <button onClick={() => setShowProposalForm(false)} className="px-4 py-2 text-sm font-semibold text-zinc-600 hover:bg-zinc-100 rounded-lg">
@@ -758,6 +818,13 @@ export default function CRM() {
                     </div>
                     <div className="text-sm font-bold text-zinc-800 text-right">{formatCurrency(p.value)}</div>
                     <div className="text-xs text-amber-600 font-bold text-center">{stage.pct}%</div>
+                    {(() => { const sla = getSLAStatus(p); return sla ? (
+                      <div className="col-span-2 flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold"
+                        style={{ background: sla.bg, color: sla.color }}
+                        title={sla.level === 'critico' ? `⚠️ SLA excedido — ${sla.dias} dias sem movimentação` : `${sla.dias} dias nesta fase`}>
+                        {sla.level === 'critico' ? '⚠️' : '🕐'} {sla.label}
+                      </div>
+                    ) : null; })()}
                     <div className="flex gap-1 justify-end">
                       <button onClick={() => deleteProposal(p.id)} className="p-1.5 text-rose-600 hover:bg-rose-50 rounded">
                         <Trash2 className="w-3.5 h-3.5" />

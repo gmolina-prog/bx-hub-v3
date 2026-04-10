@@ -90,11 +90,33 @@ export default function Rotinas() {
           if (error) throw error
         }
       } else {
+        // Registrar conclusão
         const { error } = await supabase.from('routine_completions').insert({
           routine_id: r.id, completed_by: profile.id,
           reference_date: todayStr, org_id: profile.org_id
         })
         if (error) throw error
+
+        // Gerar task automática no Kanban
+        const freq = { diaria: 'Diária', semanal: 'Semanal', mensal: 'Mensal' }
+        const taskPayload = {
+          org_id:      profile.org_id,
+          title:       `[Rotina ${freq[r.frequency] || r.frequency}] ${r.title}`,
+          description: r.description || `Gerada automaticamente pela rotina "${r.title}"`,
+          column_id:   'doing',
+          priority:    'media',
+          project_id:  r.project_id || null,
+          assigned_to: r.assigned_to || profile.id,
+          due_date:    new Date(Date.now() + 86400000).toISOString().slice(0, 10),
+          created_by:  profile.id,
+          source:      'routine',
+        }
+        const { error: tErr } = await supabase.from('tasks').insert(taskPayload)
+        if (tErr) {
+          console.warn('Não foi possível criar task automática:', tErr.message)
+        } else {
+          toast.success(`✅ Rotina registrada — task criada no Kanban`)
+        }
       }
       await load()
     } catch (err) {

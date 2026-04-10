@@ -175,45 +175,89 @@ export default function Notificacoes() {
           <Bell className="w-10 h-10 text-zinc-200 mx-auto mb-3" />
           <div className="text-sm text-zinc-500">{filter === 'unread' ? 'Nenhuma não lida' : 'Nenhuma notificação'}</div>
         </div>
-      ) : (
-        <div className="bg-white border border-zinc-200 rounded-xl overflow-hidden divide-y divide-zinc-100">
-          {filtered.map(n => {
-            const t = TYPE_MAP[n.type] || TYPE_MAP.system
-            const Icon = t.icon
-            return (
-              <div key={n.id}
-                onClick={() => {
-                  if (!n.is_read) markRead(n.id)
-                  const route = ENTITY_ROUTES[n.entity_type]
-                  if (route) navigate(route)
-                }}
-                className={`flex items-start gap-4 px-5 py-4 transition-colors ${
-                  ENTITY_ROUTES[n.entity_type] ? 'cursor-pointer hover:bg-violet-50' : 'hover:bg-zinc-50'
-                } ${!n.is_read ? 'bg-violet-50/40' : ''}`}>
-                <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0" style={{ background: t.bg }}>
-                  <Icon className="w-4 h-4" style={{ color: t.color }} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className={`text-sm font-semibold ${n.is_read ? 'text-zinc-700' : 'text-zinc-900'}`}>{n.title}</div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className="text-[10px] text-zinc-400 whitespace-nowrap">{relTime(n.created_at)}</span>
-                      {!n.is_read && <div className="w-2 h-2 rounded-full shrink-0" style={{ background: VL }} />}
-                    </div>
+      ) : (() => {
+        // Agrupar por criticidade: emergency → alert/deadline → resto
+        const groups = [
+          { key: 'critico',     label: '🚨 Crítico',     types: ['emergency'],          color: '#DC2626', bg: '#FEF2F2', border: '#FECACA' },
+          { key: 'alerta',      label: '⚠️ Atenção',      types: ['alert','deadline'],   color: '#D97706', bg: '#FFFBEB', border: '#FDE68A' },
+          { key: 'atribuicoes', label: '📋 Atribuições',  types: ['task_assigned','task'],color: '#5452C1', bg: '#EEF2FF', border: '#C7D2FE' },
+          { key: 'outros',      label: '💬 Informativo',  types: [],                     color: '#6B7280', bg: '#F9FAFB', border: '#E5E7EB' },
+        ]
+
+        const getGroup = (n) => {
+          for (const g of groups.slice(0, -1))
+            if (g.types.includes(n.type)) return g.key
+          return 'outros'
+        }
+
+        const grouped = {}
+        for (const g of groups) grouped[g.key] = []
+        for (const n of filtered) grouped[getGroup(n)].push(n)
+
+        return (
+          <div className="space-y-4">
+            {groups.map(g => {
+              const items = grouped[g.key]
+              if (items.length === 0) return null
+              return (
+                <div key={g.key}>
+                  <div className="flex items-center gap-2 mb-2 px-1">
+                    <span className="text-xs font-bold uppercase tracking-wider" style={{ color: g.color }}>{g.label}</span>
+                    <span className="text-[10px] bg-zinc-100 text-zinc-500 px-1.5 py-0.5 rounded-full font-bold">{items.length}</span>
                   </div>
-                  {n.message && <div className="text-xs text-zinc-500 mt-0.5 leading-relaxed">{n.message}</div>}
-                  {!n.is_read && (
-                    <button onClick={() => markRead(n.id)} className="flex items-center gap-1 text-[10px] font-semibold mt-1.5 transition-colors" style={{ color: VL }}>
-                      <Check className="w-3 h-3" /> Marcar como lida
-                    </button>
-                  )}
+                  <div className="bg-white rounded-xl overflow-hidden divide-y divide-zinc-100"
+                    style={{ border: `1.5px solid ${g.border}` }}>
+                    {items.map(n => {
+                      const t = TYPE_MAP[n.type] || TYPE_MAP.system
+                      const Icon = t.icon
+                      const route = ENTITY_ROUTES[n.entity_type] || ENTITY_ROUTES[n.type]
+                      return (
+                        <div key={n.id}
+                          onClick={() => { if (!n.is_read) markRead(n.id); if (route) navigate(route) }}
+                          className={`flex items-start gap-4 px-5 py-4 transition-colors ${route ? 'cursor-pointer hover:bg-violet-50' : 'hover:bg-zinc-50'} ${!n.is_read ? 'bg-violet-50/30' : ''}`}>
+                          <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0" style={{ background: t.bg }}>
+                            <Icon className="w-4 h-4" style={{ color: t.color }} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className={`text-sm font-semibold ${n.is_read ? 'text-zinc-700' : 'text-zinc-900'}`}>{n.title}</div>
+                              <div className="flex items-center gap-2 shrink-0">
+                                <span className="text-[10px] text-zinc-400 whitespace-nowrap">{relTime(n.created_at)}</span>
+                                {!n.is_read && <div className="w-2 h-2 rounded-full shrink-0" style={{ background: VL }} />}
+                              </div>
+                            </div>
+                            {n.message && <div className="text-xs text-zinc-500 mt-0.5 leading-relaxed">{n.message}</div>}
+                            <div className="flex items-center gap-2 mt-2">
+                              {route && (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); if (!n.is_read) markRead(n.id); navigate(route) }}
+                                  className="flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-lg transition-colors"
+                                  style={{ background: g.bg, color: g.color, border: `1px solid ${g.border}` }}>
+                                  → Ver agora
+                                </button>
+                              )}
+                              {!n.is_read && (
+                                <button onClick={(e) => { e.stopPropagation(); markRead(n.id) }}
+                                  className="flex items-center gap-1 text-[10px] font-semibold transition-colors" style={{ color: '#6B7280' }}>
+                                  <Check className="w-3 h-3" /> Lida
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                          <button onClick={(e) => { e.stopPropagation(); deleteNotif(n.id) }}
+                            className="text-zinc-300 hover:text-zinc-500 transition-colors shrink-0 mt-0.5">
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      )
+                    })}
+                  </div>
                 </div>
-                <button onClick={() => deleteNotif(n.id)} className="text-zinc-300 hover:text-zinc-500 transition-colors shrink-0 mt-0.5"><X className="w-4 h-4" /></button>
-              </div>
-            )
-          })}
-        </div>
-      )}
+              )
+            })}
+          </div>
+        )
+      })()}
     </div>
   )
 }

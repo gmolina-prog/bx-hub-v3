@@ -24,6 +24,10 @@ const TEMPLATES = {
   brainstorm: '<h2>Brainstorm</h2><p><b>Tema:</b></p><h3>Ideias</h3><ul><li></li></ul>',
   onboarding: '<h2>Onboarding — Novo Cliente BPO</h2><ul><li>☐ Contrato assinado</li><li>☐ Certificado digital recebido</li><li>☐ Acesso Omie configurado</li><li>☐ Procuração e-CAC</li><li>☐ Documentação societária</li><li>☐ Último balanço/balancete</li><li>☐ Reunião de kickoff</li></ul>',
   duediligence: '<h2>Due Diligence</h2><p><b>Empresa-alvo:</b></p><h3>1. Análise Societária</h3><p></p><h3>2. Análise Financeira</h3><p></p><h3>3. Contingências</h3><ul><li></li></ul><h3>4. Red Flags</h3><ul><li></li></ul><h3>5. Recomendação</h3><p></p>',
+  rj_kickoff: '<h2>Kickoff RJ — ' + new Date().toLocaleDateString('pt-BR') + '</h2><p><b>Cliente:</b></p><p><b>Processo:</b></p><p><b>Vara Empresarial:</b></p><p><b>Administrador Judicial:</b></p><h3>Contexto</h3><p><b>Passivo total estimado:</b> R$</p><p><b>EBITDA:</b> R$</p><p><b>Dívida Líquida/EBITDA:</b> x</p><h3>Estratégia Acordada</h3><ol><li>Haircut proposto (Classes I-IV):</li><li>Carência: meses</li><li>Desinvestimentos previstos:</li></ol><h3>Divisão BX</h3><ul><li>Sócio responsável:</li><li>Analista líder:</li><li>Consultor tributário:</li></ul><h3>Action Items</h3><ul><li>☐ PRJ v1 até:</li><li>☐ Laudo avaliação até:</li><li>☐ Reunião AGC prevista:</li></ul>',
+  rx_standstill: '<h2>Reunião Standstill — RX ' + new Date().toLocaleDateString('pt-BR') + '</h2><p><b>Cliente:</b></p><p><b>Credores presentes:</b></p><h3>Proposta BX</h3><p><b>Prazo standstill:</b> dias</p><p><b>Haircut proposto:</b> %</p><p><b>Cronograma:</b></p><h3>Status por Credor</h3><ul><li>✅ NDA assinado:</li><li>⏳ Aguardando comitê:</li><li>❌ Sem resposta:</li></ul><h3>Próximos Passos</h3><ol><li></li></ol>',
+  fleuriet: '<h2>Análise Fleuriet — ' + new Date().toLocaleDateString('pt-BR') + '</h2><p><b>Empresa:</b></p><p><b>Base:</b> Demonstrações auditadas</p><h3>Reclassificação do Balanço</h3><table><tr><td><b>NCG</b> (Necessidade Capital de Giro)</td><td>R$</td></tr><tr><td><b>CDG</b> (Capital de Giro)</td><td>R$</td></tr><tr><td><b>ST</b> (Saldo de Tesouraria)</td><td>R$</td></tr></table><h3>Tipologia</h3><p><b>Tipo:</b> (I a VI)</p><p><b>Diagnóstico:</b></p><h3>Recomendações BX</h3><ol><li></li></ol>',
+  status_semanal: '<h2>Status Semanal — ' + new Date().toLocaleDateString('pt-BR') + '</h2><h3>🏭 Braskem RJ</h3><ul><li>🟢</li><li>🟡</li><li>🔴</li></ul><h3>🛒 Americanas RX</h3><ul><li>🟢</li><li>🟡</li><li>🔴</li></ul><h3>⚡ Raízen Diagnóstico</h3><ul><li>🟢</li><li>🟡</li><li>🔴</li></ul><h3>Alertas para o sócio</h3><ol><li></li></ol>',
 }
 
 function relTime(d) {
@@ -192,6 +196,10 @@ function NewNoteModal({ projects, companies, onCreate, onClose }) {
                 { icon: '🧠', name: 'Brainstorm',         key: 'brainstorm', type: 'idea' },
                 { icon: '🚀', name: 'Onboarding BPO',     key: 'onboarding', type: 'checklist' },
                 { icon: '📂', name: 'Due Diligence',      key: 'duediligence', type: 'note' },
+                { icon: '⚖️', name: 'Kickoff RJ',         key: 'rj_kickoff', type: 'ata' },
+                { icon: '🤝', name: 'Standstill RX',      key: 'rx_standstill', type: 'ata' },
+                { icon: '📐', name: 'Análise Fleuriet',    key: 'fleuriet', type: 'note' },
+                { icon: '🗓️', name: 'Status Semanal',      key: 'status_semanal', type: 'note' },
                 { icon: '📄', name: 'Em Branco',          key: null, type: 'note' },
               ].map(tpl => (
                 <button key={tpl.name} onClick={() => {

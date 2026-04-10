@@ -81,6 +81,9 @@ function Gauge({ score }) {
   )
 }
 
+// Thresholds padrão do semáforo — ajustável por usuário
+const DEFAULT_THRESHOLDS = { overdueRed: 3, overdueYellow: 1, criticalRisks: 2 }
+
 export default function Dashboard() {
   const { profile } = useData()
   usePageTitle('Dashboard')
@@ -91,6 +94,19 @@ export default function Dashboard() {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const clockRef = useRef(null)
+  const [showThresholds, setShowThresholds] = useState(false)
+  const [thresholds, setThresholds] = useState(() => {
+    try {
+      const saved = localStorage.getItem('bx_dashboard_thresholds')
+      return saved ? { ...DEFAULT_THRESHOLDS, ...JSON.parse(saved) } : DEFAULT_THRESHOLDS
+    } catch { return DEFAULT_THRESHOLDS }
+  })
+
+  function saveThresholds(next) {
+    setThresholds(next)
+    localStorage.setItem('bx_dashboard_thresholds', JSON.stringify(next))
+    setShowThresholds(false)
+  }
 
   const load = useCallback(async () => {
     if (!profile) return
@@ -165,8 +181,10 @@ export default function Dashboard() {
     else if (ciPct < 0.3 && profiles.length > 2) health -= 5  // equipe sem check-in
     health = Math.max(0, Math.min(100, Math.round(health)))
 
-    const statusIcon = overdue >= 3 ? '🔴' : overdue >= 1 ? '🟡' : '🟢'
-    const statusText = overdue >= 3 ? `${overdue} alertas críticos` : overdue >= 1 ? `${overdue} tarefa(s) vencida(s)` : 'Operação estável — 0 alertas'
+    // Usar thresholds do estado (passados via closure — recarregar ao mudar)
+    const th = (() => { try { const s = localStorage.getItem('bx_dashboard_thresholds'); return s ? {...DEFAULT_THRESHOLDS, ...JSON.parse(s)} : DEFAULT_THRESHOLDS } catch { return DEFAULT_THRESHOLDS } })()
+    const statusIcon = overdue >= th.overdueRed ? '🔴' : overdue >= th.overdueYellow ? '🟡' : '🟢'
+    const statusText = overdue >= th.overdueRed ? `${overdue} alertas críticos` : overdue >= th.overdueYellow ? `${overdue} tarefa(s) vencida(s)` : 'Operação estável — 0 alertas'
 
     const pipeStages = [
       { label: 'Indicação', id: 'indicacao', color: '#9CA3AF' },
@@ -312,13 +330,69 @@ export default function Dashboard() {
           <div className="text-right flex flex-col items-end gap-2">
             <div ref={clockRef} className="text-4xl font-bold tracking-widest" />
             <p className="text-xs text-zinc-500">BX Project Hub v3</p>
-            <button onClick={load} title="Atualizar dados"
-              className="flex items-center gap-1.5 px-2 py-1 bg-white/10 hover:bg-white/20 rounded-lg text-xs text-zinc-300 transition-colors">
-              <RefreshCw className="w-3 h-3" /> Atualizar
-            </button>
+            <div className="flex items-center gap-2">
+              <button onClick={load} title="Atualizar dados"
+                className="flex items-center gap-1.5 px-2 py-1 bg-white/10 hover:bg-white/20 rounded-lg text-xs text-zinc-300 transition-colors">
+                <RefreshCw className="w-3 h-3" /> Atualizar
+              </button>
+              <button onClick={() => setShowThresholds(v => !v)} title="Configurar thresholds do semáforo"
+                className="flex items-center gap-1.5 px-2 py-1 bg-white/10 hover:bg-white/20 rounded-lg text-xs text-zinc-300 transition-colors">
+                ⚙️ Semáforo
+              </button>
+            </div>
           </div>
         </div>
       </div>
+
+      {/* ── PAINEL DE THRESHOLDS ── */}
+      {showThresholds && (
+        <div className="bg-white border-2 border-violet-300 rounded-xl p-5 mb-4 shadow-lg">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-bold text-zinc-800">⚙️ Configurar Semáforo Executivo</h3>
+            <button onClick={() => setShowThresholds(false)} className="text-zinc-400 hover:text-zinc-600 text-xs">✕ Fechar</button>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 block mb-1.5">
+                🔴 Vermelho — tarefas vencidas ≥
+              </label>
+              <input type="number" min="1" max="20" value={thresholds.overdueRed}
+                onChange={e => setThresholds(t => ({...t, overdueRed: Number(e.target.value)}))}
+                className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500" />
+              <p className="text-[10px] text-zinc-400 mt-1">Padrão: 3 tarefas vencidas</p>
+            </div>
+            <div>
+              <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 block mb-1.5">
+                🟡 Amarelo — tarefas vencidas ≥
+              </label>
+              <input type="number" min="1" max="20" value={thresholds.overdueYellow}
+                onChange={e => setThresholds(t => ({...t, overdueYellow: Number(e.target.value)}))}
+                className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500" />
+              <p className="text-[10px] text-zinc-400 mt-1">Padrão: 1 tarefa vencida</p>
+            </div>
+            <div>
+              <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 block mb-1.5">
+                🚨 Crítico — riscos críticos ≥
+              </label>
+              <input type="number" min="1" max="20" value={thresholds.criticalRisks}
+                onChange={e => setThresholds(t => ({...t, criticalRisks: Number(e.target.value)}))}
+                className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500" />
+              <p className="text-[10px] text-zinc-400 mt-1">Padrão: 2 riscos críticos</p>
+            </div>
+          </div>
+          <div className="flex gap-3 justify-end mt-4">
+            <button onClick={() => { setThresholds(DEFAULT_THRESHOLDS); localStorage.removeItem('bx_dashboard_thresholds') }}
+              className="px-4 py-2 text-sm text-zinc-500 border border-zinc-200 rounded-lg hover:bg-zinc-50">
+              Restaurar padrão
+            </button>
+            <button onClick={() => saveThresholds(thresholds)}
+              className="px-4 py-2 text-sm font-bold text-white rounded-lg hover:opacity-90"
+              style={{ background: '#5452C1' }}>
+              Salvar configuração
+            </button>
+          </div>
+        </div>
+      )}
 
 
 
