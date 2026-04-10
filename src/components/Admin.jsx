@@ -52,17 +52,40 @@ const TABS = [
 
 // Known integrations catalog (real config comes from `integrations` table if exists)
 const INTEGRATIONS_CATALOG = [
-  { id: 'supabase', name: 'Supabase', icon: '🗄', description: 'Backend e banco de dados', required: true },
-  { id: 'gcal', name: 'Google Calendar', icon: '📅', description: 'Sincronização de eventos' },
-  { id: 'gmail', name: 'Gmail', icon: '📧', description: 'Envio de emails e drafts' },
-  { id: 'gdrive', name: 'Google Drive', icon: '☁', description: 'Armazenamento de documentos' },
-  { id: 'notion', name: 'Notion', icon: '📝', description: 'Sincronização de notas' },
-  { id: 'slack', name: 'Slack', icon: '💬', description: 'Notificações e alertas' },
-  { id: 'datajud', name: 'DataJud CNJ', icon: '⚖', description: 'Consulta a processos judiciais' },
-  { id: 'powerbi', name: 'Power BI', icon: '📊', description: 'Dashboards externos' },
-  { id: 'claude', name: 'Claude AI', icon: '🤖', description: 'Análise de reuniões e texto', required: true },
-  { id: 'bndes', name: 'BNDES API', icon: '🏦', description: 'Linhas de crédito', optional: true },
+  // Infraestrutura (sempre conectado)
+  { id: 'supabase',  name: 'Supabase',          icon: '🗄',  category: 'infra',    description: 'Backend, banco de dados e autenticação',         required: true  },
+  { id: 'claude',    name: 'Claude AI',          icon: '🤖',  category: 'infra',    description: 'Análise de reuniões, documentos e texto',         required: true  },
+  // Google Workspace
+  { id: 'gmail',     name: 'Gmail',              icon: '📧',  category: 'google',   description: 'Envio de emails, drafts e alertas automáticos'               },
+  { id: 'gcal',      name: 'Google Calendar',    icon: '📅',  category: 'google',   description: 'Sincronização de eventos, reuniões e prazos'                 },
+  { id: 'gdrive',    name: 'Google Drive',       icon: '☁️',  category: 'google',   description: 'Armazenamento de documentos e relatórios'                    },
+  { id: 'gsheets',   name: 'Google Sheets',      icon: '📊',  category: 'google',   description: 'Exportação automática de dados e relatórios'                 },
+  // Produtividade
+  { id: 'notion',    name: 'Notion',             icon: '📝',  category: 'produt',   description: 'Sincronização de notas e base de conhecimento'               },
+  { id: 'slack',     name: 'Slack',              icon: '💬',  category: 'produt',   description: 'Notificações de tarefas, alertas e mensagens'                },
+  { id: 'powerbi',   name: 'Power BI',           icon: '📈',  category: 'produt',   description: 'Dashboards externos e relatórios gerenciais'                 },
+  // Jurídico e regulatório
+  { id: 'datajud',   name: 'DataJud CNJ',        icon: '⚖️',  category: 'legal',    description: 'Monitoramento automático de processos de RJ'                 },
+  { id: 'esocial',   name: 'eSocial',            icon: '📋',  category: 'legal',    description: 'Integração com eventos trabalhistas'                         },
+  { id: 'sintegra',  name: 'SINTEGRA / SEFAZ',  icon: '🏛️',  category: 'legal',    description: 'Consulta de situação fiscal de empresas'                     },
+  // Financeiro
+  { id: 'bndes',     name: 'BNDES API',          icon: '🏦',  category: 'financ',   description: 'Linhas de crédito e programas de fomento'                    },
+  { id: 'bcb',       name: 'Banco Central (PIX)',icon: '💸',  category: 'financ',   description: 'Consulta de taxas, índices e câmbio oficial'                 },
+  { id: 'omie',      name: 'Omie ERP',           icon: '🔄',  category: 'financ',   description: 'Sincronização contábil com BX Outsourcing'                   },
+  { id: 'serasa',    name: 'Serasa Experian',    icon: '🔍',  category: 'financ',   description: 'Score e análise de crédito de empresas clientes'             },
+  // Comunicação
+  { id: 'whatsapp',  name: 'WhatsApp Business',  icon: '💬',  category: 'comm',     description: 'Alertas e notificações para sócios e clientes'               },
+  { id: 'zoom',      name: 'Zoom',               icon: '🎥',  category: 'comm',     description: 'Transcrição automática de reuniões'                          },
 ]
+
+const INTEGRATION_CATEGORIES = {
+  infra:   { label: 'Infraestrutura',         color: 'bg-zinc-100 text-zinc-600'    },
+  google:  { label: 'Google Workspace',       color: 'bg-blue-50 text-blue-700'     },
+  produt:  { label: 'Produtividade',          color: 'bg-violet-50 text-violet-700' },
+  legal:   { label: 'Jurídico / Regulatório', color: 'bg-amber-50 text-amber-700'   },
+  financ:  { label: 'Financeiro',             color: 'bg-emerald-50 text-emerald-700'},
+  comm:    { label: 'Comunicação',            color: 'bg-sky-50 text-sky-700'        },
+}
 
 export default function Admin() {
   const { profile } = useData()
@@ -129,17 +152,43 @@ export default function Admin() {
     }
   }
 
+  async function toggleIntegration(catId, currentStatus) {
+    const newStatus = currentStatus === 'connected' ? 'disconnected' : 'connected'
+    try {
+      const existing = integrations.find(i => i.provider === catId)
+      if (existing) {
+        const { error } = await supabase.from('integrations')
+          .update({ status: newStatus, updated_at: new Date().toISOString() })
+          .eq('id', existing.id).eq('org_id', profile.org_id)
+        if (error) throw error
+      } else {
+        const { error } = await supabase.from('integrations')
+          .insert({ org_id: profile.org_id, provider: catId, status: newStatus })
+        if (error) throw error
+      }
+      setIntegrations(prev => {
+        const exists = prev.find(i => i.provider === catId)
+        if (exists) return prev.map(i => i.provider === catId ? { ...i, status: newStatus } : i)
+        return [...prev, { provider: catId, status: newStatus, org_id: profile.org_id }]
+      })
+      toast.success(newStatus === 'connected' ? `${catId} conectado` : `${catId} desconectado`)
+    } catch (err) {
+      toast.error('Erro ao atualizar integração: ' + err.message)
+    }
+  }
+
   async function loadRecentEvents() {
     try {
       const { data, error: qErr } = await supabase
-        .from('audit_log')
-        .select('*')
+        .from('activity_log')
+        .select('id,actor_id,entity_type,action,metadata,created_at,module')
         .eq('org_id', profile?.org_id)
+        .not('entity_type', 'eq', 'announcement')
         .order('created_at', { ascending: false })
-        .limit(10)
+        .limit(20)
       if (!qErr && data) setRecentEvents(data)
     } catch (err) {
-      console.warn('audit_log table may not exist yet')
+      console.warn('activity_log error:', err.message)
     }
   }
 
@@ -515,58 +564,78 @@ export default function Admin() {
 
       {/* TAB: Integrations */}
       {activeTab === 'integrations' && (
-        <div className="bg-white border border-zinc-200 rounded-xl overflow-hidden">
-          <div className="px-5 py-4 border-b border-zinc-200 bg-zinc-50">
-            <h2 className="text-sm font-bold text-zinc-800 flex items-center gap-2">
+        <div className="space-y-4">
+          {/* Contador */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-sm text-zinc-500">
               <Plug className="w-4 h-4 text-violet-600" />
-              Conectores externos
-              <span className="ml-auto text-xs text-zinc-500 font-semibold">{INTEGRATIONS_CATALOG.length} disponíveis</span>
-            </h2>
+              <span className="font-semibold">{integrations.filter(i => i.status === 'connected').length}</span> de {INTEGRATIONS_CATALOG.length} conectadas
+            </div>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-5">
-            {INTEGRATIONS_CATALOG.map(cat => {
-              const stored = integrations.find(i => i.provider === cat.id)
-              const status = stored?.status || (cat.required ? 'connected' : 'disconnected')
-              const statusMap = {
-                connected: { label: 'Conectado', color: 'bg-emerald-100 text-emerald-700', dot: 'bg-emerald-500' },
-                disconnected: { label: 'Desconectado', color: 'bg-zinc-100 text-zinc-500', dot: 'bg-zinc-400' },
-                expired: { label: 'Token expirado', color: 'bg-amber-100 text-amber-700', dot: 'bg-amber-500' },
-                error: { label: 'Erro', color: 'bg-rose-100 text-rose-700', dot: 'bg-rose-500' },
-              }
-              const s = statusMap[status]
-              return (
-                <div key={cat.id} className="border border-zinc-200 rounded-lg p-4 hover:border-violet-300 transition-colors">
-                  <div className="flex items-start gap-3">
-                    <div className="w-10 h-10 bg-zinc-50 rounded-lg flex items-center justify-center text-xl flex-shrink-0">
-                      {cat.icon}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-2">
-                        <h3 className="text-sm font-bold text-zinc-800 truncate">{cat.name}</h3>
-                        <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${s.color} uppercase tracking-wide flex-shrink-0`}>
-                          <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />
-                          {s.label}
-                        </span>
-                      </div>
-                      <p className="text-xs text-zinc-500 mt-0.5">{cat.description}</p>
-                      {stored?.last_sync && (
-                        <p className="text-[10px] text-zinc-400 mt-1">
-                          Última sync: {new Date(stored.last_sync).toLocaleString('pt-BR')}
-                        </p>
-                      )}
-                    </div>
-                  </div>
+
+          {/* Agrupado por categoria */}
+          {Object.entries(INTEGRATION_CATEGORIES).map(([catKey, catMeta]) => {
+            const items = INTEGRATIONS_CATALOG.filter(i => i.category === catKey)
+            if (!items.length) return null
+            return (
+              <div key={catKey} className="bg-white border border-zinc-200 rounded-xl overflow-hidden">
+                <div className="px-4 py-3 border-b border-zinc-100 bg-zinc-50">
+                  <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${catMeta.color}`}>
+                    {catMeta.label}
+                  </span>
                 </div>
-              )
-            })}
-          </div>
-          <div className="px-5 py-3 border-t border-zinc-100 bg-zinc-50 text-xs text-zinc-500">
-            💡 Para conectar uma integração, configure a tabela <code className="bg-white px-1 rounded">integrations</code> no Supabase ou use o painel de configurações do provedor.
-          </div>
+                <div className="divide-y divide-zinc-100">
+                  {items.map(cat => {
+                    const stored = integrations.find(i => i.provider === cat.id)
+                    const status = stored?.status || (cat.required ? 'connected' : 'disconnected')
+                    const isConnected = status === 'connected'
+                    return (
+                      <div key={cat.id} className="flex items-center gap-4 px-5 py-4 hover:bg-zinc-50 transition-colors">
+                        <div className="w-10 h-10 bg-zinc-100 rounded-xl flex items-center justify-center text-xl shrink-0">
+                          {cat.icon}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-bold text-zinc-800">{cat.name}</span>
+                            {cat.required && <span className="text-[9px] font-bold text-zinc-400 bg-zinc-100 px-1.5 py-0.5 rounded-full">NATIVO</span>}
+                          </div>
+                          <p className="text-xs text-zinc-500 mt-0.5">{cat.description}</p>
+                          {stored?.updated_at && (
+                            <p className="text-[10px] text-zinc-400 mt-0.5">
+                              Atualizado {new Date(stored.updated_at).toLocaleDateString('pt-BR')}
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className={`flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-full ${isConnected ? 'bg-emerald-100 text-emerald-700' : 'bg-zinc-100 text-zinc-500'}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-emerald-500' : 'bg-zinc-400'}`} />
+                            {isConnected ? 'Ativo' : 'Inativo'}
+                          </span>
+                          {!cat.required && (
+                            <button
+                              onClick={() => toggleIntegration(cat.id, status)}
+                              className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors ${
+                                isConnected
+                                  ? 'border-zinc-200 text-zinc-600 hover:bg-red-50 hover:border-red-200 hover:text-red-600'
+                                  : 'border-violet-200 text-violet-600 bg-violet-50 hover:bg-violet-100'
+                              }`}>
+                              {isConnected ? 'Desconectar' : 'Conectar'}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          })}
+
+          <p className="text-xs text-zinc-400 text-center pb-2">
+            💡 Integrações com OAuth requerem configuração nas variáveis de ambiente do projeto.
+          </p>
         </div>
       )}
-
-      {/* TAB: Audit */}
       {activeTab === 'audit' && (
         <div className="bg-white border border-zinc-200 rounded-xl overflow-hidden">
           <div className="px-5 py-4 border-b border-zinc-200 bg-zinc-50 flex items-center justify-between">
@@ -590,15 +659,38 @@ export default function Admin() {
             </div>
           ) : (
             <div className="divide-y divide-zinc-100">
-              {recentEvents.map(ev => (
-                <div key={ev.id} className="px-5 py-2.5 text-sm flex items-center gap-3">
-                  <div className="font-mono text-xs text-zinc-500 w-20">
-                    {new Date(ev.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                  </div>
-                  <div className="flex-1 text-zinc-700 truncate">{ev.description}</div>
-                  <div className="text-xs text-zinc-500">{ev.user_name || '—'}</div>
-                </div>
-              ))}
+              {recentEvents.map(ev => {
+                  const actor = profiles.find(p => p.id === ev.actor_id)
+                  const actionLabels = { created:'criou', updated:'atualizou', completed:'concluiu',
+                    moved:'moveu', deleted:'removeu', archived:'arquivou', published:'publicou',
+                    screenshot:'capturou tela', stage_changed:'mudou estágio' }
+                  const actionLabel = actionLabels[ev.action] || ev.action
+                  const title = ev.metadata?.title || ev.metadata?.name || ev.entity_type
+                  return (
+                    <div key={ev.id} className="px-5 py-3 flex items-center gap-3 hover:bg-zinc-50 transition-colors">
+                      <div className="font-mono text-[10px] text-zinc-400 w-20 shrink-0">
+                        {new Date(ev.created_at).toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })}
+                      </div>
+                      {actor && (
+                        <div className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold text-white shrink-0"
+                          style={{ background: actor.avatar_color || '#5452C1' }}>
+                          {actor.initials || actor.full_name?.slice(0,2)}
+                        </div>
+                      )}
+                      <div className="flex-1 text-sm text-zinc-700 truncate">
+                        <span className="font-semibold">{actor?.full_name?.split(' ')[0] || 'Sistema'}</span>
+                        {' '}{actionLabel}
+                        {title && <span className="text-zinc-500"> "{String(title).slice(0,40)}"</span>}
+                      </div>
+                      <div className="text-[10px] text-zinc-400 shrink-0 capitalize">
+                        {ev.module || ev.entity_type}
+                      </div>
+                      {ev.action === 'screenshot' && (
+                        <span className="text-[9px] font-bold bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full shrink-0">⚠ SEGURANÇA</span>
+                      )}
+                    </div>
+                  )
+                })}
             </div>
           )}
         </div>

@@ -109,14 +109,16 @@ const COLOR_MAP = {
 }
 
 const INTEGRATIONS = [
-  { icon: '📧', name: 'Gmail' },
-  { icon: '📅', name: 'Google Calendar' },
-  { icon: '💬', name: 'Slack' },
-  { icon: '📝', name: 'Notion' },
-  { icon: '☁', name: 'Drive' },
-  { icon: '🤖', name: 'Claude AI' },
-  { icon: '⚖', name: 'DataJud' },
-  { icon: '📊', name: 'Power BI' },
+  { icon: '📧', name: 'Gmail',           id: 'gmail'     },
+  { icon: '📅', name: 'Google Calendar', id: 'gcal'      },
+  { icon: '💬', name: 'Slack',           id: 'slack'     },
+  { icon: '📝', name: 'Notion',          id: 'notion'    },
+  { icon: '☁️', name: 'Google Drive',    id: 'gdrive'    },
+  { icon: '🤖', name: 'Claude AI',       id: 'claude'    },
+  { icon: '⚖️', name: 'DataJud CNJ',     id: 'datajud'   },
+  { icon: '📈', name: 'Power BI',        id: 'powerbi'   },
+  { icon: '🔄', name: 'Omie ERP',        id: 'omie'      },
+  { icon: '📋', name: 'WhatsApp Biz',    id: 'whatsapp'  },
 ]
 
 export default function Automations() {
@@ -552,12 +554,16 @@ export default function Automations() {
             <span className="ml-auto text-xs text-zinc-500 font-semibold">{INTEGRATIONS.length} conectores</span>
           </h2>
           <div className="grid grid-cols-2 gap-2">
-            {INTEGRATIONS.map(i => (
-              <div key={i.name} className="flex items-center gap-2 px-3 py-2 bg-zinc-50 rounded-lg">
-                <span className="text-base">{i.icon}</span>
-                <span className="text-xs font-semibold text-zinc-700">{i.name}</span>
-              </div>
-            ))}
+            {INTEGRATIONS.map(i => {
+              const isActive = ['gmail','gcal','claude'].includes(i.id)
+              return (
+                <div key={i.name} className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors ${isActive ? 'bg-emerald-50 border-emerald-200' : 'bg-zinc-50 border-zinc-200'}`}>
+                  <span className="text-base">{i.icon}</span>
+                  <span className="text-xs font-semibold text-zinc-700 flex-1">{i.name}</span>
+                  <span className={`w-1.5 h-1.5 rounded-full ${isActive ? 'bg-emerald-500' : 'bg-zinc-300'}`} />
+                </div>
+              )
+            })}
           </div>
         </div>
       </div>

@@ -110,7 +110,7 @@ export default function Cadastro() {
   const [newLabelForm, setNewLabelForm]             = useState({ name: '', color: '#5452C1' })
   const [newInstForm,  setNewInstForm]              = useState({ name: '', type: 'Banco Comercial', contact_name: '', contact_email: '', contact_phone: '', notes: '' })
 
-  useEscapeKey(() => { setShowNewCompany(false); setShowNewProfile(false); setShowNewLabel(false); setShowNewInstitution(false) }, !!(showNewCompany || showNewProfile || showNewLabel || showNewInstitution))
+  useEscapeKey(() => { setShowNewCompany(false); setShowNewProfile(false); setShowNewLabel(false); setShowNewInstitution(false); setEditingProject(null); setEditingProfile(null); setEditingLabel(null); setEditingInst(null) }, !!(showNewCompany || showNewProfile || showNewLabel || showNewInstitution || editingProject || editingProfile || editingLabel || editingInst))
   useEffect(() => {
     if (profile?.org_id) loadAll()
     // eslint-disable-next-line react-hooks/exhaustive-deps
