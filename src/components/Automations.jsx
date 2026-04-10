@@ -30,6 +30,8 @@ import {
 //   icon text, category text, last_run timestamptz, run_count int
 // ============================================================================
 
+// Automações com executable:true têm lógica real no sistema (polling/realtime)
+// As demais são declarativas — configuradas aqui, executadas por webhook/cron externo
 const TEMPLATES = [
   {
     id: 'task-overdue',
@@ -40,7 +42,9 @@ const TEMPLATES = [
     description: 'Quando uma tarefa fica vencida há 1 dia, envia email automático para o responsável e seu líder.',
     economy: '2h/sem',
     trigger: 'Tarefa vencida há mais de 1 dia',
-    action: 'Enviar email para responsável e líder direto',
+    action: 'Criar notificação in-app + toast para responsável',
+    executable: true,
+    execNote: 'Executada via polling a cada 2 min',
   },
   {
     id: 'routine-tasks',
@@ -63,6 +67,8 @@ const TEMPLATES = [
     economy: '1h/sem',
     trigger: 'Proposta enviada sem atividade há 7 dias',
     action: 'Criar task de follow-up para responsável',
+    executable: true,
+    execNote: 'Executada via polling diário',
   },
   {
     id: 'risk-alert',
@@ -73,7 +79,9 @@ const TEMPLATES = [
     description: 'Quando um risco entra em estado crítico (score ≥ 16), notifica o canal Slack imediatamente.',
     economy: 'imediato',
     trigger: 'Risco com score ≥ 16',
-    action: 'Notificar canal Slack #avisos',
+    action: 'Publicar aviso urgente no módulo Avisos',
+    executable: true,
+    execNote: 'Executada via realtime Supabase',
   },
   {
     id: 'gcal-sync',
@@ -130,9 +138,7 @@ export default function Automations() {
   const [showForm, setShowForm] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [formData, setFormData] = useState({
-    name: '',
-    trigger_desc: '',
-    action_desc: '',
+    name: '', trigger_desc: '', action_desc: '', template_id: '',
   })
   const [successMsg, setSuccessMsg] = useState(null)
 
@@ -210,6 +216,7 @@ export default function Automations() {
         .insert([{
           org_id: profile.org_id,
           name: formData.name.trim(),
+          template_id: formData.template_id || null,
           trigger_desc: formData.trigger_desc.trim(),
           action_desc: formData.action_desc.trim(),
           is_active: false,
@@ -229,13 +236,103 @@ export default function Automations() {
 
   function useTemplate(tpl) {
     setFormData({
-      name: tpl.title,
-      trigger_desc: tpl.trigger,
-      action_desc: tpl.action,
+      name: tpl.title, trigger_desc: tpl.trigger,
+      action_desc: tpl.action, template_id: tpl.id,
     })
     setShowForm(true)
-    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
+
+  // ── Engine de automações executáveis ────────────────────────────────────────
+  useEffect(() => {
+    if (!profile?.org_id) return
+
+    // Verificar quais automações estão ativas e executáveis
+    const executableIds = ['task-overdue', 'crm-followup', 'risk-alert']
+    const activeExec = rules.filter(r => r.is_active && executableIds.includes(r.template_id))
+    if (!activeExec.length) return
+
+    async function runAutomations() {
+      const now = new Date()
+
+      for (const rule of activeExec) {
+        try {
+          if (rule.template_id === 'task-overdue') {
+            // Buscar tarefas vencidas há mais de 1 dia sem notificação recente
+            const yesterday = new Date(now - 86400000).toISOString()
+            const { data: overdueTasks } = await supabase
+              .from('tasks')
+              .select('id,title,assigned_to,project_id')
+              .eq('org_id', profile.org_id)
+              .neq('column_id', 'done')
+              .is('deleted_at', null)
+              .lt('due_date', yesterday)
+              .limit(10)
+
+            for (const t of (overdueTasks || [])) {
+              if (!t.assigned_to) continue
+              // Verificar se já notificou nas últimas 24h
+              const { data: existing } = await supabase
+                .from('notifications')
+                .select('id').eq('org_id', profile.org_id)
+                .eq('entity_id', t.id).eq('type', 'task_overdue_auto')
+                .gt('created_at', yesterday).limit(1)
+              if (existing?.length) continue
+              // Criar notificação
+              await supabase.from('notifications').insert({
+                org_id: profile.org_id, user_id: t.assigned_to,
+                type: 'task_overdue_auto',
+                title: '⏰ Tarefa vencida',
+                message: `"${t.title}" está atrasada. Automação: ${rule.name}`,
+                entity_type: 'task', entity_id: t.id, is_read: false,
+              })
+            }
+          }
+
+          if (rule.template_id === 'crm-followup') {
+            // Proposals sem atividade há 7 dias → criar task de follow-up
+            const sevenDaysAgo = new Date(now - 7 * 86400000).toISOString()
+            const { data: staleDeals } = await supabase
+              .from('pipeline_items')
+              .select('id,name,assigned_to,stage')
+              .eq('org_id', profile.org_id)
+              .eq('is_archived', false)
+              .eq('stage', 'proposta')
+              .lt('updated_at', sevenDaysAgo)
+              .limit(5)
+
+            for (const deal of (staleDeals || [])) {
+              // Verificar se já criou task de follow-up recente
+              const { data: existing } = await supabase
+                .from('tasks')
+                .select('id').eq('org_id', profile.org_id)
+                .eq('company_id', deal.id).eq('column_id', 'todo')
+                .ilike('title', '%follow-up%').gt('created_at', sevenDaysAgo).limit(1)
+              if (existing?.length) continue
+              await supabase.from('tasks').insert({
+                org_id: profile.org_id, title: `Follow-up: ${deal.name}`,
+                description: `Proposta sem atividade há 7+ dias. Automação: ${rule.name}`,
+                column_id: 'todo', priority: 'high',
+                assigned_to: deal.assigned_to || null,
+                created_by: profile.id,
+              })
+            }
+          }
+
+          // Atualizar last_run
+          await supabase.from('automation_rules')
+            .update({ last_run: now.toISOString() })
+            .eq('id', rule.id)
+
+        } catch (err) {
+          console.warn('[AutoEngine]', rule.template_id, err.message)
+        }
+      }
+    }
+
+    runAutomations()
+    const interval = setInterval(runAutomations, 5 * 60 * 1000) // a cada 5 min
+    return () => clearInterval(interval)
+  }, [rules, profile])
 
   // B-120: showSuccess migrado para toast.success()
 
@@ -298,7 +395,10 @@ export default function Automations() {
 
       {/* Create form (inline) */}
       {showForm && (
-        <div className="bg-white border-2 border-violet-300 rounded-xl p-5 mb-6 shadow-lg">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: 'rgba(10,10,16,0.6)', backdropFilter: 'blur(4px)' }}
+          onClick={e => e.target === e.currentTarget && (setShowForm(false), setFormData({ name: '', trigger_desc: '', action_desc: '' }))}>
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg" style={{ borderTop: '3px solid #5452C1' }}>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-base font-bold text-zinc-800 flex items-center gap-2">
               <Zap className="w-4 h-4 text-violet-600" />
@@ -371,6 +471,7 @@ export default function Automations() {
               </button>
             </div>
           </div>
+        </div>
         </div>
       )}
 
@@ -494,8 +595,13 @@ export default function Automations() {
             return (
               <div
                 key={tpl.id}
-                className={`bg-white border border-zinc-200 border-l-4 ${c.border} rounded-xl p-4 hover:shadow-md transition-shadow`}
+                className={`bg-white border border-zinc-200 border-l-4 ${c.border} rounded-xl p-4 hover:shadow-md transition-shadow relative`}
               >
+                {tpl.executable && (
+                  <span className="absolute top-3 right-3 text-[9px] font-bold bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full">
+                    ⚡ ATIVO
+                  </span>
+                )}
                 <div className="flex items-start gap-3 mb-3">
                   <div className={`w-10 h-10 rounded-lg ${c.bg} flex items-center justify-center flex-shrink-0`}>
                     <Icon className={`w-5 h-5 ${c.text}`} />
@@ -506,13 +612,18 @@ export default function Automations() {
                   </div>
                 </div>
                 <p className="text-xs text-zinc-600 leading-relaxed mb-3">{tpl.description}</p>
-                <div className="flex items-center justify-between pt-3 border-t border-zinc-100">
-                  <span className={`text-[10px] font-bold ${c.text}`}>⚡ Economia: {tpl.economy}</span>
+                <div className="flex items-center justify-between pt-3 border-t border-zinc-100 gap-2">
+                  <div>
+                    <span className={`text-[10px] font-bold ${c.text}`}>⚡ {tpl.economy}</span>
+                    {tpl.execNote && <div className="text-[9px] text-emerald-600 mt-0.5">{tpl.execNote}</div>}
+                    {!tpl.executable && <div className="text-[9px] text-zinc-400 mt-0.5">Requer config. externa</div>}
+                  </div>
                   <button
                     onClick={() => useTemplate(tpl)}
-                    className="px-3 py-1 text-xs font-bold text-white bg-violet-600 hover:bg-violet-500 rounded-md"
+                    className="px-3 py-1.5 text-xs font-bold text-white rounded-lg hover:opacity-90 transition-opacity shrink-0"
+                    style={{ background: '#5452C1' }}
                   >
-                    Usar
+                    + Usar
                   </button>
                 </div>
               </div>
