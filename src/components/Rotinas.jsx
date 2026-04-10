@@ -21,6 +21,9 @@ const FREQ = {
   mensal:  { label: 'Mensal',  color: GREEN, bg: '#F0FDF4', days: 30 },
 }
 
+// Ordem fixa de exibição dentro de cada grupo de projeto
+const FREQ_ORDER = { diaria: 0, semanal: 1, mensal: 2 }
+
 // ─── BIBLIOTECA DE TEMPLATES ──────────────────────────────────────────────────
 const TEMPLATE_LIBRARY = [
   {
@@ -407,8 +410,13 @@ export default function Rotinas() {
 
   function isOverdue(r) {
     const last = lastDone(r.id)
-    if (!last) return true
     const days = FREQ[r.frequency]?.days || 7
+    if (!last) {
+      // Rotina nunca executada: só é "em atraso" se foi criada há mais de 1 ciclo
+      const createdAt = r.created_at ? r.created_at.slice(0, 10) : todayStr
+      const daysSinceCreation = Math.floor((new Date(todayStr) - new Date(createdAt)) / 86400000)
+      return daysSinceCreation >= days
+    }
     return Math.floor((new Date(todayStr) - new Date(last)) / 86400000) >= days
   }
 
@@ -565,6 +573,16 @@ export default function Rotinas() {
     if (!grouped[companyId]) grouped[companyId] = {}
     if (!grouped[companyId][projectId]) grouped[companyId][projectId] = []
     grouped[companyId][projectId].push(r)
+  }
+  // Ordenar rotinas dentro de cada projeto: Diárias → Semanais → Mensais → alfabético
+  for (const co of Object.values(grouped)) {
+    for (const projKey of Object.keys(co)) {
+      co[projKey].sort((a, b) => {
+        const fo = (FREQ_ORDER[a.frequency] ?? 9) - (FREQ_ORDER[b.frequency] ?? 9)
+        if (fo !== 0) return fo
+        return (a.title || '').localeCompare(b.title || '')
+      })
+    }
   }
 
   const companyKeys = Object.keys(grouped).sort((a, b) => {
