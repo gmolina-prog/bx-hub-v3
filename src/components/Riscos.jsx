@@ -177,18 +177,16 @@ export default function Riscos() {
             </div>
           </div>
           {/* Gauge de exposição */}
-          <div className="text-center">
-            <svg width="120" height="80">
-              <path d="M 15 75 A 50 50 0 0 1 105 75" stroke="#FFFFFF22" strokeWidth="10" fill="none" strokeLinecap="round" />
-              {exposurePct > 0 && (() => {
-                const pct = Math.min(100, exposurePct) / 100
-                const ex = 60 + 50 * Math.cos(Math.PI - Math.PI * pct)
-                const ey = 75 - 50 * Math.sin(Math.PI - Math.PI * pct)
-                return <path d={`M 15 75 A 50 50 0 ${pct > 0.5 ? 1 : 0} 1 ${ex} ${ey}`} stroke={exposureColor} strokeWidth="10" fill="none" strokeLinecap="round" />
-              })()}
-              <text x="60" y="65" fontSize="20" fontWeight="700" textAnchor="middle" fill={exposureColor}>{exposurePct}%</text>
-              <text x="60" y="78" fontSize="9" textAnchor="middle" fill="#888">exposição</text>
-            </svg>
+          <div className="flex items-center justify-center">
+            <GaugeChart
+              value={exposurePct}
+              pct={exposurePct}
+              suffix="%"
+              label="exposição"
+              color={exposureColor}
+              size="sm"
+              dark={true}
+            />
           </div>
         </div>
         {/* KPIs */}

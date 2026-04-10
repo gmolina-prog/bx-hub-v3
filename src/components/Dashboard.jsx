@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
+import GaugeChart from './GaugeChart'
 import { supabase } from '../lib/supabase'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { useData } from '../contexts/DataContext'
@@ -50,35 +51,6 @@ function greeting() {
   if (h < 12) return { text: 'Bom dia', icon: '🌅' }
   if (h < 18) return { text: 'Boa tarde', icon: '☀️' }
   return { text: 'Boa noite', icon: '🌙' }
-}
-
-// Mini gauge SVG
-function Gauge({ score }) {
-  const color = score >= 80 ? GREEN : score >= 60 ? AMBER : RED
-  const label = score >= 80 ? 'Excelente' : score >= 60 ? 'Bom' : score >= 40 ? 'Atenção' : 'Crítico'
-  const pct = Math.max(0, Math.min(100, score)) / 100
-  const endAngle = Math.PI * pct
-  const ex = 110 + 100 * Math.cos(Math.PI - endAngle)
-  const ey = 130 - 100 * Math.sin(Math.PI - endAngle)
-  const large = pct > 0.5 ? 1 : 0
-  return (
-    <div className="text-center">
-      <svg width="220" height="140">
-        <defs>
-          <linearGradient id="gGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor={RED} />
-            <stop offset="50%" stopColor={AMBER} />
-            <stop offset="100%" stopColor={GREEN} />
-          </linearGradient>
-        </defs>
-        <path d="M 30 130 A 100 100 0 0 1 190 130" stroke="#E8E8EE" strokeWidth="12" fill="none" strokeLinecap="round" />
-        {pct > 0 && <path d={`M 30 130 A 100 100 0 ${large} 1 ${ex} ${ey}`} stroke="url(#gGrad)" strokeWidth="12" fill="none" strokeLinecap="round" />}
-        <text x="110" y="102" fontSize="42" fontWeight="700" textAnchor="middle" fill={color} fontFamily="Montserrat">{score}</text>
-        <text x="110" y="122" fontSize="12" textAnchor="middle" fill="#999" fontFamily="Montserrat">{label}</text>
-      </svg>
-
-    </div>
-  )
 }
 
 // Thresholds padrão do semáforo — ajustável por usuário
@@ -494,7 +466,14 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
         <div className="bg-white border border-zinc-200 rounded-xl p-5">
           <h3 className="text-sm font-bold text-zinc-700 mb-2 text-center">Saúde Operacional</h3>
-          <Gauge score={health} />
+          <GaugeChart
+                value={health}
+                pct={health}
+                label={health >= 80 ? 'Excelente' : health >= 60 ? 'Bom' : health >= 40 ? 'Atenção' : 'Crítico'}
+                color={health >= 80 ? '#10B981' : health >= 60 ? '#F59E0B' : '#EF4444'}
+                gradient={true}
+                size="lg"
+              />
         </div>
         <div className="bg-white border border-zinc-200 rounded-xl p-5">
           <h3 className="text-sm font-bold text-zinc-700 mb-4">Semáforo Executivo</h3>
