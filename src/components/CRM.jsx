@@ -196,10 +196,12 @@ export default function CRM() {
         value: parseFloat(proposalForm.value) || 0,
         status: proposalForm.status,
         contact_name: proposalForm.contact_name?.trim() || null,
-        notes: proposalForm.notes?.trim() || null,
+        notes: [
+          proposalForm.expected_close ? `Previsão fechamento: ${proposalForm.expected_close}` : '',
+          proposalForm.notes?.trim() || '',
+        ].filter(Boolean).join('\n') || null,
         sent_date: proposalForm.status === 'enviada' ? new Date().toISOString().slice(0, 10) : null,
-        expected_close: proposalForm.expected_close || null,
-        lost_reason: proposalForm.status === 'perdida' ? (proposalForm.lost_reason || null) : null,
+        loss_reason: proposalForm.status === 'perdida' ? (proposalForm.lost_reason || null) : null,
       }
       // Validar motivo de perda obrigatório
       if (proposalForm.status === 'perdida' && !proposalForm.lost_reason) {

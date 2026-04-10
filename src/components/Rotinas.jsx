@@ -109,7 +109,7 @@ export default function Rotinas() {
           assigned_to: r.assigned_to || profile.id,
           due_date:    new Date(Date.now() + 86400000).toISOString().slice(0, 10),
           created_by:  profile.id,
-          source:      'routine',
+
         }
         const { error: tErr } = await supabase.from('tasks').insert(taskPayload)
         if (tErr) {
