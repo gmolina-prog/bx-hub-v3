@@ -138,7 +138,7 @@ export default function Automations() {
   const [showForm, setShowForm] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [formData, setFormData] = useState({
-    name: '', trigger_desc: '', action_desc: '', template_id: '',
+    name: '', trigger_desc: '', action_desc: '',
   })
   const [successMsg, setSuccessMsg] = useState(null)
 
@@ -216,7 +216,6 @@ export default function Automations() {
         .insert([{
           org_id: profile.org_id,
           name: formData.name.trim(),
-          template_id: formData.template_id || null,
           trigger_desc: formData.trigger_desc.trim(),
           action_desc: formData.action_desc.trim(),
           is_active: false,
@@ -237,7 +236,7 @@ export default function Automations() {
   function useTemplate(tpl) {
     setFormData({
       name: tpl.title, trigger_desc: tpl.trigger,
-      action_desc: tpl.action, template_id: tpl.id,
+      action_desc: tpl.action,
     })
     setShowForm(true)
   }
@@ -247,8 +246,16 @@ export default function Automations() {
     if (!profile?.org_id) return
 
     // Verificar quais automações estão ativas e executáveis
-    const executableIds = ['task-overdue', 'crm-followup', 'risk-alert']
-    const activeExec = rules.filter(r => r.is_active && executableIds.includes(r.template_id))
+    // Identificar tipo de automação pelo trigger_desc (template_id não existe no banco)
+    const getTemplateType = (rule) => {
+      const t = (rule.trigger_desc || '').toLowerCase()
+      const n = (rule.name || '').toLowerCase()
+      if (t.includes('vencida') || t.includes('overdue') || n.includes('atraso')) return 'task-overdue'
+      if (t.includes('crm') || t.includes('proposta') || t.includes('followup')) return 'crm-followup'
+      if (t.includes('risco') || t.includes('risk') || t.includes('score')) return 'risk-alert'
+      return null
+    }
+    const activeExec = rules.filter(r => r.is_active && getTemplateType(r) !== null)
     if (!activeExec.length) return
 
     async function runAutomations() {
@@ -256,7 +263,8 @@ export default function Automations() {
 
       for (const rule of activeExec) {
         try {
-          if (rule.template_id === 'task-overdue') {
+          const templateType = getTemplateType(rule)
+          if (templateType === 'task-overdue') {
             // Buscar tarefas vencidas há mais de 1 dia sem notificação recente
             const yesterday = new Date(now - 86400000).toISOString()
             const { data: overdueTasks } = await supabase
@@ -288,7 +296,7 @@ export default function Automations() {
             }
           }
 
-          if (rule.template_id === 'crm-followup') {
+          if (templateType === 'crm-followup') {
             // Proposals sem atividade há 7 dias → criar task de follow-up
             const sevenDaysAgo = new Date(now - 7 * 86400000).toISOString()
             const { data: staleDeals } = await supabase
@@ -324,7 +332,7 @@ export default function Automations() {
             .eq('id', rule.id)
 
         } catch (err) {
-          console.warn('[AutoEngine]', rule.template_id, err.message)
+          console.warn('[AutoEngine]', rule.name, err.message)
         }
       }
     }
