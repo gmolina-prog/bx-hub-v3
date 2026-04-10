@@ -933,63 +933,159 @@ export default function Kanban() {
                     </div>
                   )}
                   {colTasks.map(t => {
-                    const prof = profMap[t.assigned_to]
-                    const proj = projMap[t.project_id]
-                    const pr = PRIORITY[t.priority] || PRIORITY.medium
-                    const subtasks = Array.isArray(t.checklist) ? t.checklist : []
-                    const subDone = subtasks.filter(s => s.done).length
+                    const prof       = profMap[t.assigned_to]
+                    const proj       = projMap[t.project_id]
+                    const pr         = PRIORITY[t.priority] || PRIORITY.medium
+                    const subtasks   = Array.isArray(t.checklist) ? t.checklist : []
+                    const subDone    = subtasks.filter(s => s.done).length
+                    const subPct     = subtasks.length > 0 ? Math.round(subDone / subtasks.length * 100) : 0
+                    const tags       = Array.isArray(t.tags) ? t.tags : []
+                    const collabs    = Array.isArray(t.custom_field_values?.collaborators) ? t.custom_field_values.collaborators : []
+                    const overdue    = t.due_date && new Date(t.due_date) < new Date() && t.column_id !== 'done'
+                    const daysLeft   = t.due_date ? Math.ceil((new Date(t.due_date) - new Date()) / 86400000) : null
+                    const doneTask   = t.column_id === 'done'
+
+                    // Cor dominante: emergência > cover_color > prioridade
+                    const accentColor = t.is_emergency ? '#DC2626' : (t.cover_color || pr.color)
+
                     return (
                       <div key={t.id}
                         draggable
                         onDragStart={e => onDragStart(e, t)}
                         onDragEnd={onDragEnd}
                         onClick={() => setModalTask(t)}
-                        className="bg-white rounded-xl shadow-sm border border-zinc-100 cursor-pointer hover:shadow-md hover:-translate-y-0.5 transition-all select-none"
-                        style={{ borderLeft: t.is_emergency ? '4px solid #DC2626' : t.cover_color ? `4px solid ${t.cover_color}` : `4px solid ${pr.color}`, opacity: dragging?.id === t.id ? 0.5 : 1, background: t.is_emergency ? '#FFF5F5' : t.cover_color ? `${t.cover_color}0D` : 'white' }}>
-                        {/* Emergency badge */}
-                        {t.is_emergency && <div className="px-3 pt-2.5 flex"><span className="text-[9px] font-bold bg-red-100 text-red-600 px-2 py-0.5 rounded-full">🚨 EMERGÊNCIA</span></div>}
-                        <div className="p-3">
-                          {/* Project tag */}
-                          {proj && <div className="text-[10px] font-bold text-violet-600 bg-violet-50 px-2 py-0.5 rounded-full inline-block mb-2">{proj.name}</div>}
-                          {/* Title */}
-                          <p className="text-sm font-semibold text-zinc-800 leading-tight mb-2">{t.title}</p>
-                          {/* Subtask progress */}
-                          {subtasks.length > 0 && (
-                            <div className="mb-2">
-                              <div className="flex items-center gap-1 mb-1">
-                                <CheckSquare className="w-3 h-3 text-zinc-400" />
-                                <span className="text-[10px] text-zinc-400">{subDone}/{subtasks.length}</span>
-                              </div>
-                              <div className="h-1 bg-zinc-100 rounded-full overflow-hidden">
-                                <div className="h-full bg-violet-500 rounded-full" style={{ width: `${subtasks.length > 0 ? subDone / subtasks.length * 100 : 0}%` }} />
-                              </div>
-                            </div>
+                        className="group relative bg-white rounded-xl cursor-pointer select-none transition-all duration-150 hover:shadow-lg hover:-translate-y-0.5"
+                        style={{
+                          opacity:    dragging?.id === t.id ? 0.4 : 1,
+                          boxShadow:  '0 1px 3px rgba(0,0,0,0.08)',
+                          borderTop:  `3px solid ${accentColor}`,
+                          background: t.is_emergency ? '#FFF5F5' : t.cover_color ? `${t.cover_color}08` : 'white',
+                        }}>
+
+                        {/* Linha topo: projeto + ações rápidas */}
+                        <div className="flex items-center justify-between px-3 pt-2.5 pb-0">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            {t.is_emergency && (
+                              <span className="text-[9px] font-bold bg-red-100 text-red-600 px-1.5 py-0.5 rounded-md shrink-0">🚨</span>
+                            )}
+                            {proj && (
+                              <span className="text-[10px] font-semibold text-zinc-400 truncate">{proj.name}</span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                            {t.is_starred && <span className="text-amber-400 text-xs">⭐</span>}
+                          </div>
+                          {!proj && t.is_starred && (
+                            <span className="text-amber-400 text-xs">⭐</span>
                           )}
-                          {/* Footer */}
-                          <div className="flex items-center gap-2 flex-wrap mt-1">
-                            <PriorityBadge priority={t.priority} />
-                            <DueBadge date={t.due_date} colId={t.column_id} />
-                            {t.hours_logged && <span className="text-[10px] text-zinc-400 flex items-center gap-1"><Clock className="w-2.5 h-2.5" />{t.hours_logged}h</span>}
-                          {Array.isArray(t.tags) && t.tags.slice(0,2).map((tag,i) => (
-                            <span key={i} className="text-[9px] font-bold bg-violet-100 text-violet-600 px-1.5 py-0.5 rounded-full">{tag}</span>
-                          ))}
-                            {/* Colaboradores */}
-                          {Array.isArray(t.custom_field_values?.collaborators) && t.custom_field_values.collaborators.slice(0,3).map(uid => {
-                            const cp = profMap[uid]
-                            if (!cp) return null
-                            return (
-                              <div key={uid} className="w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-bold text-white border border-white -ml-1.5 first:ml-0" style={{ background: cp.avatar_color || '#8B5CF6' }} title={cp.full_name}>
-                                {cp.initials || cp.full_name?.slice(0,2)}
+                        </div>
+
+                        {/* Favorito sempre visível se ativo, mesmo sem hover */}
+                        {t.is_starred && proj && (
+                          <div className="absolute top-2 right-2.5 text-amber-400 text-xs">⭐</div>
+                        )}
+
+                        {/* Título */}
+                        <div className="px-3 pt-2 pb-1">
+                          <p className={`text-sm font-semibold leading-snug line-clamp-2 ${doneTask ? 'line-through text-zinc-400' : 'text-zinc-800'}`}>
+                            {t.title}
+                          </p>
+                        </div>
+
+                        {/* Descrição — só 1 linha se existir */}
+                        {t.description && (
+                          <div className="px-3 pb-1">
+                            <p className="text-[11px] text-zinc-400 line-clamp-1">{t.description}</p>
+                          </div>
+                        )}
+
+                        {/* Checklist */}
+                        {subtasks.length > 0 && (
+                          <div className="px-3 pb-2">
+                            <div className="flex items-center gap-2">
+                              <div className="flex-1 h-1 bg-zinc-100 rounded-full overflow-hidden">
+                                <div className="h-full rounded-full transition-all"
+                                  style={{ width: `${subPct}%`, background: subPct === 100 ? '#10B981' : accentColor }} />
                               </div>
-                            )
-                          })}
-                          {prof && (
-                              <div className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold text-white border-2 border-white" style={{ background: prof.avatar_color || '#5452C1' }} title={prof.full_name}>
+                              <span className="text-[10px] text-zinc-400 shrink-0 font-medium">
+                                {subDone}/{subtasks.length}
+                              </span>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Tags */}
+                        {tags.length > 0 && (
+                          <div className="px-3 pb-2 flex gap-1 flex-wrap">
+                            {tags.slice(0, 3).map((tag, i) => (
+                              <span key={i} className="text-[9px] font-bold px-1.5 py-0.5 rounded-md"
+                                style={{ background: `${accentColor}15`, color: accentColor }}>
+                                {tag}
+                              </span>
+                            ))}
+                            {tags.length > 3 && (
+                              <span className="text-[9px] text-zinc-400">+{tags.length - 3}</span>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Footer */}
+                        <div className="flex items-center justify-between px-3 pb-2.5 pt-1 gap-2">
+                          {/* Esquerda: prazo + prioridade */}
+                          <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+                            {/* Prazo */}
+                            {t.due_date && (
+                              <span className={`text-[10px] font-bold flex items-center gap-0.5 px-1.5 py-0.5 rounded-md ${
+                                doneTask ? 'bg-green-50 text-green-600' :
+                                overdue  ? 'bg-red-100 text-red-600' :
+                                daysLeft === 0 ? 'bg-amber-100 text-amber-700' :
+                                daysLeft <= 3  ? 'bg-blue-50 text-blue-600' :
+                                'text-zinc-400 bg-transparent'
+                              }`}>
+                                <Clock className="w-2.5 h-2.5" />
+                                {doneTask ? '✓' :
+                                 overdue  ? `${Math.abs(daysLeft)}d atraso` :
+                                 daysLeft === 0 ? 'Hoje' :
+                                 daysLeft <= 7  ? `${daysLeft}d` :
+                                 new Date(t.due_date).toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit' })}
+                              </span>
+                            )}
+                            {/* Prioridade — só se urgente ou alta */}
+                            {(t.priority === 'urgent' || t.priority === 'high') && (
+                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md"
+                                style={{ background: pr.bg, color: pr.color }}>
+                                {pr.label}
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Direita: avatares empilhados */}
+                          <div className="flex items-center shrink-0" style={{ marginRight: -2 }}>
+                            {/* Colaboradores */}
+                            {collabs.slice(0, 3).map((uid, i) => {
+                              const cp = profMap[uid]
+                              if (!cp) return null
+                              return (
+                                <div key={uid}
+                                  className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold text-white ring-2 ring-white"
+                                  style={{ background: cp.avatar_color || '#8B5CF6', marginLeft: i === 0 ? 0 : -6, zIndex: i }}
+                                  title={cp.full_name}>
+                                  {cp.initials || cp.full_name?.slice(0,2)}
+                                </div>
+                              )
+                            })}
+                            {/* Responsável principal */}
+                            {prof && (
+                              <div
+                                className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold text-white ring-2 ring-white"
+                                style={{ background: prof.avatar_color || '#5452C1', marginLeft: collabs.length > 0 ? -6 : 0, zIndex: collabs.length }}
+                                title={prof.full_name}>
                                 {prof.initials || prof.full_name?.slice(0, 2)}
                               </div>
                             )}
                           </div>
                         </div>
+
                       </div>
                     )
                   })}
