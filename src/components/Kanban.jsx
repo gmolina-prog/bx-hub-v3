@@ -47,16 +47,20 @@ function DueBadge({ date, colId }) {
 // ═══════════════════════════════════════════════════════════════
 function TaskModal({ task, projects, profiles, onClose, onSave, onDelete, onArchive }) {
   const [form, setForm] = useState({
-    title: task.title || '',
-    description: task.description || '',
-    priority: task.priority || 'medium',
-    column_id: task.column_id || 'todo',
-    assigned_to: task.assigned_to || '',
-    project_id: task.project_id || '',
-    due_date: task.due_date ? task.due_date.split('T')[0] : '',
+    title:        task.title        || '',
+    description:  task.description  || '',
+    priority:     task.priority     || 'medium',
+    column_id:    task.column_id    || 'todo',
+    assigned_to:  task.assigned_to  || '',
+    project_id:   task.project_id   || '',
+    due_date:     task.due_date ? task.due_date.split('T')[0] : '',
     hours_logged: task.hours_logged || '',
     is_emergency: task.is_emergency || false,
-    is_starred:  task.is_starred  || false,
+    is_starred:   task.is_starred   || false,
+    tags:         Array.isArray(task.tags)       ? task.tags       : [],
+    cover_color:  task.cover_color  || '',
+    collaborators: Array.isArray(task.custom_field_values?.collaborators)
+                   ? task.custom_field_values.collaborators : [],
   })
   const [subtasks, setSubtasks] = useState(Array.isArray(task.checklist) ? task.checklist : [])
   const [newSubtask, setNewSubtask] = useState('')
@@ -188,12 +192,52 @@ function TaskModal({ task, projects, profiles, onClose, onSave, onDelete, onArch
                   </select>
                 </div>
                 <div>
-                  <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Responsável</label>
+                  <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Responsável principal</label>
                   <select className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500" value={form.assigned_to || ''} onChange={e => setForm(p => ({ ...p, assigned_to: e.target.value }))}>
                     <option value="">— nenhum —</option>
                     {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
                   </select>
                 </div>
+
+                {/* Colaboradores adicionais */}
+                <div>
+                  <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">
+                    Colaboradores
+                    {(form.collaborators||[]).length > 0 && <span className="text-zinc-400 font-normal ml-1 normal-case">({(form.collaborators||[]).length})</span>}
+                  </label>
+                  {(form.collaborators||[]).length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mb-2">
+                      {(form.collaborators||[]).map(uid => {
+                        const prof = profiles.find(p => p.id === uid)
+                        if (!prof) return null
+                        return (
+                          <div key={uid} className="flex items-center gap-1 bg-violet-50 border border-violet-200 rounded-full pl-0.5 pr-2 py-0.5">
+                            <div className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold text-white shrink-0"
+                              style={{ background: prof.avatar_color || '#5452C1' }}>
+                              {prof.initials || prof.full_name?.slice(0,2)}
+                            </div>
+                            <span className="text-[10px] text-violet-700 font-semibold">{prof.full_name?.split(' ')[0]}</span>
+                            <button onClick={() => setForm(p => ({ ...p, collaborators: p.collaborators.filter(id => id !== uid) }))}
+                              className="text-violet-400 hover:text-red-500 ml-0.5 text-xs">×</button>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                  <select className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500"
+                    value=""
+                    onChange={e => {
+                      const uid = e.target.value
+                      if (!uid || (form.collaborators||[]).includes(uid) || uid === form.assigned_to) return
+                      setForm(p => ({ ...p, collaborators: [...(p.collaborators||[]), uid] }))
+                    }}>
+                    <option value="">+ Adicionar colaborador…</option>
+                    {profiles
+                      .filter(p => p.id !== form.assigned_to && !(form.collaborators||[]).includes(p.id))
+                      .map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
+                  </select>
+                </div>
+
                 <div>
                   <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Projeto</label>
                   <select className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500" value={form.project_id || ''} onChange={e => setForm(p => ({ ...p, project_id: e.target.value }))}>
@@ -529,7 +573,13 @@ export default function Kanban() {
         project_id: form.project_id || null, created_by: profile.id,
         due_date: form.due_date || null, hours_logged: form.hours_logged ? parseFloat(form.hours_logged) : null,
         is_emergency: form.is_emergency || false, checklist: form.checklist || [],
-        cover_color: form.cover_color || null, is_starred: form.is_starred || false,
+        cover_color:   form.cover_color   || null,
+        is_starred:    form.is_starred    || false,
+        tags:          form.tags          || [],
+        custom_field_values: {
+          ...(form.custom_field_values || {}),
+          collaborators: form.collaborators || [],
+        },
       })
       if (err) { setError(err.message); return }
     } else {
@@ -539,7 +589,13 @@ export default function Kanban() {
         project_id: form.project_id || null,
         due_date: form.due_date || null, hours_logged: form.hours_logged ? parseFloat(form.hours_logged) : null,
         is_emergency: form.is_emergency || false, checklist: form.checklist || [],
-        cover_color: form.cover_color || null, is_starred: form.is_starred || false,
+        cover_color:   form.cover_color   || null,
+        is_starred:    form.is_starred    || false,
+        tags:          form.tags          || [],
+        custom_field_values: {
+          ...(form.custom_field_values || {}),
+          collaborators: form.collaborators || [],
+        },
       }).eq('id', form.id).eq('org_id', profile.org_id)
       if (err) { setError(err.message); return }
     }
@@ -879,8 +935,18 @@ export default function Kanban() {
                           {Array.isArray(t.tags) && t.tags.slice(0,2).map((tag,i) => (
                             <span key={i} className="text-[9px] font-bold bg-violet-100 text-violet-600 px-1.5 py-0.5 rounded-full">{tag}</span>
                           ))}
-                            {prof && (
-                              <div className="ml-auto w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold text-white" style={{ background: prof.avatar_color || '#5452C1' }} title={prof.full_name}>
+                            {/* Colaboradores */}
+                          {Array.isArray(t.custom_field_values?.collaborators) && t.custom_field_values.collaborators.slice(0,3).map(uid => {
+                            const cp = profMap[uid]
+                            if (!cp) return null
+                            return (
+                              <div key={uid} className="w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-bold text-white border border-white -ml-1.5 first:ml-0" style={{ background: cp.avatar_color || '#8B5CF6' }} title={cp.full_name}>
+                                {cp.initials || cp.full_name?.slice(0,2)}
+                              </div>
+                            )
+                          })}
+                          {prof && (
+                              <div className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold text-white border-2 border-white" style={{ background: prof.avatar_color || '#5452C1' }} title={prof.full_name}>
                                 {prof.initials || prof.full_name?.slice(0, 2)}
                               </div>
                             )}
