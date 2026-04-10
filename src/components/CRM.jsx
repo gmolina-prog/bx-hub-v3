@@ -587,9 +587,7 @@ export default function CRM() {
                   )
                 })}
               </div>
-              <div className="mt-4 pt-3 border-t border-zinc-100 text-xs text-zinc-500 leading-relaxed">
-                💡 Adicione coluna <code className="bg-zinc-100 px-1 rounded">health</code> em <code className="bg-zinc-100 px-1 rounded">companies</code> para classificar (excellent · good · attention · critical).
-              </div>
+
             </div>
 
             <div className="bg-white border border-zinc-200 rounded-xl p-5">
