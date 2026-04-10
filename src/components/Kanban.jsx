@@ -8,6 +8,7 @@ import { usePageTitle } from '../hooks/usePageTitle'
 import { useData } from '../contexts/DataContext'
 import { toast, confirm } from './Toast'
 
+// v2-card-redesign
 const COLS = [
   { id: 'todo',  label: 'A Fazer',     color: '#9CA3AF' },
   { id: 'doing', label: 'Em Andamento', color: '#5452C1' },
@@ -57,10 +58,9 @@ function TaskModal({ task, projects, profiles, onClose, onSave, onDelete, onArch
     assigned_to:  task.assigned_to  || '',
     project_id:   task.project_id   || '',
     due_date:     task.due_date ? task.due_date.split('T')[0] : '',
-    hours_logged: task.hours_logged || '',
     is_emergency: task.is_emergency || false,
     is_starred:   task.is_starred   || false,
-    tags:         Array.isArray(task.tags)        ? task.tags        : [],
+    tags:         Array.isArray(task.tags)       ? task.tags       : [],
     cover_color:  task.cover_color  || '',
     collaborators: Array.isArray(task.custom_field_values?.collaborators)
                    ? task.custom_field_values.collaborators : [],
@@ -72,10 +72,13 @@ function TaskModal({ task, projects, profiles, onClose, onSave, onDelete, onArch
   const [newComment,      setNewComment]      = useState('')
   const [loadingComments, setLoadingComments] = useState(false)
   const [saving,          setSaving]          = useState(false)
-  const titleRef = useRef(null)
+  const [showAllChecklist, setShowAllChecklist] = useState(false)
+  const commentsEndRef = useRef(null)
+  const titleRef       = useRef(null)
+  const commentInputRef = useRef(null)
 
-  // Load comments
   useEffect(() => {
+    setTimeout(() => titleRef.current?.focus(), 60)
     if (!task.id || task.id === 'new') return
     setLoadingComments(true)
     supabase.from('task_comments').select('*').eq('task_id', task.id).order('created_at')
@@ -83,10 +86,14 @@ function TaskModal({ task, projects, profiles, onClose, onSave, onDelete, onArch
       .catch(() => setLoadingComments(false))
   }, [task.id])
 
-  useEffect(() => { setTimeout(() => titleRef.current?.focus(), 50) }, [])
+  useEffect(() => {
+    commentsEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [comments.length])
 
   const doneSubtasks = subtasks.filter(s => s.done).length
-  const subtaskPct   = subtasks.length > 0 ? Math.round(doneSubtasks / subtasks.length * 100) : 0
+  const subPct       = subtasks.length > 0 ? Math.round(doneSubtasks / subtasks.length * 100) : 0
+
+  const accentColor  = form.is_emergency ? '#DC2626' : (form.cover_color || VL)
 
   function toggleSubtask(i) {
     setSubtasks(prev => prev.map((s, j) => j === i ? { ...s, done: !s.done } : s))
@@ -102,13 +109,14 @@ function TaskModal({ task, projects, profiles, onClose, onSave, onDelete, onArch
 
   async function addComment() {
     if (!newComment.trim() || !task.id || task.id === 'new') return
+    const trimmed = newComment.trim()
+    setNewComment('')
     const { data, error } = await supabase.from('task_comments').insert({
       task_id: task.id, org_id: profile.org_id,
       user_id: profile.id, user_name: profile.full_name,
-      content: newComment, type: 'comment',
+      content: trimmed, type: 'comment',
     }).select().single()
     if (!error && data) setComments(prev => [...prev, data])
-    setNewComment('')
   }
 
   async function handleSave() {
@@ -120,355 +128,390 @@ function TaskModal({ task, projects, profiles, onClose, onSave, onDelete, onArch
     setSaving(false)
   }
 
-  const coverStyle = form.cover_color
-    ? { borderTop: `3px solid ${form.cover_color}` }
-    : { borderTop: `3px solid ${form.is_emergency ? '#DC2626' : VL}` }
-
   const COVER_COLORS = ['#5452C1','#10B981','#F59E0B','#EF4444','#3B82F6','#8B5CF6','#EC4899','#2D2E39','#6B7280']
+
+  // Checklist: mostrar 4 por padrão, expandir ao clicar
+  const visibleSubtasks = showAllChecklist ? subtasks : subtasks.slice(0, 4)
+  const hiddenCount     = subtasks.length - 4
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ background: 'rgba(15,15,20,0.6)', backdropFilter: 'blur(4px)' }}
+      style={{ background: 'rgba(10,10,16,0.65)', backdropFilter: 'blur(6px)' }}
       onClick={e => e.target === e.currentTarget && onClose()}>
 
-      {/* Modal — layout de duas colunas */}
-      <div className="bg-white rounded-2xl shadow-2xl w-full flex flex-col overflow-hidden"
-        style={{ maxWidth: 860, maxHeight: '92vh', ...coverStyle }}>
+      <div className="bg-white rounded-2xl shadow-2xl flex overflow-hidden"
+        style={{
+          width: '96vw', maxWidth: 1100, height: '90vh',
+          borderTop: `3px solid ${accentColor}`,
+        }}>
 
-        {/* ── HEADER ── */}
-        <div className="flex items-center justify-between px-6 py-3 border-b border-zinc-100 shrink-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            {/* Status pill */}
-            <select
-              className="text-[10px] font-bold px-2 py-1 rounded-full border-0 focus:outline-none focus:ring-1 focus:ring-violet-400 cursor-pointer"
-              style={{ background: PRIORITY[form.priority]?.bg, color: PRIORITY[form.priority]?.color }}
-              value={form.priority}
-              onChange={e => setForm(p => ({ ...p, priority: e.target.value }))}>
-              {Object.entries(PRIORITY).map(([k,v]) => <option key={k} value={k}>{v.label}</option>)}
-            </select>
-            <select
-              className="text-[10px] font-bold px-2 py-1 rounded-full border border-zinc-200 focus:outline-none focus:ring-1 focus:ring-violet-400 cursor-pointer bg-white text-zinc-600"
-              value={form.column_id}
-              onChange={e => setForm(p => ({ ...p, column_id: e.target.value }))}>
-              {COLS.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
-            </select>
-            {form.is_emergency && (
-              <span className="text-[10px] font-bold px-2 py-1 rounded-full bg-red-100 text-red-700">🚨 Emergência</span>
-            )}
-          </div>
-          <div className="flex items-center gap-1">
-            <button onClick={() => setForm(p => ({ ...p, is_starred: !p.is_starred }))}
-              title="Favoritar"
-              className={`p-1.5 rounded-lg transition-colors ${form.is_starred ? 'text-amber-400' : 'text-zinc-300 hover:text-amber-400'}`}>
-              ⭐
-            </button>
-            {task.id !== 'new' && <>
-              <button onClick={() => onArchive && onArchive(task.id)} title="Arquivar"
-                className="p-1.5 text-zinc-400 hover:text-amber-500 rounded-lg transition-colors">
-                <Archive className="w-4 h-4" />
-              </button>
-              <button onClick={() => onDelete(task.id)} title="Excluir"
-                className="p-1.5 text-zinc-400 hover:text-red-500 rounded-lg transition-colors">
-                <Trash2 className="w-4 h-4" />
-              </button>
-            </>}
-            <button onClick={onClose} className="p-1.5 text-zinc-400 hover:text-zinc-600 rounded-lg">
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
+        {/* ════════════════════════════════════════════
+            COLUNA ESQUERDA — conteúdo (flex col, 3 zonas)
+            ════════════════════════════════════════════ */}
+        <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
 
-        {/* ── BODY: duas colunas ── */}
-        <div className="flex flex-1 min-h-0 overflow-hidden">
+          {/* ZONA 1 — Header + Título + Descrição (fixo, shrink-0) */}
+          <div className="shrink-0 border-b border-zinc-100">
+            {/* Header de ações */}
+            <div className="flex items-center justify-between px-6 py-3">
+              <div className="flex items-center gap-2 flex-wrap">
+                <select
+                  className="text-[10px] font-bold px-2.5 py-1 rounded-full border-0 focus:outline-none cursor-pointer"
+                  style={{ background: PRIORITY[form.priority]?.bg, color: PRIORITY[form.priority]?.color }}
+                  value={form.priority}
+                  onChange={e => setForm(p => ({ ...p, priority: e.target.value }))}>
+                  {Object.entries(PRIORITY).map(([k,v]) => <option key={k} value={k}>{v.label}</option>)}
+                </select>
+                <select
+                  className="text-[10px] font-bold px-2.5 py-1 rounded-full border border-zinc-200 focus:outline-none cursor-pointer bg-white text-zinc-600"
+                  value={form.column_id}
+                  onChange={e => setForm(p => ({ ...p, column_id: e.target.value }))}>
+                  {COLS.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+                </select>
+                {form.is_emergency && (
+                  <span className="text-[10px] font-bold px-2 py-1 rounded-full bg-red-100 text-red-700">🚨 Emergência</span>
+                )}
+              </div>
+              <div className="flex items-center gap-1">
+                <button onClick={() => setForm(p => ({ ...p, is_starred: !p.is_starred }))}
+                  className={`p-1.5 rounded-lg text-sm transition-colors ${form.is_starred ? 'text-amber-400' : 'text-zinc-300 hover:text-amber-400'}`}>⭐</button>
+                {task.id !== 'new' && <>
+                  <button onClick={() => onArchive?.(task.id)} className="p-1.5 text-zinc-400 hover:text-amber-500 rounded-lg transition-colors"><Archive className="w-4 h-4" /></button>
+                  <button onClick={() => onDelete(task.id)} className="p-1.5 text-zinc-400 hover:text-red-500 rounded-lg transition-colors"><Trash2 className="w-4 h-4" /></button>
+                </>}
+                <button onClick={onClose} className="p-1.5 text-zinc-400 hover:text-zinc-700 rounded-lg"><X className="w-5 h-5" /></button>
+              </div>
+            </div>
 
-          {/* COLUNA ESQUERDA — conteúdo principal */}
-          <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
-            <div className="px-7 pt-5 pb-3">
-              {/* Título */}
-              <textarea
-                ref={titleRef}
+            {/* Título */}
+            <div className="px-7 pb-2">
+              <textarea ref={titleRef} rows={2}
                 className="w-full text-xl font-bold text-zinc-800 resize-none border-0 outline-none placeholder:text-zinc-300 leading-snug"
                 placeholder="Título da tarefa…"
-                rows={2}
                 value={form.title}
-                onChange={e => { setForm(p => ({ ...p, title: e.target.value })); e.target.style.height='auto'; e.target.style.height=e.target.scrollHeight+'px' }}
-              />
+                onChange={e => setForm(p => ({ ...p, title: e.target.value }))} />
             </div>
 
             {/* Descrição */}
             <div className="px-7 pb-4">
-              <textarea
-                className="w-full text-sm text-zinc-600 resize-none border-0 outline-none placeholder:text-zinc-300 leading-relaxed"
-                placeholder="Adicionar descrição, contexto, links relevantes…"
-                rows={3}
+              <textarea rows={2}
+                className="w-full text-sm text-zinc-500 resize-none border-0 outline-none placeholder:text-zinc-300 leading-relaxed"
+                placeholder="Descrição, contexto, links…"
                 value={form.description || ''}
-                onChange={e => { setForm(p => ({ ...p, description: e.target.value })); e.target.style.height='auto'; e.target.style.height=e.target.scrollHeight+'px' }}
-              />
+                onChange={e => setForm(p => ({ ...p, description: e.target.value }))} />
             </div>
+          </div>
 
-            <div className="border-t border-zinc-100 mx-7" />
-
-            {/* ── CHECKLIST ── */}
-            <div className="px-7 py-4">
-              <div className="flex items-center justify-between mb-3">
+          {/* ZONA 2 — Checklist (fixo, shrink-0) */}
+          <div className="shrink-0 border-b border-zinc-100 bg-zinc-50/50">
+            <div className="px-7 py-3">
+              <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
-                  <CheckSquare className="w-4 h-4 text-zinc-400" />
-                  <span className="text-xs font-bold text-zinc-700 uppercase tracking-wider">Checklist</span>
+                  <CheckSquare className="w-3.5 h-3.5 text-zinc-400" />
+                  <span className="text-[11px] font-bold text-zinc-500 uppercase tracking-wider">Checklist</span>
                   {subtasks.length > 0 && (
-                    <span className="text-[10px] text-zinc-400">{doneSubtasks}/{subtasks.length}</span>
+                    <span className="text-[11px] font-bold" style={{ color: subPct === 100 ? '#10B981' : accentColor }}>
+                      {doneSubtasks}/{subtasks.length} · {subPct}%
+                    </span>
                   )}
                 </div>
                 {subtasks.length > 0 && (
-                  <span className="text-[10px] font-bold" style={{ color: subtaskPct === 100 ? '#10B981' : VL }}>{subtaskPct}%</span>
+                  <div className="flex-1 mx-4 h-1.5 bg-zinc-200 rounded-full overflow-hidden">
+                    <div className="h-full rounded-full transition-all duration-300"
+                      style={{ width: `${subPct}%`, background: subPct === 100 ? '#10B981' : accentColor }} />
+                  </div>
                 )}
               </div>
-              {subtasks.length > 0 && (
-                <div className="h-1 bg-zinc-100 rounded-full overflow-hidden mb-3">
-                  <div className="h-full rounded-full transition-all" style={{ width: `${subtaskPct}%`, background: subtaskPct === 100 ? '#10B981' : VL }} />
-                </div>
-              )}
-              <div className="space-y-1.5 mb-3">
-                {subtasks.map((s, i) => (
-                  <div key={i} className="flex items-start gap-2.5 group">
+
+              {/* Itens */}
+              <div className="space-y-1.5">
+                {visibleSubtasks.map((s, i) => (
+                  <div key={i} className="flex items-center gap-2.5 group">
                     <button onClick={() => toggleSubtask(i)}
-                      className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 mt-0.5 transition-colors ${s.done ? 'border-violet-500' : 'border-zinc-300 hover:border-violet-400'}`}
-                      style={s.done ? { background: VL, borderColor: VL } : {}}>
+                      className="w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-colors"
+                      style={s.done
+                        ? { background: accentColor, borderColor: accentColor }
+                        : { borderColor: '#D1D5DB' }}>
                       {s.done && <Check className="w-2.5 h-2.5 text-white" />}
                     </button>
                     <span className={`text-sm flex-1 leading-snug ${s.done ? 'line-through text-zinc-400' : 'text-zinc-700'}`}>{s.text}</span>
                     <button onClick={() => removeSubtask(i)}
-                      className="opacity-0 group-hover:opacity-100 text-zinc-300 hover:text-red-500 transition-all text-xs px-1">×</button>
+                      className="opacity-0 group-hover:opacity-100 text-zinc-300 hover:text-red-500 transition-opacity text-sm px-1">×</button>
                   </div>
                 ))}
+
+                {/* Expandir checklist */}
+                {!showAllChecklist && hiddenCount > 0 && (
+                  <button onClick={() => setShowAllChecklist(true)}
+                    className="text-[11px] text-zinc-400 hover:text-zinc-600 pl-6 transition-colors">
+                    + {hiddenCount} item{hiddenCount !== 1 ? 's' : ''} oculto{hiddenCount !== 1 ? 's' : ''}
+                  </button>
+                )}
+                {showAllChecklist && subtasks.length > 4 && (
+                  <button onClick={() => setShowAllChecklist(false)}
+                    className="text-[11px] text-zinc-400 hover:text-zinc-600 pl-6 transition-colors">
+                    Recolher
+                  </button>
+                )}
               </div>
-              <div className="flex gap-2">
+
+              {/* Input novo item */}
+              <div className="flex gap-2 mt-2.5">
                 <input
-                  className="flex-1 text-sm border border-zinc-200 rounded-lg px-3 py-1.5 focus:outline-none focus:border-violet-500 placeholder:text-zinc-300"
-                  placeholder="Novo item… (Enter)"
+                  className="flex-1 text-sm border border-zinc-200 rounded-lg px-3 py-1.5 focus:outline-none focus:border-violet-500 placeholder:text-zinc-300 bg-white"
+                  placeholder="Adicionar item… (Enter)"
                   value={newSubtask}
                   onChange={e => setNewSubtask(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && addSubtask()} />
                 <button onClick={addSubtask}
-                  className="px-3 py-1.5 text-xs font-semibold text-zinc-500 border border-zinc-200 rounded-lg hover:border-violet-400 hover:text-violet-600 transition-colors">
+                  className="px-3 py-1.5 text-xs font-semibold text-zinc-500 bg-white border border-zinc-200 rounded-lg hover:border-violet-400 hover:text-violet-600 transition-colors whitespace-nowrap">
                   + Item
                 </button>
               </div>
             </div>
+          </div>
 
-            <div className="border-t border-zinc-100 mx-7" />
-
-            {/* ── COMENTÁRIOS ── */}
-            <div className="px-7 py-4 flex-1">
+          {/* ZONA 3 — Comentários (rola) + Input fixo */}
+          <div className="flex-1 flex flex-col min-h-0">
+            {/* Lista de comentários — rola */}
+            <div className="flex-1 overflow-y-auto px-7 py-4">
               <div className="flex items-center gap-2 mb-3">
-                <MessageSquare className="w-4 h-4 text-zinc-400" />
-                <span className="text-xs font-bold text-zinc-700 uppercase tracking-wider">Comentários</span>
-                {comments.length > 0 && <span className="text-[10px] text-zinc-400">{comments.length}</span>}
+                <MessageSquare className="w-3.5 h-3.5 text-zinc-400" />
+                <span className="text-[11px] font-bold text-zinc-500 uppercase tracking-wider">Comentários</span>
+                {comments.length > 0 && <span className="text-[11px] text-zinc-400">{comments.length}</span>}
               </div>
 
               {loadingComments ? (
-                <div className="text-xs text-zinc-400 py-2">Carregando…</div>
+                <div className="text-xs text-zinc-400 py-3">Carregando…</div>
+              ) : comments.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-8 text-center">
+                  <div className="w-10 h-10 rounded-2xl bg-zinc-100 flex items-center justify-center mb-2">
+                    <MessageSquare className="w-5 h-5 text-zinc-300" />
+                  </div>
+                  <p className="text-xs text-zinc-400">Sem comentários ainda.</p>
+                  <button onClick={() => commentInputRef.current?.focus()}
+                    className="mt-2 text-xs font-semibold hover:underline" style={{ color: VL }}>
+                    Iniciar discussão
+                  </button>
+                </div>
               ) : (
-                <div className="space-y-3 mb-3">
-                  {comments.length === 0 && (
-                    <p className="text-xs text-zinc-400 italic">Sem comentários ainda.</p>
-                  )}
-                  {comments.map((c, i) => (
-                    <div key={i} className="flex gap-2.5">
-                      <div className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold text-white shrink-0 mt-0.5"
+                <div className="space-y-4">
+                  {comments.map((cm, i) => (
+                    <div key={i} className="flex gap-3">
+                      <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 mt-0.5"
                         style={{ background: VL }}>
-                        {(c.user_name || '?').slice(0, 2).toUpperCase()}
+                        {(cm.user_name || '?').slice(0,2).toUpperCase()}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-baseline gap-2 mb-0.5">
-                          <span className="text-[11px] font-bold text-zinc-700">{c.user_name?.split(' ')[0]}</span>
-                          <span className="text-[10px] text-zinc-400">{new Date(c.created_at).toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })}</span>
+                        <div className="flex items-baseline gap-2 mb-1">
+                          <span className="text-xs font-bold text-zinc-700">{cm.user_name?.split(' ')[0]}</span>
+                          <span className="text-[10px] text-zinc-400">
+                            {new Date(cm.created_at).toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })}
+                          </span>
                         </div>
-                        <div className="text-sm text-zinc-600 leading-relaxed bg-zinc-50 rounded-xl px-3 py-2">{c.content}</div>
+                        <div className="text-sm text-zinc-600 leading-relaxed bg-zinc-50 rounded-xl px-4 py-2.5">
+                          {cm.content}
+                        </div>
                       </div>
                     </div>
                   ))}
+                  <div ref={commentsEndRef} />
                 </div>
               )}
+            </div>
 
-              {task.id !== 'new' && (
-                <div className="flex gap-2">
-                  <div className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold text-white shrink-0 mt-1.5"
+            {/* Input de comentário — FIXO no rodapé esquerdo */}
+            {task.id !== 'new' && (
+              <div className="shrink-0 border-t border-zinc-100 px-7 py-4 bg-white">
+                <div className="flex gap-3 items-end">
+                  <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0"
                     style={{ background: profile?.avatar_color || VL }}>
                     {profile?.initials || profile?.full_name?.slice(0,2) || 'EU'}
                   </div>
-                  <div className="flex-1 flex gap-2">
-                    <input
-                      className="flex-1 text-sm border border-zinc-200 rounded-xl px-3 py-2 focus:outline-none focus:border-violet-500 placeholder:text-zinc-300"
-                      placeholder="Adicionar comentário…"
+                  <div className="flex-1 relative">
+                    <textarea ref={commentInputRef} rows={2}
+                      className="w-full text-sm border border-zinc-200 rounded-xl px-4 py-2.5 focus:outline-none focus:border-violet-500 resize-none placeholder:text-zinc-300 leading-relaxed pr-16"
+                      placeholder="Escrever comentário… (Enter para enviar)"
                       value={newComment}
                       onChange={e => setNewComment(e.target.value)}
-                      onKeyDown={e => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), addComment())} />
+                      onKeyDown={e => {
+                        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); addComment() }
+                      }} />
                     <button onClick={addComment} disabled={!newComment.trim()}
-                      className="px-3 py-2 text-xs font-bold text-white rounded-xl disabled:opacity-40 transition-opacity"
+                      className="absolute right-2 bottom-2 px-3 py-1.5 text-xs font-bold text-white rounded-lg disabled:opacity-30 transition-opacity"
                       style={{ background: VL }}>
-                      Enviar
+                      ↵
                     </button>
                   </div>
                 </div>
-              )}
-            </div>
-          </div>
-
-          {/* COLUNA DIREITA — metadados */}
-          <div className="w-64 shrink-0 border-l border-zinc-100 overflow-y-auto bg-zinc-50/50">
-            <div className="p-5 space-y-5">
-
-              {/* Responsável principal */}
-              <div>
-                <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 block mb-1.5">Responsável</label>
-                <select className="w-full text-sm bg-white border border-zinc-200 rounded-lg px-2.5 py-2 focus:outline-none focus:border-violet-500"
-                  value={form.assigned_to || ''}
-                  onChange={e => setForm(p => ({ ...p, assigned_to: e.target.value }))}>
-                  <option value="">— nenhum —</option>
-                  {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
-                </select>
               </div>
+            )}
+          </div>
+        </div>
 
-              {/* Colaboradores */}
-              <div>
-                <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 block mb-1.5">
-                  Colaboradores {(form.collaborators||[]).length > 0 && <span className="font-normal">({(form.collaborators||[]).length})</span>}
-                </label>
-                {(form.collaborators||[]).length > 0 && (
-                  <div className="flex flex-wrap gap-1 mb-2">
-                    {(form.collaborators||[]).map(uid => {
-                      const prof = profiles.find(p => p.id === uid)
-                      if (!prof) return null
-                      return (
-                        <div key={uid} className="flex items-center gap-1 bg-white border border-violet-200 rounded-full pl-0.5 pr-1.5 py-0.5">
-                          <div className="w-4 h-4 rounded-full flex items-center justify-center text-[8px] font-bold text-white"
-                            style={{ background: prof.avatar_color || VL }}>
-                            {prof.initials || prof.full_name?.slice(0,2)}
-                          </div>
-                          <span className="text-[10px] text-zinc-600">{prof.full_name?.split(' ')[0]}</span>
-                          <button onClick={() => setForm(p => ({ ...p, collaborators: p.collaborators.filter(id => id !== uid) }))}
-                            className="text-zinc-300 hover:text-red-500 text-xs ml-0.5">×</button>
+        {/* ════════════════════════════════════════════
+            COLUNA DIREITA — metadados + salvar
+            ════════════════════════════════════════════ */}
+        <div className="w-72 shrink-0 border-l border-zinc-100 flex flex-col overflow-hidden bg-zinc-50/30">
+
+          {/* Metadados — rola */}
+          <div className="flex-1 overflow-y-auto px-5 py-5 space-y-5">
+
+            {/* Responsável */}
+            <div>
+              <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 block mb-1.5">Responsável</label>
+              <select className="w-full text-sm bg-white border border-zinc-200 rounded-xl px-3 py-2 focus:outline-none focus:border-violet-500"
+                value={form.assigned_to || ''}
+                onChange={e => setForm(p => ({ ...p, assigned_to: e.target.value }))}>
+                <option value="">— nenhum —</option>
+                {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
+              </select>
+            </div>
+
+            {/* Colaboradores */}
+            <div>
+              <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 block mb-1.5">
+                Colaboradores {(form.collaborators||[]).length > 0 && <span className="font-normal">({(form.collaborators||[]).length})</span>}
+              </label>
+              {(form.collaborators||[]).length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                  {(form.collaborators||[]).map(uid => {
+                    const prof = profiles.find(p => p.id === uid)
+                    if (!prof) return null
+                    return (
+                      <div key={uid} className="flex items-center gap-1 bg-white border border-violet-200 rounded-full pl-0.5 pr-2 py-0.5">
+                        <div className="w-4 h-4 rounded-full flex items-center justify-center text-[8px] font-bold text-white"
+                          style={{ background: prof.avatar_color || VL }}>
+                          {prof.initials || prof.full_name?.slice(0,2)}
                         </div>
-                      )
-                    })}
-                  </div>
-                )}
-                <select className="w-full text-sm bg-white border border-zinc-200 rounded-lg px-2.5 py-2 focus:outline-none focus:border-violet-500"
-                  value=""
-                  onChange={e => {
-                    const uid = e.target.value
-                    if (!uid || (form.collaborators||[]).includes(uid) || uid === form.assigned_to) return
-                    setForm(p => ({ ...p, collaborators: [...(p.collaborators||[]), uid] }))
-                  }}>
-                  <option value="">+ Adicionar…</option>
-                  {profiles.filter(p => p.id !== form.assigned_to && !(form.collaborators||[]).includes(p.id))
-                    .map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
-                </select>
-              </div>
-
-              {/* Projeto */}
-              <div>
-                <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 block mb-1.5">Projeto</label>
-                <select className="w-full text-sm bg-white border border-zinc-200 rounded-lg px-2.5 py-2 focus:outline-none focus:border-violet-500"
-                  value={form.project_id || ''}
-                  onChange={e => setForm(p => ({ ...p, project_id: e.target.value }))}>
-                  <option value="">— nenhum —</option>
-                  {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                </select>
-              </div>
-
-              {/* Prazo */}
-              <div>
-                <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 block mb-1.5">Prazo</label>
-                <input type="date" className="w-full text-sm bg-white border border-zinc-200 rounded-lg px-2.5 py-2 focus:outline-none focus:border-violet-500"
-                  value={form.due_date || ''}
-                  onChange={e => setForm(p => ({ ...p, due_date: e.target.value }))} />
-                {form.due_date && <DueBadge date={form.due_date} colId={form.column_id} />}
-              </div>
-
-              {/* Cor do card */}
-              <div>
-                <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 block mb-1.5">Cor do card</label>
-                <div className="flex gap-1.5 flex-wrap">
-                  {COVER_COLORS.map(col => (
-                    <button key={col}
-                      onClick={() => setForm(p => ({ ...p, cover_color: p.cover_color === col ? '' : col }))}
-                      className={`w-5 h-5 rounded-full transition-all ${form.cover_color === col ? 'ring-2 ring-offset-1 ring-zinc-500 scale-110' : 'hover:scale-110'}`}
-                      style={{ background: col }} />
-                  ))}
+                        <span className="text-[10px] text-zinc-600">{prof.full_name?.split(' ')[0]}</span>
+                        <button onClick={() => setForm(p => ({ ...p, collaborators: p.collaborators.filter(id => id !== uid) }))}
+                          className="text-zinc-300 hover:text-red-500 text-xs ml-0.5 leading-none">×</button>
+                      </div>
+                    )
+                  })}
                 </div>
-              </div>
+              )}
+              <select className="w-full text-sm bg-white border border-zinc-200 rounded-xl px-3 py-2 focus:outline-none focus:border-violet-500"
+                value=""
+                onChange={e => {
+                  const uid = e.target.value
+                  if (!uid || (form.collaborators||[]).includes(uid) || uid === form.assigned_to) return
+                  setForm(p => ({ ...p, collaborators: [...(p.collaborators||[]), uid] }))
+                }}>
+                <option value="">+ Adicionar colaborador…</option>
+                {profiles.filter(p => p.id !== form.assigned_to && !(form.collaborators||[]).includes(p.id))
+                  .map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
+              </select>
+            </div>
 
-              {/* Tags */}
-              <div>
-                <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 block mb-1.5">Tags</label>
-                <div className="flex flex-wrap gap-1 mb-2">
-                  {(form.tags||[]).map((tag, i) => (
-                    <span key={i} className="inline-flex items-center gap-0.5 text-[10px] font-bold bg-violet-100 text-violet-700 px-2 py-0.5 rounded-full">
-                      {tag}
-                      <button onClick={() => setForm(p => ({ ...p, tags: p.tags.filter((_,j) => j !== i) }))} className="hover:text-red-600 ml-0.5">×</button>
-                    </span>
-                  ))}
-                </div>
-                <div className="flex gap-1.5">
-                  <input
-                    className="flex-1 min-w-0 text-xs bg-white border border-zinc-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-violet-500"
-                    placeholder="Nova tag…"
-                    value={form._newTag || ''}
-                    onChange={e => setForm(p => ({ ...p, _newTag: e.target.value }))}
-                    onKeyDown={e => {
-                      if (e.key === 'Enter' && form._newTag?.trim()) {
-                        setForm(p => ({ ...p, tags: [...(p.tags||[]), p._newTag.trim()], _newTag: '' }))
-                      }
-                    }} />
-                  <button
-                    onClick={() => { if (form._newTag?.trim()) setForm(p => ({ ...p, tags: [...(p.tags||[]), p._newTag.trim()], _newTag: '' })) }}
-                    className="px-2 py-1.5 bg-white border border-zinc-200 text-xs text-zinc-500 rounded-lg hover:border-violet-400 hover:text-violet-600 transition-colors">
-                    +
-                  </button>
-                </div>
-              </div>
+            {/* Projeto */}
+            <div>
+              <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 block mb-1.5">Projeto</label>
+              <select className="w-full text-sm bg-white border border-zinc-200 rounded-xl px-3 py-2 focus:outline-none focus:border-violet-500"
+                value={form.project_id || ''}
+                onChange={e => setForm(p => ({ ...p, project_id: e.target.value }))}>
+                <option value="">— nenhum —</option>
+                {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+            </div>
 
-              {/* Emergência */}
-              <div className={`flex items-center justify-between p-2.5 rounded-xl border transition-all ${form.is_emergency ? 'bg-red-50 border-red-300' : 'bg-white border-zinc-200'}`}>
-                <div>
-                  <div className="text-xs font-semibold text-zinc-700 flex items-center gap-1.5">🚨 Emergência</div>
-                  <div className={`text-[10px] mt-0.5 ${form.is_emergency ? 'text-red-500 font-semibold' : 'text-zinc-400'}`}>
-                    {form.is_emergency ? 'Ativa — notifica liderança' : 'Desativada'}
-                  </div>
-                </div>
-                <button onClick={() => setForm(p => ({ ...p, is_emergency: !p.is_emergency }))}
-                  className={`w-10 h-5 rounded-full transition-colors relative shrink-0 ${form.is_emergency ? 'bg-red-500' : 'bg-zinc-200'}`}>
-                  <div className={`w-4 h-4 bg-white rounded-full shadow absolute top-0.5 transition-all ${form.is_emergency ? 'left-5' : 'left-0.5'}`} />
-                </button>
-              </div>
-
-              {/* Criado por */}
-              {task.id !== 'new' && task.created_at && (
-                <div className="text-[10px] text-zinc-400 leading-relaxed pt-1 border-t border-zinc-100">
-                  Criado {new Date(task.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+            {/* Prazo */}
+            <div>
+              <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 block mb-1.5">Prazo</label>
+              <input type="date" className="w-full text-sm bg-white border border-zinc-200 rounded-xl px-3 py-2 focus:outline-none focus:border-violet-500"
+                value={form.due_date || ''}
+                onChange={e => setForm(p => ({ ...p, due_date: e.target.value }))} />
+              {form.due_date && (
+                <div className="mt-1.5">
+                  <DueBadge date={form.due_date} colId={form.column_id} />
                 </div>
               )}
             </div>
+
+            {/* Cor do card */}
+            <div>
+              <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 block mb-2">Cor do card</label>
+              <div className="flex gap-2 flex-wrap">
+                {COVER_COLORS.map(col => (
+                  <button key={col}
+                    onClick={() => setForm(p => ({ ...p, cover_color: p.cover_color === col ? '' : col }))}
+                    className={`w-6 h-6 rounded-full transition-all ${form.cover_color === col ? 'ring-2 ring-offset-2 ring-zinc-500 scale-110' : 'hover:scale-110'}`}
+                    style={{ background: col }} />
+                ))}
+                {form.cover_color && (
+                  <button onClick={() => setForm(p => ({ ...p, cover_color: '' }))}
+                    className="text-[10px] text-zinc-400 hover:text-zinc-600 self-center ml-1">limpar</button>
+                )}
+              </div>
+            </div>
+
+            {/* Tags */}
+            <div>
+              <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 block mb-1.5">Tags</label>
+              <div className="flex flex-wrap gap-1 mb-2">
+                {(form.tags||[]).map((tag, i) => (
+                  <span key={i} className="inline-flex items-center gap-0.5 text-[10px] font-bold px-2 py-0.5 rounded-full"
+                    style={{ background: `${accentColor}18`, color: accentColor }}>
+                    {tag}
+                    <button onClick={() => setForm(p => ({ ...p, tags: p.tags.filter((_,j) => j !== i) }))} className="hover:text-red-600 ml-0.5 leading-none">×</button>
+                  </span>
+                ))}
+              </div>
+              <div className="flex gap-1.5">
+                <input
+                  className="flex-1 min-w-0 text-xs bg-white border border-zinc-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-violet-500 placeholder:text-zinc-300"
+                  placeholder="Nova tag… (Enter)"
+                  value={form._newTag || ''}
+                  onChange={e => setForm(p => ({ ...p, _newTag: e.target.value }))}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && form._newTag?.trim()) {
+                      setForm(p => ({ ...p, tags: [...(p.tags||[]), p._newTag.trim()], _newTag: '' }))
+                    }
+                  }} />
+                <button onClick={() => { if (form._newTag?.trim()) setForm(p => ({ ...p, tags: [...(p.tags||[]), p._newTag.trim()], _newTag: '' })) }}
+                  className="px-2 py-1.5 bg-white border border-zinc-200 text-xs text-zinc-500 rounded-lg hover:border-violet-400 hover:text-violet-600 transition-colors">+</button>
+              </div>
+            </div>
+
+            {/* Emergência */}
+            <div className={`flex items-center justify-between p-3 rounded-xl border transition-colors ${form.is_emergency ? 'bg-red-50 border-red-200' : 'bg-white border-zinc-200'}`}>
+              <div>
+                <div className="text-xs font-semibold text-zinc-700">🚨 Emergência</div>
+                <div className={`text-[10px] mt-0.5 ${form.is_emergency ? 'text-red-500 font-semibold' : 'text-zinc-400'}`}>
+                  {form.is_emergency ? 'Ativa — notifica liderança' : 'Desativada'}
+                </div>
+              </div>
+              <button onClick={() => setForm(p => ({ ...p, is_emergency: !p.is_emergency }))}
+                className={`w-10 h-5 rounded-full transition-colors relative shrink-0 ${form.is_emergency ? 'bg-red-500' : 'bg-zinc-200'}`}>
+                <div className={`w-4 h-4 bg-white rounded-full shadow absolute top-0.5 transition-all ${form.is_emergency ? 'left-5' : 'left-0.5'}`} />
+              </button>
+            </div>
+
+            {task.id !== 'new' && task.created_at && (
+              <div className="text-[10px] text-zinc-400 border-t border-zinc-100 pt-3">
+                Criado em {new Date(task.created_at).toLocaleDateString('pt-BR', { day:'2-digit', month:'long', year:'numeric' })}
+              </div>
+            )}
+          </div>
+
+          {/* Botão Salvar — FIXO no rodapé direito */}
+          <div className="shrink-0 border-t border-zinc-100 p-5 bg-white">
+            <button onClick={handleSave} disabled={!form.title.trim() || saving}
+              className="w-full py-2.5 text-sm font-bold text-white rounded-xl disabled:opacity-40 hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
+              style={{ background: accentColor }}>
+              {saving
+                ? <><span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" /> Salvando…</>
+                : task.id === 'new' ? '+ Criar tarefa' : 'Salvar alterações'}
+            </button>
+            {task.id !== 'new' && (
+              <button onClick={onClose} className="w-full mt-2 py-2 text-xs text-zinc-400 hover:text-zinc-600 transition-colors">
+                Cancelar
+              </button>
+            )}
           </div>
         </div>
 
-        {/* ── FOOTER ── */}
-        <div className="flex items-center justify-between px-6 py-3 border-t border-zinc-100 shrink-0 bg-white">
-          <div className="text-[10px] text-zinc-400">
-            {task.id === 'new' ? 'Nova tarefa' : `ID: ${task.id?.slice(0,8)}`}
-          </div>
-          <div className="flex items-center gap-2">
-            <button onClick={onClose} className="px-4 py-2 text-sm text-zinc-500 hover:text-zinc-700 transition-colors">
-              Cancelar
-            </button>
-            <button onClick={handleSave} disabled={!form.title.trim() || saving}
-              className="flex items-center gap-2 px-5 py-2 text-sm font-bold text-white rounded-xl disabled:opacity-50 hover:opacity-90 transition-opacity"
-              style={{ background: VL }}>
-              {saving ? 'Salvando…' : task.id === 'new' ? 'Criar tarefa' : 'Salvar'}
-            </button>
-          </div>
-        </div>
       </div>
     </div>
   )
