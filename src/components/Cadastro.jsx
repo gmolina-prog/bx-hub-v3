@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { ROLES, CARGO_OPTIONS } from '../lib/roles'
-import { NovaEmpresaModal, NovoColaboradorModal, NovoProjetoModal } from './CadastroModal'
+import { NovaEmpresaModal, NovoColaboradorModal, NovoProjetoModal, NovaInstituicaoModal } from './CadastroModal'
 import { toast } from './Toast'
 import { useEscapeKey } from '../hooks/useEscapeKey'
 import { usePageTitle } from '../hooks/usePageTitle'
@@ -106,6 +106,7 @@ export default function Cadastro() {
   const [editProjectForm, setEditProjectForm] = useState({})
   const navigate = useNavigate()
   // Modais de criação
+  const [showNewProject, setShowNewProject] = useState(false)
   const [showNewLabel, setShowNewLabel]             = useState(false)
   const [showNewInstitution, setShowNewInstitution] = useState(false)
   const [newLabelForm, setNewLabelForm]             = useState({ name: '', color: '#5452C1' })
@@ -894,7 +895,7 @@ export default function Cadastro() {
                 else if (activeTab === 'profiles')     setShowNewProfile(true)
                 else if (activeTab === 'labels')       setShowNewLabel(true)
                 else if (activeTab === 'institutions') setShowNewInstitution(true)
-                else if (activeTab === 'projects')     navigate('/timeline')
+                else if (activeTab === 'projects')     setShowNewProject(true)
               }}
               className="px-4 py-2 bg-violet-600 hover:bg-violet-500 rounded-lg text-sm font-semibold flex items-center gap-2"
             >
@@ -1445,6 +1446,15 @@ export default function Cadastro() {
         />
       )}
 
+      {showNewProject && (
+        <NovoProjetoModal
+          onClose={() => setShowNewProject(false)}
+          companies={companies}
+          profiles={profiles}
+          onSave={(newProj) => { setProjects(prev => [newProj, ...prev]); setShowNewProject(false) }}
+        />
+      )}
+
     {showNewLabel && (
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.45)' }}
         onClick={e => e.target === e.currentTarget && setShowNewLabel(false)}>
@@ -1499,132 +1509,12 @@ export default function Cadastro() {
 
     {/* ── Modal Nova Instituição ── */}
     {showNewInstitution && (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.45)' }}
-        onClick={e => e.target === e.currentTarget && setShowNewInstitution(false)}>
-        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
-          <div className="flex items-center justify-between mb-5">
-            <h3 className="text-base font-bold text-zinc-800">Nova Instituição</h3>
-            <button onClick={() => setShowNewInstitution(false)} className="text-zinc-400 hover:text-zinc-600">
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-            </button>
-          </div>
-          <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Nome *</label>
-                <input autoFocus className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
-                  value={newInstForm.name} onChange={e => setNewInstForm(p => ({...p, name: e.target.value}))} placeholder="Ex: Itaú BBA, BNDES..." />
-              </div>
-              <div>
-                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Tipo</label>
-                <select className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
-                  value={newInstForm.type} onChange={e => setNewInstForm(p => ({...p, type: e.target.value}))}>
-                  <option>Banco Comercial</option>
-                  <option>Banco de Investimento</option>
-                  <option>Fomento</option>
-                  <option>Cooperativa</option>
-                  <option>Fintech</option>
-                  <option>Fundo</option>
-                  <option>Outro</option>
-                </select>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Contato</label>
-                <input className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
-                  value={newInstForm.contact_name} onChange={e => setNewInstForm(p => ({...p, contact_name: e.target.value}))} placeholder="Nome do contato..." />
-              </div>
-              <div>
-                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Telefone</label>
-                <input className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
-                  value={newInstForm.contact_phone} onChange={e => setNewInstForm(p => ({...p, contact_phone: e.target.value}))} placeholder="+55 11..." />
-              </div>
-            </div>
-            <div>
-              <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">E-mail</label>
-              <input type="email" className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
-                value={newInstForm.contact_email} onChange={e => setNewInstForm(p => ({...p, contact_email: e.target.value}))} placeholder="contato@banco.com.br" />
-            </div>
-            <div>
-              <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Observações</label>
-              <textarea rows={2} className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500 resize-none"
-                value={newInstForm.notes} onChange={e => setNewInstForm(p => ({...p, notes: e.target.value}))} placeholder="Linhas disponíveis, condições, contatos..." />
-            </div>
-            <div className="flex gap-3 pt-2">
-              <button onClick={createInstitution} disabled={saving || !newInstForm.name.trim()}
-                className="flex-1 py-2.5 text-sm font-bold text-white rounded-xl hover:opacity-90 disabled:opacity-50"
-                style={{ background: '#5452C1' }}>
-                {saving ? 'Salvando…' : 'Cadastrar Instituição'}
-              </button>
-              <button onClick={() => setShowNewInstitution(false)} className="px-4 text-sm text-zinc-500 hover:text-zinc-700">Cancelar</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    )}
+        <NovaInstituicaoModal
+          onClose={() => setShowNewInstitution(false)}
+          onSave={(inst) => { setInstitutions(prev => [inst, ...prev]); setShowNewInstitution(false) }}
+        />
+      )}
 
-    {/* ── Modal Novo Colaborador ── */}
-    {showNewProfile && (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.45)' }}
-        onClick={e => e.target === e.currentTarget && setShowNewProfile(false)}>
-        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
-          <div className="flex items-center justify-between mb-5">
-            <h3 className="text-base font-bold text-zinc-800">Novo Colaborador</h3>
-            <button onClick={() => setShowNewProfile(false)} className="text-zinc-400 hover:text-zinc-600">
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-            </button>
-          </div>
-          <div className="space-y-3">
-            <div>
-              <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Nome Completo *</label>
-              <input autoFocus className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
-                value={newProfileForm.full_name} onChange={e => setNewProfileForm(p => ({...p, full_name: e.target.value}))} placeholder="Nome completo..." />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Email *</label>
-                <input type="email" className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
-                  value={newProfileForm.email} onChange={e => setNewProfileForm(p => ({...p, email: e.target.value}))} placeholder="email@bxgroup.com.br" />
-              </div>
-              <div>
-                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Telefone</label>
-                <input className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
-                  value={newProfileForm.phone} onChange={e => setNewProfileForm(p => ({...p, phone: e.target.value}))} placeholder="+55 11 9..." />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Cargo / Função</label>
-                <select className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500 bg-white"
-                  value={newProfileForm.cargo} onChange={e => setNewProfileForm(p => ({...p, cargo: e.target.value}))}>
-                  <option value="">— selecione —</option>
-                  {CARGO_OPTIONS.map(co => <option key={co} value={co}>{co}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Nível de acesso</label>
-                <select className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500 bg-white"
-                  value={newProfileForm.role} onChange={e => setNewProfileForm(p => ({...p, role: e.target.value}))}>
-                  {ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
-                </select>
-                <p className="text-[10px] text-zinc-400 mt-1">
-                  {ROLES.find(r => r.value === newProfileForm.role)?.desc}
-                </p>
-              </div>
-            </div>
-            <div className="flex gap-3 pt-2">
-              <button onClick={createProfile} disabled={saving || !newProfileForm.full_name.trim() || !newProfileForm.email.trim()}
-                className="flex-1 py-2.5 text-sm font-bold text-white rounded-xl hover:opacity-90 disabled:opacity-50"
-                style={{ background: '#5452C1' }}>
-                {saving ? 'Salvando…' : 'Criar Colaborador'}
-              </button>
-              <button onClick={() => setShowNewProfile(false)} className="px-4 text-sm text-zinc-500 hover:text-zinc-700">Cancelar</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    )}
     </>
   )
 }

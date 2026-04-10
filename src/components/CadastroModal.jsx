@@ -820,3 +820,299 @@ Responda APENAS com o escopo estruturado:
     </div>
   )
 }
+
+// ══════════════════════════════════════════════════════════════════════════════
+// MODAL NOVA INSTITUIÇÃO — com website scraping + IA + nível de relacionamento
+// ══════════════════════════════════════════════════════════════════════════════
+export function NovaInstituicaoModal({ onClose, onSave }) {
+  const { profile } = useData()
+  const [form, setForm] = useState({
+    name: '', type: 'Banco Comercial', website: '',
+    contact_name: '', contact_email: '', contact_phone: '',
+    linhas_operadas: [], nivel_relacionamento: 3,
+    notas_estrategicas: '', ai_profile: '', notes: '',
+  })
+  const [loadingAI,  setLoadingAI]  = useState(false)
+  const [saving,     setSaving]     = useState(false)
+  const [newLinha,   setNewLinha]   = useState('')
+
+  const LINHAS_SUGERIDAS = [
+    'Capital de Giro', 'Desconto de Recebíveis', 'Fomento Mercantil',
+    'Crédito Rural', 'BNDES', 'FGI', 'FINAME', 'Cartão BNDES',
+    'Antecipação de Contratos', 'CRI / CRA', 'Debentures',
+    'FIDCs', 'Crédito Imobiliário', 'Leasing', 'Hot Money',
+    'Conta Garantida', 'Cheque Especial PJ', 'Forfait', 'ACC / ACE',
+  ]
+
+  const TIPOS = [
+    'Banco Comercial', 'Banco de Investimento', 'Banco de Desenvolvimento',
+    'FIDC', 'FII', 'Fundo de PE / VC', 'Securitizadora',
+    'Factoring / FOMEC', 'Cooperativa de Crédito', 'Fintech de Crédito',
+    'Gestora de Ativos', 'Fundo Soberano', 'Seguradora', 'Corretora', 'Outro',
+  ]
+
+  const NIVEIS = [
+    { v: 1, label: 'Sem relacionamento',  color: '#9CA3AF', desc: 'Nunca houve contato' },
+    { v: 2, label: 'Contato inicial',     color: '#F59E0B', desc: 'Apresentação feita, sem operação' },
+    { v: 3, label: 'Relacionamento ativo',color: '#3B82F6', desc: 'Operações esporádicas ou em andamento' },
+    { v: 4, label: 'Parceiro estratégico',color: '#5452C1', desc: 'Múltiplas operações, acesso facilitado' },
+    { v: 5, label: 'Parceiro premium',    color: '#10B981', desc: 'Mesa dedicada, condições diferenciadas para a BX' },
+  ]
+
+  async function gerarPerfilIA() {
+    if (!form.name) { toast.warning('Preencha o nome da instituição'); return }
+    setLoadingAI(true)
+    try {
+      const prompt = `Você é um analista sênior da BX Finance, especialista em estruturação de dívida e relacionamento bancário.
+
+Gere um PERFIL ESTRATÉGICO desta instituição financeira para uso interno da equipe BX Finance:
+
+NOME: ${form.name}
+TIPO: ${form.type}
+WEBSITE: ${form.website || 'não informado'}
+LINHAS OPERADAS: ${form.linhas_operadas.join(', ') || 'não informadas'}
+
+Responda APENAS com o perfil estruturado, sem introdução:
+
+**PERFIL DA INSTITUIÇÃO**
+[2-3 frases sobre o posicionamento, foco de mercado e público-alvo]
+
+**LINHAS E PRODUTOS RELEVANTES PARA BX**
+[Lista das 4-6 linhas mais relevantes para clientes em distress ou reestruturação, com características: prazo típico, garantias exigidas, ticket mínimo]
+
+**CRITÉRIOS DE APROVAÇÃO**
+[O que esta instituição tipicamente exige: rating, EBITDA, garantias, tempo de operação]
+
+**TÁTICAS DE RELACIONAMENTO**
+[Como a BX deve se posicionar nesta instituição: quem acionar, quando acionar, como apresentar clientes]
+
+**ALERTAS**
+[Pontos de atenção: restrições, setores que evitam, condições desfavoráveis]`
+
+      const text = await callClaude(prompt)
+      setForm(p => ({ ...p, ai_profile: text }))
+      toast.success('Perfil estratégico gerado ✓')
+    } catch (err) {
+      toast.error('Erro na IA: ' + err.message)
+    } finally {
+      setLoadingAI(false)
+    }
+  }
+
+  async function handleSave() {
+    if (!form.name.trim()) { toast.warning('Nome é obrigatório'); return }
+    setSaving(true)
+    try {
+      const notesComposed = [
+        form.notes,
+        form.linhas_operadas.length ? `Linhas: ${form.linhas_operadas.join(', ')}` : '',
+        form.nivel_relacionamento ? `Nível BX: ${NIVEIS.find(n => n.v === form.nivel_relacionamento)?.label}` : '',
+        form.ai_profile ? `---\n🤖 PERFIL IA:\n${form.ai_profile}` : '',
+      ].filter(Boolean).join('\n\n').trim()
+
+      const { data, error } = await supabase.from('institutions').insert({
+        org_id:         profile.org_id,
+        name:           form.name.trim(),
+        type:           form.type,
+        contact_name:   form.contact_name.trim() || null,
+        contact_email:  form.contact_email.trim() || null,
+        contact_phone:  form.contact_phone || null,
+        notes:          notesComposed || null,
+        is_active:      true,
+        // campos extras em notes pois schema não tem colunas extras
+      }).select().single()
+      if (error) throw error
+      toast.success(`Instituição "${form.name}" cadastrada ✓`)
+      onSave(data)
+    } catch (err) {
+      toast.error('Erro: ' + err.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const nivelAtual = NIVEIS.find(n => n.v === form.nivel_relacionamento) || NIVEIS[2]
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: 'rgba(10,10,16,0.65)', backdropFilter: 'blur(6px)' }}
+      onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full flex flex-col overflow-hidden"
+        style={{ maxWidth: 680, maxHeight: '92vh', borderTop: `3px solid #3B82F6` }}>
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-100 shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center bg-blue-50">
+              <span className="text-lg">🏦</span>
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-zinc-800">Nova Instituição Financeira</h3>
+              <p className="text-[10px] text-zinc-400">Perfil estratégico com IA + Nível de relacionamento BX</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-1.5 text-zinc-400 hover:text-zinc-700 rounded-lg"><X className="w-5 h-5" /></button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
+
+          {/* Dados básicos */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="col-span-2">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 block mb-1.5">Nome da Instituição *</label>
+              <input autoFocus className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                placeholder="ex: Banco BTG Pactual, Itaú BBA, Kinea..."
+                value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 block mb-1.5">Tipo</label>
+              <select className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                value={form.type} onChange={e => setForm(p => ({ ...p, type: e.target.value }))}>
+                {TIPOS.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 block mb-1.5">Website</label>
+              <input className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                placeholder="https://..."
+                value={form.website} onChange={e => setForm(p => ({ ...p, website: e.target.value }))} />
+            </div>
+          </div>
+
+          {/* Nível de relacionamento BX */}
+          <div className="border border-zinc-200 rounded-xl p-4">
+            <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 block mb-3">
+              Nível de Relacionamento com a BX
+            </label>
+            <div className="flex gap-2 mb-2">
+              {NIVEIS.map(n => (
+                <button key={n.v}
+                  onClick={() => setForm(p => ({ ...p, nivel_relacionamento: n.v }))}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-bold transition-all border-2"
+                  style={form.nivel_relacionamento === n.v
+                    ? { background: n.color, color: 'white', borderColor: n.color }
+                    : { background: 'transparent', color: '#9CA3AF', borderColor: '#E5E7EB' }}>
+                  {n.v}
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center gap-2 mt-2">
+              <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: nivelAtual.color }} />
+              <div>
+                <span className="text-sm font-bold" style={{ color: nivelAtual.color }}>{nivelAtual.label}</span>
+                <span className="text-xs text-zinc-400 ml-2">— {nivelAtual.desc}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Linhas operadas */}
+          <div>
+            <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 block mb-1.5">
+              Linhas que Opera
+              {form.linhas_operadas.length > 0 && <span className="text-zinc-400 font-normal ml-1">({form.linhas_operadas.length} selecionadas)</span>}
+            </label>
+            {/* Tags selecionadas */}
+            {form.linhas_operadas.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {form.linhas_operadas.map((l, i) => (
+                  <span key={i} className="inline-flex items-center gap-1 text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 px-2.5 py-1 rounded-full">
+                    {l}
+                    <button onClick={() => setForm(p => ({ ...p, linhas_operadas: p.linhas_operadas.filter((_,j) => j !== i) }))}
+                      className="text-blue-400 hover:text-red-500 ml-0.5 leading-none">×</button>
+                  </span>
+                ))}
+              </div>
+            )}
+            {/* Input customizado */}
+            <div className="flex gap-2 mb-2">
+              <input className="flex-1 border border-zinc-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-violet-500"
+                placeholder="Adicionar linha personalizada…"
+                value={newLinha}
+                onChange={e => setNewLinha(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && newLinha.trim()) {
+                    setForm(p => ({ ...p, linhas_operadas: [...p.linhas_operadas, newLinha.trim()] }))
+                    setNewLinha('')
+                  }
+                }} />
+              <button onClick={() => { if (newLinha.trim()) { setForm(p => ({ ...p, linhas_operadas: [...p.linhas_operadas, newLinha.trim()] })); setNewLinha('') } }}
+                className="px-3 py-2 text-xs font-semibold text-zinc-500 border border-zinc-200 rounded-xl hover:border-violet-400 hover:text-violet-600">
+                + Add
+              </button>
+            </div>
+            {/* Sugestões rápidas */}
+            <div className="flex flex-wrap gap-1">
+              {LINHAS_SUGERIDAS.filter(l => !form.linhas_operadas.includes(l)).map(l => (
+                <button key={l}
+                  onClick={() => setForm(p => ({ ...p, linhas_operadas: [...p.linhas_operadas, l] }))}
+                  className="text-[10px] text-zinc-500 border border-zinc-200 px-2 py-0.5 rounded-full hover:border-blue-400 hover:text-blue-600 transition-colors">
+                  + {l}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Contato */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 block mb-1.5">Contato BX</label>
+              <input className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                placeholder="Nome do gerente / executivo"
+                value={form.contact_name} onChange={e => setForm(p => ({ ...p, contact_name: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 block mb-1.5">Telefone direto</label>
+              <input className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                placeholder="(11) 9..."
+                value={form.contact_phone} onChange={e => setForm(p => ({ ...p, contact_phone: fmtPhone(e.target.value) }))} />
+            </div>
+            <div className="col-span-2">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 block mb-1.5">Email do contato</label>
+              <input type="email" className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                value={form.contact_email} onChange={e => setForm(p => ({ ...p, contact_email: e.target.value }))} />
+            </div>
+          </div>
+
+          {/* Perfil IA */}
+          <div className="border-t border-zinc-100 pt-4">
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Perfil Estratégico — IA</label>
+              <button onClick={gerarPerfilIA} disabled={loadingAI || !form.name}
+                className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-xl border disabled:opacity-40 transition-all"
+                style={{ background: '#3B82F612', color: '#1D4ED8', borderColor: '#3B82F640' }}>
+                {loadingAI ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                {loadingAI ? 'Gerando…' : '✨ Gerar Perfil BX'}
+              </button>
+            </div>
+            <textarea rows={6}
+              className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500 resize-none leading-relaxed"
+              placeholder="Clique em '✨ Gerar Perfil BX' para que a IA analise esta instituição e gere: posicionamento no mercado, linhas relevantes para clientes em distress, critérios de aprovação e táticas de relacionamento para a equipe BX."
+              value={form.ai_profile} onChange={e => setForm(p => ({ ...p, ai_profile: e.target.value }))} />
+          </div>
+
+          {/* Notas internas */}
+          <div>
+            <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 block mb-1.5">Notas internas</label>
+            <textarea rows={2}
+              className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500 resize-none"
+              placeholder="Observações da equipe BX sobre esta instituição…"
+              value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} />
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="shrink-0 border-t border-zinc-100 px-6 py-4 flex gap-3 bg-white">
+          <button onClick={onClose}
+            className="flex-1 py-2.5 text-sm text-zinc-500 border border-zinc-200 rounded-xl hover:bg-zinc-50">
+            Cancelar
+          </button>
+          <button onClick={handleSave} disabled={saving || !form.name.trim()}
+            className="flex-1 py-2.5 text-sm font-bold text-white rounded-xl disabled:opacity-50 hover:opacity-90 flex items-center justify-center gap-2"
+            style={{ background: '#3B82F6' }}>
+            {saving ? <><Loader2 className="w-4 h-4 animate-spin" />Salvando…</> : '+ Cadastrar Instituição'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
