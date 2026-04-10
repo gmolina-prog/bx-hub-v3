@@ -91,7 +91,7 @@ export default function Sidebar() {
   const avatarStyle = profile?.avatar_color ? { background: profile.avatar_color } : {}
 
   return (
-    <div className="w-64 bg-charcoal text-white transition-all duration-300 flex flex-col flex-shrink-0 overflow-hidden">
+    <div className="w-56 bg-charcoal text-white flex flex-col h-screen" style={{ minHeight: 0 }}>
       {/* Header */}
       <div className="h-14 flex items-center justify-between px-5 border-b border-white border-opacity-5">
         <div>
@@ -101,7 +101,7 @@ export default function Sidebar() {
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 overflow-y-auto py-2 scrollbar-thin">
+      <nav className="flex-1 overflow-y-auto py-2 min-h-0">
         {SECTIONS.map((section, idx) => (
           <div key={idx} className={section.divider ? 'border-t border-white border-opacity-5 mt-2 pt-2' : 'mb-1'}>
             <div className="px-4 pt-2 pb-1 text-[10px] font-bold tracking-widest text-white text-opacity-25 uppercase">

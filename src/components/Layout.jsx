@@ -7,6 +7,7 @@ import GlobalSearch from './GlobalSearch'
 import { isLeaderRole } from '../lib/roles'
 import { toast } from './Toast'
 import { useData } from '../contexts/DataContext'
+import { useOverdueNotifications } from '../hooks/useOverdueNotifications'
 
 const CH = '#2D2E39', VL = '#5452C1'
 
@@ -109,6 +110,30 @@ function NotificationPanel({ profile, onClose }) {
 // ─── Painel de Configurações ──────────────────────────────────────────────────
 function SettingsPanel({ profile, onClose }) {
   const navigate = useNavigate()
+  const [notifPerm, setNotifPerm] = React.useState(() =>
+    'Notification' in window ? Notification.permission : 'unsupported'
+  )
+
+  async function toggleNotifications() {
+    if (!('Notification' in window)) return
+    if (notifPerm === 'denied') {
+      alert('Notificações bloqueadas pelo navegador.\nVá em Configurações do Chrome → Privacidade → Notificações → Permitir para este site.')
+      return
+    }
+    if (notifPerm === 'granted') {
+      // Sem API para revogar programaticamente — orientar o usuário
+      alert('Para desativar: clique no 🔒 na barra de endereços → Notificações → Bloquear.')
+      return
+    }
+    const perm = await Notification.requestPermission()
+    setNotifPerm(perm)
+    if (perm === 'granted') {
+      new Notification('✅ BX Hub — Notificações ativadas!', {
+        body: 'Você receberá alertas de tarefas em atraso.',
+        icon: '/favicon.ico',
+      })
+    }
+  }
 
   const items = [
     { icon: '👤', label: 'Meu Perfil',       path: '/configuracoes', desc: 'Editar dados e avatar' },
@@ -412,6 +437,9 @@ export default function Layout({ children }) {
   const { profile, unreadNotif, clearUnread } = useData()
   const location = useLocation()
   const [openPanel, setOpenPanel] = useState(null) // 'notif' | 'settings' | 'checkin'
+
+  // ── Notificações push nativas do Chrome para tarefas em atraso ──
+  useOverdueNotifications(profile)
   const [searchOpen, setSearchOpen] = useState(false)
   const [checkinStatus, setCheckinStatus] = useState(null) // status do check-in ativo
   const headerRef = useRef(null)
@@ -567,7 +595,7 @@ export default function Layout({ children }) {
       )}
 
       {/* Sidebar com transição */}
-      <div className={`shrink-0 transition-all duration-300 ${sidebarOpen ? 'w-56' : 'w-0 overflow-hidden'} md:w-56`}>
+      <div className={`shrink-0 transition-all duration-300 overflow-hidden ${sidebarOpen ? 'w-56' : 'w-0'} md:w-56`} style={{ height: '100vh' }}>
         <Sidebar />
       </div>
 
