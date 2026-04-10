@@ -116,7 +116,7 @@ export default function Dashboard() {
       supabase.from('tasks').select('id,column_id,priority,assigned_to,due_date,title,project_id,updated_at').eq('org_id', profile.org_id).is('deleted_at', null).limit(500),
       supabase.from('pipeline_items').select('id,stage,value,probability,name').eq('org_id', profile.org_id).eq('is_archived', false).limit(200),
       supabase.from('projects').select('id,name,status,deadline,type,budget,associate_id,company_id').eq('org_id', profile.org_id),
-      supabase.from('check_ins').select('id,user_id,date,status,location,latitude,longitude').eq('org_id', profile.org_id).eq('date', today),
+      supabase.from('check_ins').select('id,user_id,date,status,location,latitude,longitude,check_out_time').eq('org_id', profile.org_id).eq('date', today).is('check_out_time', null),
       supabase.from('profiles').select('id,full_name,initials,avatar_color,role,cargo').eq('org_id', profile.org_id).order('full_name'),
       supabase.from('routines').select('id,is_active,frequency').eq('org_id', profile.org_id).eq('is_active', true),
       supabase.from('activity_log').select('id,actor_id,entity_type,action,metadata,created_at,module').eq('org_id', profile.org_id).order('created_at', { ascending: false }).limit(10),

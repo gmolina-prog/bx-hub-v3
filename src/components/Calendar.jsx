@@ -251,7 +251,8 @@ export default function Calendar() {
 
   const todayISO = formatDateISO(new Date())
   const todayCheckins = useMemo(() => {
-    return checkins.filter(c => c.date === todayISO)
+    // Excluir check-ins com check_out_time preenchido (pessoa já saiu)
+    return checkins.filter(c => c.date === todayISO && !c.check_out_time)
   }, [checkins, todayISO])
 
   const kpis = useMemo(() => {
@@ -518,14 +519,23 @@ export default function Calendar() {
                         }
                         const loc = LOCATION_TYPES.find(l => l.id === c.status) || LOCATION_TYPES[0]
                         const labelText = c.client_name || (loc.label.length > 8 ? loc.label.substring(0, 7) : loc.label)
+                        const checkedOut = !!c.check_out_time
+                        const checkoutHour = checkedOut
+                          ? new Date(c.check_out_time).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' })
+                          : null
                         return (
-                          <div key={dateStr} className="text-center px-1">
+                          <div key={dateStr} className="text-center px-1 space-y-0.5">
                             <span
-                              className={`inline-block px-2 py-1 rounded-md text-[9px] font-bold ${LOC_COLORS[loc.color]}`}
-                              title={`${loc.label}${c.client_name ? ' · ' + c.client_name : ''}${c.activity ? ' · ' + c.activity : ''}`}
+                              className={`inline-block px-2 py-1 rounded-md text-[9px] font-bold ${checkedOut ? 'bg-zinc-100 text-zinc-400 line-through' : LOC_COLORS[loc.color]}`}
+                              title={checkedOut
+                                ? `Checkout às ${checkoutHour} · ${loc.label}${c.client_name ? ' · ' + c.client_name : ''}`
+                                : `${loc.label}${c.client_name ? ' · ' + c.client_name : ''}${c.activity ? ' · ' + c.activity : ''}`}
                             >
-                              {loc.emoji} {labelText.length > 10 ? labelText.substring(0, 9) : labelText}
+                              {checkedOut ? '🚪' : loc.emoji} {labelText.length > 10 ? labelText.substring(0, 9) : labelText}
                             </span>
+                            {checkedOut && (
+                              <div className="text-[8px] text-zinc-400 leading-none">saiu {checkoutHour}</div>
+                            )}
                           </div>
                         )
                       })}
