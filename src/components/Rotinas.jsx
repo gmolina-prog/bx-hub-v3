@@ -485,6 +485,13 @@ export default function Rotinas() {
   // ── Criar rotina individual ────────────────────────────────────────────
   async function createRoutine() {
     if (!form.title.trim()) return
+    if (!form.project_id) {
+      const ok = await confirm(
+        'Nenhum projeto selecionado. A rotina ficará em "Sem empresa" na lista.\n\nRecomendamos vincular a um projeto para melhor organização.',
+        { confirmLabel: 'Criar sem projeto', cancelLabel: 'Voltar e selecionar' }
+      )
+      if (!ok) return
+    }
     const { error } = await supabase.from('routines').insert({
       org_id: profile.org_id, title: form.title.trim(),
       description: form.description.trim() || null,
@@ -504,6 +511,14 @@ export default function Rotinas() {
   async function applyTemplate() {
     const tpl = TEMPLATE_LIBRARY.find(t => t.id === tplState.selectedId)
     if (!tpl) return
+    // Alertar se não selecionou projeto — rotinas sem projeto ficam em "Sem empresa"
+    if (!tplState.project_id) {
+      const ok = await confirm(
+        'Nenhum projeto selecionado. As rotinas ficarão em "Sem empresa" na lista.\n\nRecomendamos vincular a um projeto. Continuar mesmo assim?',
+        { confirmLabel: 'Criar sem projeto', cancelLabel: 'Voltar e selecionar' }
+      )
+      if (!ok) return
+    }
     const inserts = tpl.routines.map(r => ({
       org_id: profile.org_id,
       title: r.title, description: r.description || null,
