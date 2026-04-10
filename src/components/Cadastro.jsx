@@ -220,18 +220,22 @@ export default function Cadastro() {
   function openEditCompany(company) {
     setEditingCompany(company)
     setEditCompanyForm({
-      name:         company.name         || '',
-      trading_name: company.trading_name || '',
-      cnpj:         company.cnpj         || '',
-      segment:      company.segment      || '',
-      status:       company.status       || 'ativo',
-      criticality:  company.criticality  || 'medio',
-      notes:        company.notes        || '',
-      powerbi_link: company.powerbi_link || '',
-      contact_name: company.contact_name || '',
-      contact_email:company.contact_email|| '',
-      contact_phone:company.contact_phone|| '',
-      website:      company.website      || '',
+      name:          company.name          || '',
+      trading_name:  company.trading_name  || '',
+      cnpj:          company.cnpj ? company.cnpj.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/,'$1.$2.$3/$4-$5') : '',
+      website:       company.website       || '',
+      segment:       company.segment       || '',
+      status:        company.status        || 'ativo',
+      criticality:   company.criticality   || 'medio',
+      contact_name:  company.contact_name  || '',
+      contact_email: company.contact_email || '',
+      contact_phone: company.contact_phone || '',
+      address:       company.address       || '',
+      city:          company.city          || '',
+      state:         company.state         || '',
+      zip_code:      company.zip_code ? company.zip_code.replace(/(\d{5})(\d{3})/,'$1-$2') : '',
+      powerbi_link:  company.powerbi_link  || '',
+      notes:         company.notes         || '',
     })
   }
 
@@ -240,17 +244,21 @@ export default function Cadastro() {
     try {
       const { error } = await supabase.from('companies').update({
         name:          editCompanyForm.name.trim(),
-        trading_name:  editCompanyForm.trading_name?.trim() || null,
-        cnpj:          editCompanyForm.cnpj?.trim() || null,
-        segment:       editCompanyForm.segment?.trim() || null,
+        trading_name:  editCompanyForm.trading_name?.trim()            || null,
+        cnpj:          editCompanyForm.cnpj?.replace(/\D/g,'')         || null,
+        website:       editCompanyForm.website?.trim()                  || null,
+        segment:       editCompanyForm.segment?.trim()                  || null,
         status:        editCompanyForm.status,
         criticality:   editCompanyForm.criticality,
-        notes:         editCompanyForm.notes?.trim() || null,
-        powerbi_link:  editCompanyForm.powerbi_link?.trim() || null,
-        contact_name:  editCompanyForm.contact_name?.trim() || null,
-        contact_email: editCompanyForm.contact_email?.trim() || null,
-        contact_phone: editCompanyForm.contact_phone?.trim() || null,
-        website:       editCompanyForm.website?.trim() || null,
+        contact_name:  editCompanyForm.contact_name?.trim()             || null,
+        contact_email: editCompanyForm.contact_email?.trim()            || null,
+        contact_phone: editCompanyForm.contact_phone                    || null,
+        address:       editCompanyForm.address?.trim()                  || null,
+        city:          editCompanyForm.city?.trim()                     || null,
+        state:         editCompanyForm.state                            || null,
+        zip_code:      editCompanyForm.zip_code?.replace(/\D/g,'')     || null,
+        powerbi_link:  editCompanyForm.powerbi_link?.trim()             || null,
+        notes:         editCompanyForm.notes?.trim()                    || null,
       }).eq('id', editingCompany.id).eq('org_id', profile.org_id)
       if (error) throw error
       setEditingCompany(null)
@@ -512,92 +520,147 @@ export default function Cadastro() {
     <>
     {/* B-187: Modal de edição de empresa */}
     {editingCompany && (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.45)' }}
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+        style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}
         onClick={e => e.target === e.currentTarget && setEditingCompany(null)}>
-        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden"
+          style={{ maxHeight: '92vh', borderTop: '3px solid #5452C1' }}>
           <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-100">
-            <h3 className="text-base font-bold text-zinc-800">Editar Empresa</h3>
-            <button onClick={() => setEditingCompany(null)} className="text-zinc-400 hover:text-zinc-600">✕</button>
+            <div>
+              <h3 className="text-base font-bold text-zinc-800">Editar Empresa</h3>
+              <p className="text-[10px] text-zinc-400">{editingCompany.name}</p>
+            </div>
+            <button onClick={() => setEditingCompany(null)} className="text-zinc-400 hover:text-zinc-600"><X className="w-5 h-5" /></button>
           </div>
-          <div className="px-6 py-4 space-y-3">
+          <div className="overflow-y-auto px-6 py-5 space-y-4" style={{ maxHeight: 'calc(92vh - 140px)' }}>
+
+            {/* Identificação */}
             <div className="grid grid-cols-2 gap-3">
-              <div className="col-span-2">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Razão Social *</label>
-                <input className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500"
+              <div>
+                <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 block mb-1.5">Razão Social *</label>
+                <input className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
                   value={editCompanyForm.name || ''} onChange={e => setEditCompanyForm(p => ({...p, name: e.target.value}))} />
               </div>
               <div>
-                <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Nome Fantasia</label>
-                <input className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500"
+                <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 block mb-1.5">Nome Fantasia</label>
+                <input className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
                   value={editCompanyForm.trading_name || ''} onChange={e => setEditCompanyForm(p => ({...p, trading_name: e.target.value}))} />
               </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1 block">CNPJ</label>
-                <input className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500"
+                <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 block mb-1.5">CNPJ</label>
+                <input className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500 font-mono"
                   value={editCompanyForm.cnpj || ''} onChange={e => setEditCompanyForm(p => ({...p, cnpj: e.target.value}))} />
               </div>
               <div>
-                <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Segmento</label>
-                <input className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500"
-                  value={editCompanyForm.segment || ''} onChange={e => setEditCompanyForm(p => ({...p, segment: e.target.value}))} />
-              </div>
-              <div>
-                <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Status</label>
-                <select className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500"
-                  value={editCompanyForm.status || 'ativo'} onChange={e => setEditCompanyForm(p => ({...p, status: e.target.value}))}>
-                  <option value="ativo">Ativo</option>
-                  <option value="inativo">Inativo</option>
-                  <option value="arquivado">Arquivado</option>
-                </select>
-              </div>
-              <div>
-                <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Criticidade</label>
-                <select className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500"
-                  value={editCompanyForm.criticality || 'medio'} onChange={e => setEditCompanyForm(p => ({...p, criticality: e.target.value}))}>
-                  <option value="baixo">Baixo</option>
-                  <option value="medio">Médio</option>
-                  <option value="alto">Alto</option>
-                  <option value="critico">Crítico</option>
-                </select>
-              </div>
-              <div>
-                <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Contato</label>
-                <input className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500"
-                  value={editCompanyForm.contact_name || ''} onChange={e => setEditCompanyForm(p => ({...p, contact_name: e.target.value}))} />
-              </div>
-              <div>
-                <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1 block">E-mail</label>
-                <input type="email" className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500"
-                  value={editCompanyForm.contact_email || ''} onChange={e => setEditCompanyForm(p => ({...p, contact_email: e.target.value}))} />
-              </div>
-              <div>
-                <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Telefone</label>
-                <input className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500"
-                  value={editCompanyForm.contact_phone || ''} onChange={e => setEditCompanyForm(p => ({...p, contact_phone: e.target.value}))} />
-              </div>
-
-              <div className="col-span-2">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Link Power BI</label>
-                <input className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500"
-                  placeholder="https://app.powerbi.com/..."
-                  value={editCompanyForm.powerbi_link || ''} onChange={e => setEditCompanyForm(p => ({...p, powerbi_link: e.target.value}))} />
-              </div>
-              <div className="col-span-2">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Observações</label>
-                <textarea rows={3} className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500 resize-none"
-                  value={editCompanyForm.notes || ''} onChange={e => setEditCompanyForm(p => ({...p, notes: e.target.value}))} />
+                <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 block mb-1.5">Website</label>
+                <input className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                  placeholder="https://"
+                  value={editCompanyForm.website || ''} onChange={e => setEditCompanyForm(p => ({...p, website: e.target.value}))} />
               </div>
             </div>
+
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 block mb-1.5">Segmento</label>
+                <select className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                  value={editCompanyForm.segment || ''} onChange={e => setEditCompanyForm(p => ({...p, segment: e.target.value}))}>
+                  <option value="">—</option>
+                  {['Financeiro','Indústria','Varejo / Distribuição','Serviços','Construção / Imobiliário','Saúde','Tecnologia','Educação','Alimentos / Bebidas','Agronegócio','Energia','Logística','Outros'].map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 block mb-1.5">Criticidade</label>
+                <select className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                  value={editCompanyForm.criticality || 'medio'} onChange={e => setEditCompanyForm(p => ({...p, criticality: e.target.value}))}>
+                  <option value="baixo">🟢 Baixo</option>
+                  <option value="medio">🟡 Médio</option>
+                  <option value="alto">🟠 Alto</option>
+                  <option value="critico">🔴 Crítico</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 block mb-1.5">Status</label>
+                <select className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                  value={editCompanyForm.status || 'ativo'} onChange={e => setEditCompanyForm(p => ({...p, status: e.target.value}))}>
+                  <option value="ativo">✅ Ativo</option>
+                  <option value="prospect">🔍 Prospect</option>
+                  <option value="inativo">⏸ Inativo</option>
+                  <option value="arquivado">📦 Arquivado</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Endereço */}
+            <div className="border-t border-zinc-100 pt-4">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-3">Endereço</p>
+              <div className="grid grid-cols-4 gap-3">
+                <div className="col-span-3">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 block mb-1.5">Logradouro</label>
+                  <input className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                    value={editCompanyForm.address || ''} onChange={e => setEditCompanyForm(p => ({...p, address: e.target.value}))} />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 block mb-1.5">CEP</label>
+                  <input className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500 font-mono"
+                    value={editCompanyForm.zip_code || ''} onChange={e => setEditCompanyForm(p => ({...p, zip_code: e.target.value}))} />
+                </div>
+              </div>
+              <div className="grid grid-cols-4 gap-3 mt-3">
+                <div className="col-span-3">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 block mb-1.5">Cidade</label>
+                  <input className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                    value={editCompanyForm.city || ''} onChange={e => setEditCompanyForm(p => ({...p, city: e.target.value}))} />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 block mb-1.5">UF</label>
+                  <input className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                    maxLength={2} value={editCompanyForm.state || ''}
+                    onChange={e => setEditCompanyForm(p => ({...p, state: e.target.value.toUpperCase()}))} />
+                </div>
+              </div>
+            </div>
+
+            {/* Contato */}
+            <div className="border-t border-zinc-100 pt-4">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-3">Contato</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 block mb-1.5">Nome do contato</label>
+                  <input className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                    value={editCompanyForm.contact_name || ''} onChange={e => setEditCompanyForm(p => ({...p, contact_name: e.target.value}))} />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 block mb-1.5">Telefone</label>
+                  <input className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                    value={editCompanyForm.contact_phone || ''} onChange={e => setEditCompanyForm(p => ({...p, contact_phone: e.target.value}))} />
+                </div>
+              </div>
+              <div className="mt-3">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 block mb-1.5">Email</label>
+                <input type="email" className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                  value={editCompanyForm.contact_email || ''} onChange={e => setEditCompanyForm(p => ({...p, contact_email: e.target.value}))} />
+              </div>
+            </div>
+
+            {/* Observações */}
+            <div className="border-t border-zinc-100 pt-4">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 block mb-1.5">Observações internas</label>
+              <textarea rows={3} className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500 resize-none"
+                value={editCompanyForm.notes || ''} onChange={e => setEditCompanyForm(p => ({...p, notes: e.target.value}))} />
+            </div>
           </div>
-          <div className="flex gap-3 px-6 py-4 border-t border-zinc-100">
-            <button onClick={updateCompany}
-              className="flex-1 py-2.5 text-sm font-bold text-white rounded-xl hover:opacity-90"
-              style={{ background: VL }}>
-              Salvar Alterações
-            </button>
+
+          {/* Footer */}
+          <div className="border-t border-zinc-100 px-6 py-4 flex gap-3 bg-white shrink-0">
             <button onClick={() => setEditingCompany(null)}
-              className="px-5 text-sm text-zinc-500 hover:text-zinc-700">
-              Cancelar
+              className="flex-1 py-2.5 text-sm text-zinc-500 border border-zinc-200 rounded-xl hover:bg-zinc-50">Cancelar</button>
+            <button onClick={updateCompany} disabled={saving || !editCompanyForm.name?.trim()}
+              className="flex-1 py-2.5 text-sm font-bold text-white rounded-xl disabled:opacity-50"
+              style={{ background: '#5452C1' }}>
+              {saving ? 'Salvando…' : 'Salvar alterações'}
             </button>
           </div>
         </div>
@@ -1040,6 +1103,7 @@ export default function Cadastro() {
                       <th className="text-left px-4 py-3 text-[10px] font-bold uppercase tracking-wider">Empresa</th>
                       <th className="text-left px-4 py-3 text-[10px] font-bold uppercase tracking-wider">CNPJ</th>
                       <th className="text-left px-4 py-3 text-[10px] font-bold uppercase tracking-wider">Segmento</th>
+                      <th className="text-left px-4 py-3 text-[10px] font-bold uppercase tracking-wider">Contato</th>
                       <th className="text-left px-4 py-3 text-[10px] font-bold uppercase tracking-wider">Cidade/UF</th>
                       <th className="text-left px-4 py-3 text-[10px] font-bold uppercase tracking-wider">Criticidade</th>
                       <th className="text-left px-4 py-3 text-[10px] font-bold uppercase tracking-wider">Status</th>
@@ -1066,8 +1130,26 @@ export default function Cadastro() {
                           </td>
                           <td className="px-4 py-3 text-zinc-600 font-mono text-xs">{c.cnpj || '—'}</td>
                           <td className="px-4 py-3 text-zinc-600 max-w-xs truncate" title={c.segment}>{c.segment || '—'}</td>
+                          <td className="px-4 py-3">
+                            {c.contact_name ? (
+                              <div>
+                                <div className="text-xs font-semibold text-zinc-700">{c.contact_name}</div>
+                                {c.contact_phone && <div className="text-[10px] text-zinc-400">{c.contact_phone}</div>}
+                                {c.contact_email && <div className="text-[10px] text-zinc-400 truncate max-w-[140px]">{c.contact_email}</div>}
+                              </div>
+                            ) : <span className="text-xs text-zinc-300">—</span>}
+                          </td>
                           <td className="px-4 py-3 text-zinc-600">
-                            {c.city ? `${c.city}${c.state ? '/' + c.state : ''}` : '—'}
+                            <div>
+                              {c.city ? `${c.city}${c.state ? '/' + c.state : ''}` : '—'}
+                              {c.website && (
+                                <a href={c.website} target="_blank" rel="noopener noreferrer"
+                                  className="block text-[10px] text-violet-500 hover:underline truncate max-w-[120px]"
+                                  onClick={e => e.stopPropagation()}>
+                                  🔗 {c.website.replace(/^https?:\/\//,'')}
+                                </a>
+                              )}
+                            </div>
                           </td>
                           <td className="px-4 py-3">
                             {crit ? (
@@ -1107,68 +1189,119 @@ export default function Cadastro() {
             </div>
           ) : (
             // ===== CARDS =====
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
               {filteredCompanies.map(c => {
                 const crit = CRITICALITY_META[c.criticality]
+                const statusColors = {
+                  ativo:     'bg-emerald-100 text-emerald-700',
+                  prospect:  'bg-blue-100 text-blue-700',
+                  inativo:   'bg-amber-100 text-amber-700',
+                  arquivado: 'bg-zinc-100 text-zinc-500',
+                }
                 return (
-                  <div
-                    key={c.id}
-                    className="bg-white border border-zinc-200 rounded-xl p-5 hover:shadow-md transition-shadow border-l-4"
-                    style={{ borderLeftColor: c.color || '#5452C1' }}
-                  >
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="min-w-0 flex-1">
-                        <h3 className="font-bold text-zinc-800 truncate">{c.name || '—'}</h3>
-                        {c.trading_name && c.trading_name !== c.name && (
-                          <div className="text-xs text-zinc-500 truncate">{c.trading_name}</div>
-                        )}
+                  <div key={c.id}
+                    className="bg-white border border-zinc-200 rounded-xl overflow-hidden hover:shadow-md transition-all group"
+                    style={{ borderTop: `3px solid ${c.color || '#5452C1'}` }}>
+                    
+                    {/* Header do card */}
+                    <div className="px-5 pt-4 pb-3">
+                      <div className="flex items-start justify-between gap-2 mb-1">
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-bold text-zinc-800 truncate">{c.name || '—'}</h3>
+                          {c.trading_name && c.trading_name !== c.name && (
+                            <p className="text-xs text-zinc-400 truncate">{c.trading_name}</p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {crit && (
+                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${crit.color} uppercase`}>
+                              {crit.label}
+                            </span>
+                          )}
+                          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${statusColors[c.status] || statusColors.ativo} uppercase`}>
+                            {c.status || 'ativo'}
+                          </span>
+                        </div>
                       </div>
-                      {crit && (
-                        <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${crit.color} uppercase tracking-wide flex-shrink-0`}>
-                          {crit.label}
+                      {c.segment && (
+                        <span className="inline-block text-[10px] text-zinc-500 bg-zinc-100 px-2 py-0.5 rounded-full">
+                          {c.segment}
                         </span>
                       )}
                     </div>
-                    {c.segment && (
-                      <p className="text-xs text-zinc-600 mb-3 line-clamp-2">{c.segment}</p>
-                    )}
-                    <div className="space-y-1.5 text-xs text-zinc-500 mb-3">
+
+                    {/* Dados principais */}
+                    <div className="px-5 pb-3 space-y-1.5 border-t border-zinc-50 pt-3">
                       {c.cnpj && (
-                        <div className="font-mono">{c.cnpj}</div>
-                      )}
-                      {c.city && (
-                        <div className="flex items-center gap-1">
-                          <MapPin className="w-3 h-3" />
-                          {c.city}{c.state ? `/${c.state}` : ''}
+                        <div className="flex items-center gap-2 text-xs text-zinc-500">
+                          <span className="font-mono font-semibold text-zinc-700">
+                            {c.cnpj.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/,'$1.$2.$3/$4-$5')}
+                          </span>
                         </div>
                       )}
-                      {c.contact_name && (
-                        <div className="flex items-center gap-1">
-                          <Users className="w-3 h-3" />
-                          {c.contact_name}
+                      {(c.address || c.city) && (
+                        <div className="flex items-start gap-1.5 text-xs text-zinc-500">
+                          <span className="text-zinc-300 mt-0.5">📍</span>
+                          <span className="leading-snug">
+                            {[c.address, c.city && c.state ? `${c.city}/${c.state}` : c.city].filter(Boolean).join(' · ')}
+                            {c.zip_code && <span className="text-zinc-300"> · CEP {c.zip_code.replace(/(\d{5})(\d{3})/, '$1-$2')}</span>}
+                          </span>
                         </div>
                       )}
-                      {c.contact_email && (
-                        <div className="flex items-center gap-1 truncate">
-                          <Mail className="w-3 h-3 flex-shrink-0" />
-                          <span className="truncate">{c.contact_email}</span>
-                        </div>
-                      )}
-                      {c.contact_phone && (
-                        <div className="flex items-center gap-1">
-                          <Phone className="w-3 h-3" />
-                          {c.contact_phone}
+                      {c.website && (
+                        <div className="flex items-center gap-1.5 text-xs">
+                          <span className="text-zinc-300">🔗</span>
+                          <a href={c.website} target="_blank" rel="noopener noreferrer"
+                            className="text-violet-500 hover:underline truncate max-w-[200px]"
+                            onClick={e => e.stopPropagation()}>
+                            {c.website.replace(/^https?:\/\//, '')}
+                          </a>
                         </div>
                       )}
                     </div>
-                    <div className="flex gap-1 pt-3 border-t border-zinc-100">
-                      <button className="flex-1 px-3 py-1.5 text-xs font-bold text-violet-700 bg-violet-50 hover:bg-violet-100 rounded">
-                        <Edit3 className="w-3 h-3 inline mr-1" />
-                        Editar
-                      </button>
-                      <button className="px-3 py-1.5 text-xs text-rose-600 hover:bg-rose-50 rounded" title="Arquivar">
-                        <Archive className="w-3 h-3" />
-                      </button>
+
+                    {/* Contato */}
+                    {(c.contact_name || c.contact_phone || c.contact_email) && (
+                      <div className="px-5 py-3 border-t border-zinc-100 bg-zinc-50/50">
+                        {c.contact_name && (
+                          <div className="text-xs font-semibold text-zinc-700">{c.contact_name}</div>
+                        )}
+                        <div className="flex items-center gap-3 mt-0.5">
+                          {c.contact_phone && (
+                            <a href={`tel:${c.contact_phone.replace(/\D/g,'')}`}
+                              className="text-[10px] text-zinc-500 hover:text-violet-600 flex items-center gap-1"
+                              onClick={e => e.stopPropagation()}>
+                              📞 {c.contact_phone}
+                            </a>
+                          )}
+                          {c.contact_email && (
+                            <a href={`mailto:${c.contact_email}`}
+                              className="text-[10px] text-zinc-500 hover:text-violet-600 truncate max-w-[160px]"
+                              onClick={e => e.stopPropagation()}>
+                              ✉️ {c.contact_email}
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Ações */}
+                    <div className="px-5 py-3 border-t border-zinc-100 flex items-center justify-between">
+                      <div className="text-[10px] text-zinc-300">
+                        {c.created_at && `Desde ${new Date(c.created_at).toLocaleDateString('pt-BR', {month:'short', year:'numeric'})}`}
+                      </div>
+                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onClick={() => openEditCompany(c)}
+                          className="p-1.5 text-zinc-400 hover:text-violet-600 hover:bg-violet-50 rounded-lg transition-colors"
+                          title="Editar">
+                          <Edit3 className="w-3.5 h-3.5" />
+                        </button>
+                        <button onClick={() => deleteCompany(c.id)}
+                          className="p-1.5 text-zinc-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Excluir">
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 )

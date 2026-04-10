@@ -58,54 +58,91 @@ async function callClaude(prompt) {
 export function NovaEmpresaModal({ onClose, onSave, companies }) {
   const { profile } = useData()
   const [form, setForm] = useState({
-    name: '', trading_name: '', cnpj: '', segment: '', criticality: 'medio',
-    status: 'ativo', contact_name: '', contact_email: '', contact_phone: '',
-    notes: '', city: '', state: '', cnae: '', porte: '', socios: '',
-    data_abertura: '', situacao: '', regime_tributario: '',
-    ai_summary: '', label_ids: [],
+    // Identificação
+    name: '', trading_name: '', cnpj: '', status: 'ativo',
+    // Classificação BX
+    segment: '', criticality: 'medio',
+    // Localização (da Receita + manual)
+    zip_code: '', address: '', address_number: '', address_complement: '',
+    neighborhood: '', city: '', state: '',
+    // Contato principal
+    contact_name: '', contact_role: '', contact_email: '', contact_phone: '',
+    contact_phone2: '', website: '',
+    // Dados da Receita (preenchidos automaticamente)
+    cnae: '', porte: '', socios: '', data_abertura: '',
+    situacao: '', regime_tributario: '', natureza_juridica: '',
+    capital_social: '',
+    // Conteúdo
+    ai_summary: '', notes: '', observations: '',
   })
-  const [loadingCNPJ, setLoadingCNPJ]   = useState(false)
-  const [loadingAI,   setLoadingAI]     = useState(false)
-  const [saving,      setSaving]        = useState(false)
-  const [cnpjData,    setCnpjData]      = useState(null)
-  const [showAdvanced, setShowAdvanced] = useState(false)
+  const [loadingCNPJ, setLoadingCNPJ] = useState(false)
+  const [loadingAI,   setLoadingAI]   = useState(false)
+  const [saving,      setSaving]      = useState(false)
+  const [cnpjData,    setCnpjData]    = useState(null)
+  const [activeTab,   setActiveTab]   = useState('identificacao')
+
+  const TABS = [
+    { id: 'identificacao', label: 'Identificação' },
+    { id: 'localizacao',   label: 'Localização'   },
+    { id: 'contato',       label: 'Contato'       },
+    { id: 'receita',       label: 'Receita Federal'},
+    { id: 'perfil',        label: '✨ Perfil BX'  },
+  ]
 
   async function buscarCNPJ() {
     if (!form.cnpj || form.cnpj.replace(/\D/g,'').length !== 14) {
-      toast.warning('Digite o CNPJ completo (14 dígitos)')
-      return
+      toast.warning('Digite o CNPJ completo (14 dígitos)'); return
     }
     setLoadingCNPJ(true)
     try {
       const d = await fetchCNPJ(form.cnpj)
+      const regimeTrib = Array.isArray(d.regime_tributario)
+        ? d.regime_tributario.slice(-1)[0]?.forma_de_tributacao || ''
+        : (d.regime_tributario || '')
+      const socios = (d.qsa || []).map(s => s.nome_socio).filter(Boolean).join(', ')
+
       setCnpjData({
-        porte:                  d.porte || null,
-        regime_tributario:      Array.isArray(d.regime_tributario)
-                                  ? d.regime_tributario.slice(-1)[0]?.forma_de_tributacao || null
-                                  : (d.regime_tributario || null),
-        cnae_fiscal_descricao:  d.cnae_fiscal_descricao || null,
-        qsa_resumo:             (d.qsa||[]).map(s=>s.nome_socio||'').filter(Boolean).join(', ') || null,
+        porte:               d.porte || null,
+        regime_tributario:   regimeTrib || null,
+        cnae_descricao:      d.cnae_fiscal_descricao || null,
+        socios_resumo:       socios || null,
+        natureza_juridica:   d.natureza_juridica || null,
+        capital_social:      d.capital_social ? `R$ ${(d.capital_social/100).toLocaleString('pt-BR',{minimumFractionDigits:2})}` : null,
       })
-      const socios = (d.qsa || []).filter(Boolean).map(s => String(s?.nome_socio || '')).filter(Boolean).join(', ')
+
+      // Formatar logradouro completo
+      const logradouro = [
+        d.descricao_tipo_de_logradouro, d.logradouro
+      ].filter(Boolean).join(' ')
+
       setForm(p => ({
         ...p,
-        name:              d.razao_social || p.name,
-        trading_name:      d.nome_fantasia || p.trading_name,
+        name:              d.razao_social         || p.name,
+        trading_name:      d.nome_fantasia        || p.trading_name,
         cnae:              d.cnae_fiscal_descricao || '',
-        porte:             d.porte || '',
-        city:              d.municipio || '',
-        state:             d.uf || '',
+        porte:             d.porte                || '',
+        city:              d.municipio            || '',
+        state:             d.uf                   || '',
+        zip_code:          d.cep ? d.cep.replace(/(\d{5})(\d{3})/, '$1-$2') : p.zip_code,
+        address:           logradouro             || p.address,
+        address_number:    d.numero               || '',
+        address_complement:d.complemento          || '',
+        neighborhood:      d.bairro               || '',
         contact_phone:     d.ddd_telefone_1 ? `(${d.ddd_telefone_1.slice(0,2)}) ${d.ddd_telefone_1.slice(2)}` : p.contact_phone,
-        contact_email:     d.email || p.contact_email,
+        contact_phone2:    d.ddd_telefone_2 ? `(${d.ddd_telefone_2.slice(0,2)}) ${d.ddd_telefone_2.slice(2)}` : p.contact_phone2,
+        contact_email:     d.email                || p.contact_email,
         socios:            socios,
         data_abertura:     d.data_inicio_atividade || '',
         situacao:          d.descricao_situacao_cadastral || '',
-        regime_tributario: Array.isArray(d.regime_tributario) ? (d.regime_tributario.slice(-1)[0]?.forma_de_tributacao || '') : (typeof d.regime_tributario === 'string' ? d.regime_tributario : ''),
-        // Sugerir segmento baseado no CNAE
-        segment:           sugerirSegmento(d.cnae_fiscal_descricao, d.cnae_fiscal),
+        regime_tributario: regimeTrib,
+        natureza_juridica: d.natureza_juridica    || '',
+        capital_social:    d.capital_social ? String(d.capital_social) : '',
+        segment:           sugerirSegmento(d.cnae_fiscal_descricao),
         criticality:       sugerirCriticidade(d),
       }))
-      toast.success('Dados da Receita Federal carregados ✓')
+
+      toast.success('Receita Federal: dados carregados ✓')
+      setActiveTab('localizacao') // avança para conferir endereço
     } catch (err) {
       toast.error(err.message)
     } finally {
@@ -113,34 +150,35 @@ export function NovaEmpresaModal({ onClose, onSave, companies }) {
     }
   }
 
-  function sugerirSegmento(cnaeDesc, cnaeCod) {
+  function sugerirSegmento(cnaeDesc) {
     if (!cnaeDesc) return ''
     const d = cnaeDesc.toLowerCase()
     if (d.includes('financ') || d.includes('banco') || d.includes('crédito') || d.includes('seguro')) return 'Financeiro'
-    if (d.includes('indústria') || d.includes('fabricação') || d.includes('manufatura')) return 'Indústria'
+    if (d.includes('indústria') || d.includes('fabricação') || d.includes('manufatura') || d.includes('químic') || d.includes('petroquím')) return 'Indústria'
     if (d.includes('comércio') || d.includes('varejista') || d.includes('atacadista')) return 'Varejo / Distribuição'
     if (d.includes('serviço') || d.includes('consultoria') || d.includes('assessoria')) return 'Serviços'
     if (d.includes('construção') || d.includes('incorporação') || d.includes('imobil')) return 'Construção / Imobiliário'
-    if (d.includes('saúde') || d.includes('hospitalar') || d.includes('médico')) return 'Saúde'
+    if (d.includes('saúde') || d.includes('hospitalar') || d.includes('médico') || d.includes('clínica')) return 'Saúde'
     if (d.includes('tecnologia') || d.includes('software') || d.includes('informática')) return 'Tecnologia'
     if (d.includes('educação') || d.includes('ensino') || d.includes('escola')) return 'Educação'
     if (d.includes('aliment') || d.includes('bebida') || d.includes('restaurante')) return 'Alimentos / Bebidas'
+    if (d.includes('energia') || d.includes('elétric') || d.includes('combustível') || d.includes('etanol')) return 'Energia'
+    if (d.includes('logística') || d.includes('transporte') || d.includes('armazén')) return 'Logística'
+    if (d.includes('agro') || d.includes('agrícola') || d.includes('pecuária') || d.includes('soja') || d.includes('cana')) return 'Agronegócio'
     return 'Outros'
   }
 
   function sugerirCriticidade(d) {
     if (!d) return 'medio'
-    // Situação irregular = crítico
     if (d.descricao_situacao_cadastral && d.descricao_situacao_cadastral !== 'ATIVA') return 'critico'
-    // Capital social baixo ou MEI = baixo
     if (d.opcao_pelo_mei) return 'baixo'
     if (d.porte === 'MICRO EMPRESA') return 'baixo'
     if (d.porte === 'EMPRESA DE PEQUENO PORTE') return 'medio'
     return 'medio'
   }
 
-  async function gerarResumoIA() {
-    if (!form.name) { toast.warning('Preencha ao menos o nome da empresa'); return }
+  async function gerarPerfilIA() {
+    if (!form.name) { toast.warning('Preencha o nome da empresa'); return }
     setLoadingAI(true)
     try {
       const prompt = `Você é um analista sênior da BX Finance, escritório de advisory financeiro especializado em diagnóstico, recuperação judicial e M&A mid-market.
@@ -153,11 +191,14 @@ DADOS DA EMPRESA:
 - CNPJ: ${form.cnpj || '—'}
 - CNAE Principal: ${form.cnae || '—'}
 - Porte: ${form.porte || '—'}
+- Natureza Jurídica: ${form.natureza_juridica || '—'}
+- Capital Social: ${form.capital_social || '—'}
 - Situação: ${form.situacao || 'ATIVA'}
 - Cidade/UF: ${form.city || '—'}/${form.state || '—'}
 - Regime Tributário: ${form.regime_tributario || '—'}
 - Sócios: ${form.socios || '—'}
 - Data de Abertura: ${form.data_abertura || '—'}
+- Segmento BX: ${form.segment || '—'}
 
 Responda APENAS com o perfil estruturado, sem introdução:
 
@@ -165,17 +206,17 @@ Responda APENAS com o perfil estruturado, sem introdução:
 [2-3 frases descrevendo o negócio e atividade principal]
 
 **INDICADORES DE RISCO**
-[Pontos de atenção: situação cadastral, porte, regime tributário, tempo de operação]
+[Pontos de atenção: situação cadastral, porte, regime tributário, tempo de operação, capital social]
 
 **SERVIÇOS BX APLICÁVEIS**
-[Quais serviços da BX Finance fazem sentido: Diagnóstico Financeiro, Reestruturação de Passivo, Recuperação Judicial, M&A, Assessoria]
+[Diagnóstico Financeiro, Reestruturação, RJ/RX, M&A, Assessoria — quais fazem sentido e por quê]
 
 **PRÓXIMOS PASSOS SUGERIDOS**
 [1-2 ações concretas para a equipe BX]`
 
       const text = await callClaude(prompt)
       setForm(p => ({ ...p, ai_summary: text }))
-      toast.success('Perfil BX gerado com IA ✓')
+      toast.success('Perfil BX gerado ✓')
     } catch (err) {
       toast.error('Erro na IA: ' + err.message)
     } finally {
@@ -183,40 +224,73 @@ Responda APENAS com o perfil estruturado, sem introdução:
     }
   }
 
+  async function buscarCEP(cep) {
+    const clean = cep.replace(/\D/g,'')
+    if (clean.length !== 8) return
+    try {
+      const r = await fetch(`https://viacep.com.br/ws/${clean}/json/`)
+      const d = await r.json()
+      if (!d.erro) {
+        setForm(p => ({
+          ...p,
+          address:      d.logradouro || p.address,
+          neighborhood: d.bairro     || p.neighborhood,
+          city:         d.localidade || p.city,
+          state:        d.uf         || p.state,
+        }))
+        toast.success('CEP encontrado ✓')
+      }
+    } catch {}
+  }
+
   async function handleSave() {
     if (!form.name.trim()) { toast.warning('Razão Social é obrigatória'); return }
     setSaving(true)
     try {
+      // Construir notes com dados técnicos da Receita
+      const techNotes = []
+      if (form.cnae)              techNotes.push(`CNAE: ${form.cnae}`)
+      if (form.porte)             techNotes.push(`Porte: ${form.porte}`)
+      if (form.natureza_juridica) techNotes.push(`Natureza Jurídica: ${form.natureza_juridica}`)
+      if (form.regime_tributario) techNotes.push(`Regime: ${form.regime_tributario}`)
+      if (form.capital_social)    techNotes.push(`Capital Social: R$ ${Number(form.capital_social).toLocaleString('pt-BR')}`)
+      if (form.socios)            techNotes.push(`Sócios: ${form.socios}`)
+      if (form.data_abertura)     techNotes.push(`Fundada: ${new Date(form.data_abertura).toLocaleDateString('pt-BR')}`)
+
+      const notesAll = [
+        techNotes.length ? techNotes.join(' · ') : '',
+        form.notes?.trim() || '',
+      ].filter(Boolean).join('\n')
+
       const payload = {
-        org_id:            profile.org_id,
-        name:              form.name.trim(),
-        trading_name:      form.trading_name.trim() || null,
-        cnpj:              form.cnpj.replace(/\D/g,'') || null,
-        segment:           form.segment || null,
-        criticality:       form.criticality,
-        status:            form.status,
-        contact_name:      form.contact_name.trim() || null,
-        contact_email:     form.contact_email.trim() || null,
-        contact_phone:     form.contact_phone || null,
-        notes: (() => {
-          const parts = []
-          if (form.cnae)              parts.push(`CNAE: ${form.cnae}`)
-          if (form.porte)             parts.push(`Porte: ${form.porte}`)
-          if (form.regime_tributario) parts.push(`Regime: ${form.regime_tributario}`)
-          if (form.socios)            parts.push(`Sócios: ${form.socios}`)
-          if (form.data_abertura)     parts.push(`Fundada: ${new Date(form.data_abertura).toLocaleDateString('pt-BR')}`)
-          if (form.notes?.trim())     parts.push(form.notes.trim())
-          if (form.ai_summary)        parts.push(`---\n🤖 PERFIL BX (IA):\n${form.ai_summary}`)
-          return parts.length ? parts.join('\n') : null
-        })(),
-        powerbi_link:      null,
-        city:              form.city || null,
-        state:             form.state || null,
-        // cnae e porte não existem no schema atual — guardados em notes
+        org_id:         profile.org_id,
+        name:           form.name.trim(),
+        trading_name:   form.trading_name.trim()   || null,
+        cnpj:           form.cnpj.replace(/\D/g,'') || null,
+        segment:        form.segment               || null,
+        criticality:    form.criticality,
+        status:         form.status,
+        // Endereço
+        address:        [form.address, form.address_number, form.address_complement].filter(Boolean).join(', ') || null,
+        city:           form.city                  || null,
+        state:          form.state                 || null,
+        zip_code:       form.zip_code.replace(/\D/g,'') || null,
+        // Contato
+        contact_name:   form.contact_name.trim()   || null,
+        contact_email:  form.contact_email.trim()  || null,
+        contact_phone:  form.contact_phone         || null,
+        website:        form.website.trim()        || null,
+        // Conteúdo
+        notes:          notesAll                   || null,
+        observations:   form.ai_summary
+                          ? `🤖 PERFIL BX (IA):\n${form.ai_summary}${form.observations?.trim() ? '\n\n' + form.observations.trim() : ''}`
+                          : (form.observations?.trim() || null),
+        powerbi_link:   null,
       }
+
       const { data, error } = await supabase.from('companies').insert(payload).select().single()
       if (error) throw error
-      toast.success(`Empresa "${form.name}" cadastrada ✓`)
+      toast.success(`"${form.name}" cadastrada ✓`)
       onSave(data)
     } catch (err) {
       toast.error('Erro ao salvar: ' + err.message)
@@ -225,206 +299,453 @@ Responda APENAS com o perfil estruturado, sem introdução:
     }
   }
 
-  const situacaoColor = form.situacao === 'ATIVA' ? 'text-emerald-600' : form.situacao ? 'text-red-600' : 'text-zinc-400'
+  const situacaoOk = form.situacao === 'ATIVA'
+  const pctComplete = [form.name, form.cnpj, form.city, form.contact_name, form.segment]
+    .filter(Boolean).length * 20
+
+  const f = (key, val) => setForm(p => ({ ...p, [key]: val }))
+
+  const InputCls = "w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500 transition-colors"
+  const LabelCls = "text-[10px] font-bold uppercase tracking-wider text-zinc-500 block mb-1.5"
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
       style={{ background: 'rgba(10,10,16,0.65)', backdropFilter: 'blur(6px)' }}
       onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="bg-white rounded-2xl shadow-2xl w-full flex flex-col overflow-hidden"
-        style={{ maxWidth: 680, maxHeight: '92vh', borderTop: `3px solid ${VL}` }}>
+        style={{ maxWidth: 720, maxHeight: '94vh', borderTop: `3px solid ${VL}` }}>
 
-        {/* Header */}
+        {/* ── Header ── */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-100 shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: VL + '15' }}>
               <Building2 className="w-4 h-4" style={{ color: VL }} />
             </div>
             <div>
-              <h3 className="text-base font-bold text-zinc-800">Nova Empresa</h3>
-              <p className="text-[10px] text-zinc-400">Busca automática pelo CNPJ + Perfil BX com IA</p>
+              <h3 className="text-base font-bold text-zinc-800">
+                {form.name ? form.name : 'Nova Empresa'}
+              </h3>
+              <p className="text-[10px] text-zinc-400">
+                Busca automática Receita Federal · Perfil BX com IA
+              </p>
             </div>
           </div>
-          <button onClick={onClose} className="p-1.5 text-zinc-400 hover:text-zinc-700 rounded-lg"><X className="w-5 h-5" /></button>
+          <div className="flex items-center gap-3">
+            {/* Barra de preenchimento */}
+            <div className="hidden sm:flex items-center gap-2">
+              <div className="w-24 h-1.5 bg-zinc-100 rounded-full overflow-hidden">
+                <div className="h-full rounded-full transition-all" style={{ width: `${pctComplete}%`, background: VL }} />
+              </div>
+              <span className="text-[10px] text-zinc-400 font-semibold">{pctComplete}%</span>
+            </div>
+            <button onClick={onClose} className="p-1.5 text-zinc-400 hover:text-zinc-700 rounded-lg">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
-        {/* Body */}
-        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
+        {/* ── Tabs de seção ── */}
+        <div className="flex border-b border-zinc-100 px-6 shrink-0 overflow-x-auto">
+          {TABS.map(tab => (
+            <button key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`px-4 py-3 text-xs font-bold whitespace-nowrap transition-colors border-b-2 -mb-px ${
+                activeTab === tab.id
+                  ? 'border-violet-600 text-violet-600'
+                  : 'border-transparent text-zinc-400 hover:text-zinc-600'
+              }`}>
+              {tab.label}
+            </button>
+          ))}
+        </div>
 
-          {/* CNPJ com busca automática */}
-          <div>
-            <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 block mb-1.5">CNPJ — busca automática na Receita Federal</label>
-            <div className="flex gap-2">
-              <input
-                className="flex-1 border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500 font-mono tracking-wider"
-                placeholder="00.000.000/0000-00"
-                value={form.cnpj}
-                onChange={e => setForm(p => ({ ...p, cnpj: fmtCNPJ(e.target.value) }))}
-                onKeyDown={e => e.key === 'Enter' && buscarCNPJ()}
-              />
-              <button onClick={buscarCNPJ} disabled={loadingCNPJ}
-                className="flex items-center gap-2 px-4 py-2.5 text-sm font-bold text-white rounded-xl disabled:opacity-50 hover:opacity-90 transition-opacity shrink-0"
-                style={{ background: CH }}>
-                {loadingCNPJ ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
-                {loadingCNPJ ? 'Buscando…' : 'Buscar'}
-              </button>
+        {/* ── Body ── */}
+        <div className="flex-1 overflow-y-auto px-6 py-5">
+
+          {/* ─── ABA: IDENTIFICAÇÃO ─── */}
+          {activeTab === 'identificacao' && (
+            <div className="space-y-4">
+              {/* CNPJ com busca */}
+              <div>
+                <label className={LabelCls}>CNPJ — busca automática na Receita Federal</label>
+                <div className="flex gap-2">
+                  <input
+                    className={InputCls + " flex-1 font-mono tracking-wider"}
+                    placeholder="00.000.000/0000-00"
+                    value={form.cnpj}
+                    onChange={e => f('cnpj', fmtCNPJ(e.target.value))}
+                    onKeyDown={e => e.key === 'Enter' && buscarCNPJ()}
+                  />
+                  <button onClick={buscarCNPJ} disabled={loadingCNPJ}
+                    className="flex items-center gap-2 px-4 py-2.5 text-sm font-bold text-white rounded-xl disabled:opacity-50 hover:opacity-90 shrink-0"
+                    style={{ background: CH }}>
+                    {loadingCNPJ ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+                    {loadingCNPJ ? 'Buscando…' : 'Buscar'}
+                  </button>
+                </div>
+                {form.situacao && (
+                  <div className={`flex items-center gap-1.5 mt-1.5 text-[11px] font-semibold ${situacaoOk ? 'text-emerald-600' : 'text-red-500'}`}>
+                    <span>{situacaoOk ? '✓' : '⚠'}</span>
+                    <span>Situação: {form.situacao}</span>
+                    {form.data_abertura && <span className="text-zinc-400 font-normal ml-1">· Fundada: {new Date(form.data_abertura).toLocaleDateString('pt-BR')}</span>}
+                  </div>
+                )}
+              </div>
+
+              {/* Razão Social + Nome Fantasia */}
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                  <label className={LabelCls}>Razão Social *</label>
+                  <input className={InputCls} placeholder="Razão Social conforme CNPJ"
+                    value={form.name} onChange={e => f('name', e.target.value)} autoFocus />
+                </div>
+                <div>
+                  <label className={LabelCls}>Nome Fantasia</label>
+                  <input className={InputCls} placeholder="Como a empresa é conhecida"
+                    value={form.trading_name} onChange={e => f('trading_name', e.target.value)} />
+                </div>
+              </div>
+
+              {/* Segmento + Criticidade + Status */}
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className={LabelCls}>Segmento</label>
+                  <select className={InputCls} value={form.segment} onChange={e => f('segment', e.target.value)}>
+                    <option value="">— selecione —</option>
+                    {['Financeiro','Indústria','Varejo / Distribuição','Serviços',
+                      'Construção / Imobiliário','Saúde','Tecnologia','Educação',
+                      'Alimentos / Bebidas','Agronegócio','Energia','Logística','Outros'
+                    ].map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className={LabelCls}>Criticidade</label>
+                  <select className={InputCls} value={form.criticality} onChange={e => f('criticality', e.target.value)}>
+                    <option value="baixo">🟢 Baixo</option>
+                    <option value="medio">🟡 Médio</option>
+                    <option value="alto">🟠 Alto</option>
+                    <option value="critico">🔴 Crítico</option>
+                  </select>
+                </div>
+                <div>
+                  <label className={LabelCls}>Status</label>
+                  <select className={InputCls} value={form.status} onChange={e => f('status', e.target.value)}>
+                    <option value="ativo">✅ Ativo</option>
+                    <option value="prospect">🔍 Prospect</option>
+                    <option value="inativo">⏸ Inativo</option>
+                    <option value="arquivado">📦 Arquivado</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Website */}
+              <div>
+                <label className={LabelCls}>Website</label>
+                <input className={InputCls} placeholder="https://www.empresa.com.br"
+                  value={form.website} onChange={e => f('website', e.target.value)} />
+              </div>
+
+              {/* Preview dados Receita */}
+              {cnpjData && (
+                <div className="bg-zinc-50 border border-zinc-200 rounded-xl p-4">
+                  <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-2">
+                    ✓ Dados carregados da Receita Federal
+                  </p>
+                  <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs text-zinc-600">
+                    {cnpjData.porte          && <span><b className="text-zinc-400">Porte:</b> {cnpjData.porte}</span>}
+                    {cnpjData.regime_tributario && <span><b className="text-zinc-400">Regime:</b> {cnpjData.regime_tributario}</span>}
+                    {cnpjData.natureza_juridica && <span><b className="text-zinc-400">Natureza:</b> {cnpjData.natureza_juridica}</span>}
+                    {cnpjData.capital_social && <span><b className="text-zinc-400">Capital Social:</b> {cnpjData.capital_social}</span>}
+                    {cnpjData.cnae_descricao && <span className="col-span-2"><b className="text-zinc-400">CNAE:</b> {cnpjData.cnae_descricao}</span>}
+                    {cnpjData.socios_resumo  && <span className="col-span-2"><b className="text-zinc-400">Sócios:</b> {cnpjData.socios_resumo}</span>}
+                  </div>
+                </div>
+              )}
             </div>
-            {form.situacao && (
-              <p className={`text-[10px] font-semibold mt-1.5 ${situacaoColor}`}>
-                {form.situacao === 'ATIVA' ? '✓' : '⚠'} Situação: {form.situacao}
-                {form.data_abertura && ` · Fundada em ${new Date(form.data_abertura).toLocaleDateString('pt-BR')}`}
-              </p>
-            )}
-          </div>
+          )}
 
-          {/* Preview dados Receita (quando carregados) */}
-          {cnpjData && (
-            <div className="bg-zinc-50 border border-zinc-200 rounded-xl p-3 space-y-1">
-              <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-2">✓ Dados da Receita Federal</p>
-              <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-zinc-600">
-                {cnpjData.porte && <span><span className="text-zinc-400">Porte:</span> {cnpjData.porte}</span>}
-                {cnpjData.regime_tributario && <span><span className="text-zinc-400">Regime:</span> {cnpjData.regime_tributario}</span>}
-                {cnpjData.cnae_fiscal_descricao && <span className="col-span-2"><span className="text-zinc-400">CNAE:</span> {cnpjData.cnae_fiscal_descricao}</span>}
-                {cnpjData.qsa_resumo && <span className="col-span-2"><span className="text-zinc-400">Sócios:</span> {cnpjData.qsa_resumo}</span>}
+          {/* ─── ABA: LOCALIZAÇÃO ─── */}
+          {activeTab === 'localizacao' && (
+            <div className="space-y-4">
+              {/* CEP com busca automática */}
+              <div>
+                <label className={LabelCls}>CEP — busca automática de endereço</label>
+                <div className="flex gap-2">
+                  <input className={InputCls + " flex-1 font-mono"}
+                    placeholder="00000-000"
+                    value={form.zip_code}
+                    onChange={e => {
+                      const v = e.target.value.replace(/\D/g,'').slice(0,8).replace(/(\d{5})(\d)/, '$1-$2')
+                      f('zip_code', v)
+                      if (v.replace(/\D/g,'').length === 8) buscarCEP(v)
+                    }}
+                  />
+                  <button onClick={() => buscarCEP(form.zip_code)} disabled={loadingCNPJ}
+                    className="px-4 py-2.5 text-sm font-bold text-white rounded-xl hover:opacity-90 shrink-0"
+                    style={{ background: CH }}>
+                    <Search className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Logradouro */}
+              <div>
+                <label className={LabelCls}>Logradouro</label>
+                <input className={InputCls} placeholder="Rua, Avenida, Alameda…"
+                  value={form.address} onChange={e => f('address', e.target.value)} />
+              </div>
+
+              {/* Número + Complemento */}
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className={LabelCls}>Número</label>
+                  <input className={InputCls} placeholder="123"
+                    value={form.address_number} onChange={e => f('address_number', e.target.value)} />
+                </div>
+                <div className="col-span-2">
+                  <label className={LabelCls}>Complemento</label>
+                  <input className={InputCls} placeholder="Sala 42, Andar 5, Bloco B…"
+                    value={form.address_complement} onChange={e => f('address_complement', e.target.value)} />
+                </div>
+              </div>
+
+              {/* Bairro */}
+              <div>
+                <label className={LabelCls}>Bairro</label>
+                <input className={InputCls} placeholder="Nome do bairro"
+                  value={form.neighborhood} onChange={e => f('neighborhood', e.target.value)} />
+              </div>
+
+              {/* Cidade + UF */}
+              <div className="grid grid-cols-4 gap-3">
+                <div className="col-span-3">
+                  <label className={LabelCls}>Cidade</label>
+                  <input className={InputCls}
+                    value={form.city} onChange={e => f('city', e.target.value)} />
+                </div>
+                <div>
+                  <label className={LabelCls}>UF</label>
+                  <input className={InputCls} placeholder="SP" maxLength={2}
+                    value={form.state} onChange={e => f('state', e.target.value.toUpperCase())} />
+                </div>
+              </div>
+
+              {/* Preview endereço completo */}
+              {(form.address || form.city) && (
+                <div className="bg-violet-50 border border-violet-200 rounded-xl px-4 py-3">
+                  <p className="text-[10px] font-bold text-violet-500 uppercase tracking-wider mb-1">Endereço completo</p>
+                  <p className="text-sm text-zinc-700">
+                    {[form.address, form.address_number, form.address_complement].filter(Boolean).join(', ')}
+                    {form.neighborhood && ` — ${form.neighborhood}`}
+                    {form.city && ` · ${form.city}`}
+                    {form.state && `/${form.state}`}
+                    {form.zip_code && ` · CEP ${form.zip_code}`}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ─── ABA: CONTATO ─── */}
+          {activeTab === 'contato' && (
+            <div className="space-y-4">
+              <p className="text-xs text-zinc-400">Contato principal da empresa para relacionamento com a BX Finance.</p>
+
+              {/* Nome + Cargo */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={LabelCls}>Nome do Contato</label>
+                  <input className={InputCls} placeholder="CEO, CFO, Dir. Financeiro…"
+                    value={form.contact_name} onChange={e => f('contact_name', e.target.value)} />
+                </div>
+                <div>
+                  <label className={LabelCls}>Cargo / Função</label>
+                  <input className={InputCls} placeholder="CFO, Controller…"
+                    value={form.contact_role} onChange={e => f('contact_role', e.target.value)} />
+                </div>
+              </div>
+
+              {/* Email */}
+              <div>
+                <label className={LabelCls}>Email</label>
+                <input type="email" className={InputCls} placeholder="contato@empresa.com.br"
+                  value={form.contact_email} onChange={e => f('contact_email', e.target.value)} />
+              </div>
+
+              {/* Telefone 1 + Telefone 2 */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={LabelCls}>Telefone principal</label>
+                  <input className={InputCls} placeholder="(11) 9 9999-9999"
+                    value={form.contact_phone}
+                    onChange={e => f('contact_phone', fmtPhone(e.target.value))} />
+                </div>
+                <div>
+                  <label className={LabelCls}>Telefone alternativo</label>
+                  <input className={InputCls} placeholder="(11) 3000-0000"
+                    value={form.contact_phone2}
+                    onChange={e => f('contact_phone2', fmtPhone(e.target.value))} />
+                </div>
+              </div>
+
+              {/* Website (repete para facilitar) */}
+              <div>
+                <label className={LabelCls}>Website</label>
+                <input className={InputCls} placeholder="https://www.empresa.com.br"
+                  value={form.website} onChange={e => f('website', e.target.value)} />
+              </div>
+
+              {/* Observações internas */}
+              <div>
+                <label className={LabelCls}>Observações internas do contato</label>
+                <textarea rows={3} className={InputCls + " resize-none"}
+                  placeholder="Preferências de contato, horários, histórico de relacionamento…"
+                  value={form.notes} onChange={e => f('notes', e.target.value)} />
               </div>
             </div>
           )}
 
-          {/* Dados básicos */}
-          <div className="grid grid-cols-1 gap-3">
-            <div>
-              <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 block mb-1.5">Razão Social *</label>
-              <input className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
-                placeholder="Razão Social conforme CNPJ"
-                value={form.name}
-                onChange={e => setForm(p => ({ ...p, name: e.target.value }))} />
-            </div>
-            <div>
-              <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 block mb-1.5">Nome Fantasia</label>
-              <input className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
-                placeholder="Como a empresa é conhecida no mercado"
-                value={form.trading_name}
-                onChange={e => setForm(p => ({ ...p, trading_name: e.target.value }))} />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 block mb-1.5">Segmento</label>
-                <select className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
-                  value={form.segment}
-                  onChange={e => setForm(p => ({ ...p, segment: e.target.value }))}>
-                  <option value="">— selecione —</option>
-                  {['Financeiro','Indústria','Varejo / Distribuição','Serviços','Construção / Imobiliário','Saúde','Tecnologia','Educação','Alimentos / Bebidas','Agronegócio','Energia','Logística','Outros'].map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 block mb-1.5">Criticidade</label>
-                <select className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
-                  value={form.criticality}
-                  onChange={e => setForm(p => ({ ...p, criticality: e.target.value }))}>
-                  <option value="baixo">🟢 Baixo</option>
-                  <option value="medio">🟡 Médio</option>
-                  <option value="alto">🟠 Alto</option>
-                  <option value="critico">🔴 Crítico</option>
-                </select>
-              </div>
-            </div>
-          </div>
+          {/* ─── ABA: RECEITA FEDERAL ─── */}
+          {activeTab === 'receita' && (
+            <div className="space-y-4">
+              {!cnpjData && !form.porte && (
+                <div className="text-center py-8 text-zinc-400">
+                  <Search className="w-10 h-10 mx-auto mb-3 text-zinc-200" />
+                  <p className="text-sm">Busque o CNPJ na aba <b>Identificação</b> para carregar os dados da Receita Federal automaticamente.</p>
+                </div>
+              )}
 
-          {/* Contato */}
-          <div>
-            <button onClick={() => setShowAdvanced(s => !s)}
-              className="flex items-center gap-2 text-xs font-bold text-zinc-500 hover:text-zinc-700 transition-colors mb-3">
-              {showAdvanced ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-              CONTATO E LOCALIZAÇÃO
-            </button>
-            {showAdvanced && (
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 block mb-1.5">Nome do contato</label>
-                  <input className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
-                    placeholder="Responsável / CFO / CEO"
-                    value={form.contact_name}
-                    onChange={e => setForm(p => ({ ...p, contact_name: e.target.value }))} />
-                </div>
-                <div>
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 block mb-1.5">Telefone</label>
-                  <input className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
-                    placeholder="(11) 9..."
-                    value={form.contact_phone}
-                    onChange={e => setForm(p => ({ ...p, contact_phone: fmtPhone(e.target.value) }))} />
-                </div>
-                <div className="col-span-2">
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 block mb-1.5">Email</label>
-                  <input type="email" className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
-                    value={form.contact_email}
-                    onChange={e => setForm(p => ({ ...p, contact_email: e.target.value }))} />
-                </div>
-                <div>
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 block mb-1.5">Cidade</label>
-                  <input className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
-                    value={form.city}
-                    onChange={e => setForm(p => ({ ...p, city: e.target.value }))} />
-                </div>
-                <div>
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 block mb-1.5">UF</label>
-                  <input className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
-                    placeholder="SP" maxLength={2}
-                    value={form.state}
-                    onChange={e => setForm(p => ({ ...p, state: e.target.value.toUpperCase() }))} />
-                </div>
-              </div>
-            )}
-          </div>
+              {(cnpjData || form.porte) && (
+                <>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className={LabelCls}>Porte</label>
+                      <input className={InputCls} readOnly value={form.porte || '—'} style={{ background: '#F9FAFB' }} />
+                    </div>
+                    <div>
+                      <label className={LabelCls}>Natureza Jurídica</label>
+                      <input className={InputCls} readOnly value={form.natureza_juridica || '—'} style={{ background: '#F9FAFB' }} />
+                    </div>
+                    <div>
+                      <label className={LabelCls}>Regime Tributário</label>
+                      <input className={InputCls} readOnly value={form.regime_tributario || '—'} style={{ background: '#F9FAFB' }} />
+                    </div>
+                    <div>
+                      <label className={LabelCls}>Data de Abertura</label>
+                      <input className={InputCls} readOnly
+                        value={form.data_abertura ? new Date(form.data_abertura).toLocaleDateString('pt-BR') : '—'}
+                        style={{ background: '#F9FAFB' }} />
+                    </div>
+                    <div>
+                      <label className={LabelCls}>Capital Social</label>
+                      <input className={InputCls} readOnly
+                        value={form.capital_social ? `R$ ${Number(form.capital_social).toLocaleString('pt-BR')}` : '—'}
+                        style={{ background: '#F9FAFB' }} />
+                    </div>
+                    <div>
+                      <label className={LabelCls}>Situação Cadastral</label>
+                      <div className={`flex items-center gap-2 border rounded-xl px-3 py-2.5 text-sm ${situacaoOk ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : form.situacao ? 'border-red-200 bg-red-50 text-red-700' : 'border-zinc-200 bg-zinc-50 text-zinc-500'}`}>
+                        <span>{situacaoOk ? '✓' : form.situacao ? '⚠' : '—'}</span>
+                        <span className="font-semibold">{form.situacao || 'Não consultado'}</span>
+                      </div>
+                    </div>
+                  </div>
 
-          {/* AI Summary */}
-          <div className="border-t border-zinc-100 pt-4">
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Perfil BX — Gerado por IA</label>
-              <button onClick={gerarResumoIA} disabled={loadingAI || !form.name}
-                className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-xl border disabled:opacity-40 transition-all hover:opacity-90"
-                style={{ background: VL + '12', color: VL, borderColor: VL + '40' }}>
-                {loadingAI ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
-                {loadingAI ? 'Gerando…' : '✨ Gerar Perfil BX'}
+                  <div>
+                    <label className={LabelCls}>CNAE Principal</label>
+                    <input className={InputCls} readOnly value={form.cnae || '—'} style={{ background: '#F9FAFB' }} />
+                  </div>
+
+                  <div>
+                    <label className={LabelCls}>Quadro Societário (QSA)</label>
+                    <textarea rows={3} className={InputCls + " resize-none"} readOnly
+                      value={form.socios || 'Nenhum sócio identificado'}
+                      style={{ background: '#F9FAFB' }} />
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* ─── ABA: PERFIL BX ─── */}
+          {activeTab === 'perfil' && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-bold text-zinc-700">Perfil estratégico gerado por IA</p>
+                  <p className="text-xs text-zinc-400 mt-0.5">Baseado nos dados da Receita Federal + segmento BX</p>
+                </div>
+                <button onClick={gerarPerfilIA} disabled={loadingAI || !form.name}
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-bold rounded-xl border disabled:opacity-40 hover:opacity-90"
+                  style={{ background: VL + '10', color: VL, borderColor: VL + '40' }}>
+                  {loadingAI ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                  {loadingAI ? 'Gerando…' : '✨ Gerar Perfil BX'}
+                </button>
+              </div>
+
+              <textarea rows={10}
+                className={InputCls + " resize-none leading-relaxed text-zinc-700"}
+                placeholder="Clique em '✨ Gerar Perfil BX' para que a IA analise os dados da Receita Federal e crie um perfil estratégico com: Perfil Operacional, Indicadores de Risco, Serviços BX Aplicáveis e Próximos Passos."
+                value={form.ai_summary}
+                onChange={e => f('ai_summary', e.target.value)} />
+
+              <div>
+                <label className={LabelCls}>Observações adicionais da equipe BX</label>
+                <textarea rows={3} className={InputCls + " resize-none"}
+                  placeholder="Contexto do mandato, histórico de relacionamento, informações estratégicas…"
+                  value={form.observations}
+                  onChange={e => f('observations', e.target.value)} />
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* ── Footer ── */}
+        <div className="shrink-0 border-t border-zinc-100 px-6 py-4 bg-white">
+          {/* Navegação entre abas */}
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex gap-2">
+              {activeTab !== 'identificacao' && (
+                <button onClick={() => {
+                  const idx = TABS.findIndex(t => t.id === activeTab)
+                  if (idx > 0) setActiveTab(TABS[idx-1].id)
+                }}
+                  className="px-3 py-2 text-sm text-zinc-500 border border-zinc-200 rounded-xl hover:bg-zinc-50">
+                  ← Voltar
+                </button>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <button onClick={onClose}
+                className="px-4 py-2.5 text-sm text-zinc-500 border border-zinc-200 rounded-xl hover:bg-zinc-50">
+                Cancelar
               </button>
+              {activeTab !== 'perfil' ? (
+                <button onClick={() => {
+                  const idx = TABS.findIndex(t => t.id === activeTab)
+                  if (idx < TABS.length - 1) setActiveTab(TABS[idx+1].id)
+                }}
+                  className="px-4 py-2.5 text-sm font-bold text-white rounded-xl hover:opacity-90"
+                  style={{ background: VL }}>
+                  Próximo →
+                </button>
+              ) : (
+                <button onClick={handleSave} disabled={saving || !form.name.trim()}
+                  className="flex items-center gap-2 px-5 py-2.5 text-sm font-bold text-white rounded-xl disabled:opacity-50 hover:opacity-90"
+                  style={{ background: VL }}>
+                  {saving ? <><Loader2 className="w-4 h-4 animate-spin" />Salvando…</> : '+ Cadastrar Empresa'}
+                </button>
+              )}
             </div>
-            <textarea rows={6}
-              className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500 resize-none text-zinc-700 leading-relaxed"
-              placeholder="Clique em '✨ Gerar Perfil BX' para que a IA analise os dados da Receita Federal e crie um perfil estratégico da empresa para a equipe BX Finance."
-              value={form.ai_summary}
-              onChange={e => setForm(p => ({ ...p, ai_summary: e.target.value }))} />
-          </div>
-
-          {/* Observações */}
-          <div>
-            <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 block mb-1.5">Observações internas</label>
-            <textarea rows={2}
-              className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500 resize-none"
-              placeholder="Notas para a equipe BX…"
-              value={form.notes}
-              onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} />
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="shrink-0 border-t border-zinc-100 px-6 py-4 flex gap-3 bg-white">
-          <button onClick={onClose}
-            className="flex-1 py-2.5 text-sm text-zinc-500 border border-zinc-200 rounded-xl hover:bg-zinc-50 transition-colors">
-            Cancelar
-          </button>
-          <button onClick={handleSave} disabled={saving || !form.name.trim()}
-            className="flex-1 py-2.5 text-sm font-bold text-white rounded-xl disabled:opacity-50 hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
-            style={{ background: VL }}>
-            {saving ? <><Loader2 className="w-4 h-4 animate-spin" />Salvando…</> : '+ Cadastrar Empresa'}
-          </button>
-        </div>
       </div>
     </div>
   )
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// MODAL NOVO COLABORADOR
-// ══════════════════════════════════════════════════════════════════════════════
+
 export function NovoColaboradorModal({ onClose, onSave }) {
   const { profile } = useData()
   const [form, setForm] = useState({
