@@ -301,9 +301,13 @@ export default function Dashboard() {
               <h1 className="text-2xl font-bold">{gr.text}, {firstName}!</h1>
             </div>
             <p className="text-sm text-zinc-400 ml-11">{dateStr}</p>
-            <div className="mt-3 ml-11 inline-flex items-center gap-2 bg-white/10 rounded-lg px-3 py-1.5 text-sm">
+            <button
+              onClick={() => overdue > 0 ? navigate('/kanban') : null}
+              className={`mt-3 ml-11 inline-flex items-center gap-2 bg-white/10 rounded-lg px-3 py-1.5 text-sm transition-colors ${overdue > 0 ? 'hover:bg-white/20 cursor-pointer' : 'cursor-default'}`}
+              title={overdue > 0 ? 'Ver tarefas vencidas no Kanban' : 'Tudo em ordem'}>
               <span>{statusIcon}</span><span>{statusText}</span>
-            </div>
+              {overdue > 0 && <span className="text-white/60 text-xs">→</span>}
+            </button>
           </div>
           <div className="text-right flex flex-col items-end gap-2">
             <div ref={clockRef} className="text-4xl font-bold tracking-widest" />

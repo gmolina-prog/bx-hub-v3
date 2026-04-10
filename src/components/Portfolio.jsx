@@ -129,6 +129,10 @@ export default function Portfolio() {
   }, [selectedCompanyId, enrichedCompanies])
 
   // Contadores globais
+  const orphanProjects = useMemo(function () {
+    return projects.filter(function (p) { return !p.company_id })
+  }, [projects])
+
   const totals = useMemo(function () {
     return {
       companies: enrichedCompanies.length,
