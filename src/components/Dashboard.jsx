@@ -396,6 +396,38 @@ export default function Dashboard() {
 
 
 
+      {/* ── WIDGET CHECK-IN ── */}
+      {(() => {
+        if (!data) return null
+        const fezCheckin = (data.checkins || []).some(ci => ci.user_id === profile?.id)
+        if (fezCheckin) return null   // já fez check-in — não exibe nada
+        return (
+          <div className="rounded-2xl border-2 p-4 flex items-center justify-between gap-4 flex-wrap"
+            style={{ borderColor: '#F59E0B', background: 'linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%)' }}>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0"
+                style={{ background: '#FDE68A' }}>
+                📍
+              </div>
+              <div>
+                <p className="text-sm font-bold text-amber-800">
+                  Você ainda não fez check-in hoje
+                </p>
+                <p className="text-xs text-amber-600 mt-0.5">
+                  Registre onde está para que a equipe saiba sua localização
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => navigate('/calendario')}
+              className="flex items-center gap-2 px-4 py-2.5 text-sm font-bold text-white rounded-xl shrink-0 hover:opacity-90 transition-opacity"
+              style={{ background: '#D97706' }}>
+              ⊙ Fazer check-in agora →
+            </button>
+          </div>
+        )
+      })()}
+
       {/* ── MAPA + EQUIPE HOJE ── */}
       <div className="bg-white border border-zinc-200 rounded-2xl overflow-hidden mb-6">
         <div className="flex items-center justify-between px-5 py-3 border-b border-zinc-100">
