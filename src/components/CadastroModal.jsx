@@ -78,8 +78,15 @@ export function NovaEmpresaModal({ onClose, onSave, companies }) {
     setLoadingCNPJ(true)
     try {
       const d = await fetchCNPJ(form.cnpj)
-      setCnpjData(d)
-      const socios = (d.qsa || []).map(s => s.nome_socio).join(', ')
+      setCnpjData({
+        porte:                  d.porte || null,
+        regime_tributario:      Array.isArray(d.regime_tributario)
+                                  ? d.regime_tributario.slice(-1)[0]?.forma_de_tributacao || null
+                                  : (d.regime_tributario || null),
+        cnae_fiscal_descricao:  d.cnae_fiscal_descricao || null,
+        qsa_resumo:             (d.qsa||[]).map(s=>s.nome_socio||'').filter(Boolean).join(', ') || null,
+      })
+      const socios = (d.qsa || []).filter(Boolean).map(s => String(s?.nome_socio || '')).filter(Boolean).join(', ')
       setForm(p => ({
         ...p,
         name:              d.razao_social || p.name,
@@ -93,7 +100,7 @@ export function NovaEmpresaModal({ onClose, onSave, companies }) {
         socios:            socios,
         data_abertura:     d.data_inicio_atividade || '',
         situacao:          d.descricao_situacao_cadastral || '',
-        regime_tributario: d.regime_tributario || '',
+        regime_tributario: Array.isArray(d.regime_tributario) ? (d.regime_tributario.slice(-1)[0]?.forma_de_tributacao || '') : (typeof d.regime_tributario === 'string' ? d.regime_tributario : ''),
         // Sugerir segmento baseado no CNAE
         segment:           sugerirSegmento(d.cnae_fiscal_descricao, d.cnae_fiscal),
         criticality:       sugerirCriticidade(d),
@@ -191,14 +198,21 @@ Responda APENAS com o perfil estruturado, sem introdução:
         contact_name:      form.contact_name.trim() || null,
         contact_email:     form.contact_email.trim() || null,
         contact_phone:     form.contact_phone || null,
-        notes:             form.ai_summary
-                             ? `${form.notes || ''}\n\n---\n🤖 PERFIL BX (IA):\n${form.ai_summary}`.trim()
-                             : (form.notes.trim() || null),
+        notes: (() => {
+          const parts = []
+          if (form.cnae)              parts.push(`CNAE: ${form.cnae}`)
+          if (form.porte)             parts.push(`Porte: ${form.porte}`)
+          if (form.regime_tributario) parts.push(`Regime: ${form.regime_tributario}`)
+          if (form.socios)            parts.push(`Sócios: ${form.socios}`)
+          if (form.data_abertura)     parts.push(`Fundada: ${new Date(form.data_abertura).toLocaleDateString('pt-BR')}`)
+          if (form.notes?.trim())     parts.push(form.notes.trim())
+          if (form.ai_summary)        parts.push(`---\n🤖 PERFIL BX (IA):\n${form.ai_summary}`)
+          return parts.length ? parts.join('\n') : null
+        })(),
         powerbi_link:      null,
         city:              form.city || null,
         state:             form.state || null,
-        cnae:              form.cnae || null,
-        porte:             form.porte || null,
+        // cnae e porte não existem no schema atual — guardados em notes
       }
       const { data, error } = await supabase.from('companies').insert(payload).select().single()
       if (error) throw error
@@ -271,7 +285,7 @@ Responda APENAS com o perfil estruturado, sem introdução:
                 {cnpjData.porte && <span><span className="text-zinc-400">Porte:</span> {cnpjData.porte}</span>}
                 {cnpjData.regime_tributario && <span><span className="text-zinc-400">Regime:</span> {cnpjData.regime_tributario}</span>}
                 {cnpjData.cnae_fiscal_descricao && <span className="col-span-2"><span className="text-zinc-400">CNAE:</span> {cnpjData.cnae_fiscal_descricao}</span>}
-                {form.socios && <span className="col-span-2"><span className="text-zinc-400">Sócios:</span> {form.socios}</span>}
+                {cnpjData.qsa_resumo && <span className="col-span-2"><span className="text-zinc-400">Sócios:</span> {cnpjData.qsa_resumo}</span>}
               </div>
             </div>
           )}

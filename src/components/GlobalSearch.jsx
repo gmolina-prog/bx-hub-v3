@@ -34,11 +34,11 @@ export default function GlobalSearch({ onClose }) {
     try {
       const orgId = profile.org_id
       const [tasksR, projR, dealsR, risksR, compR, notesR] = await Promise.allSettled([
-        supabase.from('tasks').select('id,title,column_id,priority').eq('org_id', orgId).ilike('title', `%${q}%`).is('deleted_at', null).eq('is_archived', false).limit(5),
-        supabase.from('projects').select('id,name,type,status').eq('org_id', orgId).ilike('name', `%${q}%`).limit(5),
+        supabase.from('tasks').select('id,title,column_id,priority').eq('org_id', orgId).or(`title.ilike.%${q}%,description.ilike.%${q}%`).is('deleted_at', null).limit(5),
+        supabase.from('projects').select('id,name,type,status').eq('org_id', orgId).or(`name.ilike.%${q}%,type.ilike.%${q}%,status.ilike.%${q}%`).limit(5),
         supabase.from('pipeline_items').select('id,name,stage').eq('org_id', orgId).ilike('name', `%${q}%`).eq('is_archived', false).limit(5),
         supabase.from('risks').select('id,name,status').eq('org_id', orgId).ilike('name', `%${q}%`).limit(5),
-        supabase.from('companies').select('id,name,segment').eq('org_id', orgId).ilike('name', `%${q}%`).limit(5),
+        supabase.from('companies').select('id,name,segment').eq('org_id', orgId).or(`name.ilike.%${q}%,segment.ilike.%${q}%,trading_name.ilike.%${q}%`).limit(5),
         supabase.from('notes').select('id,title,status').eq('org_id', orgId).ilike('title', `%${q}%`).neq('status','archived').limit(5),
       ])
 

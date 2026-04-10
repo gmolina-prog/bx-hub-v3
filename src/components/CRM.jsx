@@ -785,9 +785,7 @@ export default function CRM() {
               Clientes BPO contábil com perfil para reestruturação financeira (alavancagem alta + queda de margem nos últimos 2 trimestres).
               Oportunidade de cross-sell para diagnósticos e RJ.
             </p>
-            <div className="text-xs text-zinc-500 mt-3">
-              💡 Para detectar automaticamente, adicione lógica que cruza dados do BPO com indicadores Fleuriet/DSCR.
-            </div>
+
           </div>
           <div className="bg-violet-50 border-l-4 border-violet-500 rounded-xl p-5">
             <h3 className="text-sm font-bold text-zinc-800 flex items-center gap-2">

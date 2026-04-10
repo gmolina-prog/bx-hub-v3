@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { Settings, Bell, MapPin, X, Check, CheckCheck, LogOut, ChevronRight } from 'lucide-react'
+import { Settings, Bell, MapPin, X, Check, CheckCheck, LogOut, ChevronRight, Menu } from 'lucide-react'
 import Sidebar from './Sidebar'
 import { supabase } from '../lib/supabase'
 import GlobalSearch from './GlobalSearch'
@@ -556,18 +556,36 @@ export default function Layout({ children }) {
   }
   const pageTitle = PAGE_TITLES[location.pathname] || 'BX Hub'
 
+  const [sidebarOpen, setSidebarOpen] = useState(true)
+
   return (
     <div className="flex h-screen overflow-hidden">
-      <Sidebar />
+      {/* Overlay mobile */}
+      {!sidebarOpen && (
+        <div className="fixed inset-0 z-20 bg-black/40 md:hidden"
+          onClick={() => setSidebarOpen(false)} />
+      )}
+
+      {/* Sidebar com transição */}
+      <div className={`shrink-0 transition-all duration-300 ${sidebarOpen ? 'w-56' : 'w-0 overflow-hidden'} md:w-56`}>
+        <Sidebar />
+      </div>
 
       <div className="flex-1 flex flex-col overflow-hidden">
 
         {/* ── TOP HEADER ── */}
         <header ref={headerRef} className="h-14 flex items-center justify-between px-5 border-b border-zinc-200 bg-white shrink-0 relative z-30">
-          {/* Left: page title */}
-          <div>
+          {/* Left: hamburger + page title */}
+          <div className="flex items-center gap-3">
+            <button onClick={() => setSidebarOpen(s => !s)}
+              className="p-1.5 rounded-lg text-zinc-500 hover:bg-zinc-100 transition-colors md:hidden"
+              aria-label="Menu">
+              <Menu className="w-5 h-5" />
+            </button>
+            <div>
             <h2 className="text-sm font-bold text-zinc-800">{pageTitle}</h2>
             <p className="text-[10px] text-zinc-400 uppercase tracking-wider font-semibold">BX Project Hub</p>
+            </div>
           </div>
 
           {/* Right: action buttons */}
