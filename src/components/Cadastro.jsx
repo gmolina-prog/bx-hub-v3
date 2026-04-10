@@ -95,6 +95,12 @@ export default function Cadastro() {
   const [newCompanyForm, setNewCompanyForm] = useState({ name: '', cnpj: '', segment: '', criticality: 'medio', status: 'ativo', notes: '' })
   const [newProfileForm, setNewProfileForm] = useState({ full_name: '', email: '', role: 'analyst', cargo: '', phone: '' })
   const [saving,        setSaving]        = useState(false)
+  const [editingProfile,  setEditingProfile]  = useState(null)
+  const [editProfileForm, setEditProfileForm] = useState({})
+  const [editingLabel,    setEditingLabel]    = useState(null)
+  const [editLabelForm,   setEditLabelForm]   = useState({})
+  const [editingInst,     setEditingInst]     = useState(null)
+  const [editInstForm,    setEditInstForm]    = useState({})
   const navigate = useNavigate()
   // Modais de criação
   const [showNewLabel, setShowNewLabel]             = useState(false)
@@ -359,6 +365,100 @@ export default function Cadastro() {
     URL.revokeObjectURL(url)
   }
 
+
+  // ── Excluir empresa ──
+  async function deleteCompany(id) {
+    if (!await confirm('Excluir esta empresa? Esta ação não pode ser desfeita.', { danger: true, confirmLabel: 'Excluir' })) return
+    const { error } = await supabase.from('companies').delete().eq('id', id).eq('org_id', profile.org_id)
+    if (error) { toast.error('Erro: ' + error.message); return }
+    setCompanies(prev => prev.filter(c => c.id !== id))
+    toast.success('Empresa excluída')
+  }
+
+  // ── Editar colaborador ──
+  function openEditProfile(p) {
+    setEditProfileForm({ full_name: p.full_name || '', email: p.email || '', role: p.role || 'analyst', cargo: p.cargo || '', phone: p.phone || '', location: p.location || '' })
+    setEditingProfile(p)
+  }
+  async function saveProfile() {
+    if (!editingProfile) return
+    setSaving(true)
+    const { error } = await supabase.from('profiles').update({
+      full_name: editProfileForm.full_name?.trim() || null,
+      cargo:     editProfileForm.cargo?.trim()     || null,
+      phone:     editProfileForm.phone?.trim()     || null,
+      location:  editProfileForm.location          || null,
+      role:      editProfileForm.role              || 'analyst',
+    }).eq('id', editingProfile.id).eq('org_id', profile.org_id)
+    setSaving(false)
+    if (error) { toast.error('Erro: ' + error.message); return }
+    setProfiles(prev => prev.map(p => p.id === editingProfile.id ? { ...p, ...editProfileForm } : p))
+    setEditingProfile(null)
+    toast.success('Colaborador atualizado')
+  }
+
+  // ── Excluir colaborador ──
+  async function deleteProfile(id) {
+    if (!await confirm('Remover este colaborador? O acesso será revogado.', { danger: true, confirmLabel: 'Remover' })) return
+    const { error } = await supabase.from('profiles').update({ deleted_at: new Date().toISOString() }).eq('id', id).eq('org_id', profile.org_id)
+    if (error) { toast.error('Erro: ' + error.message); return }
+    setProfiles(prev => prev.filter(p => p.id !== id))
+    toast.success('Colaborador removido')
+  }
+
+  // ── Editar/Excluir label ──
+  function openEditLabel(l) {
+    setEditLabelForm({ name: l.name || '', color: l.color || '#5452C1' })
+    setEditingLabel(l)
+  }
+  async function saveLabel() {
+    if (!editingLabel) return
+    setSaving(true)
+    const { error } = await supabase.from('labels').update({ name: editLabelForm.name?.trim(), color: editLabelForm.color })
+      .eq('id', editingLabel.id).eq('org_id', profile.org_id)
+    setSaving(false)
+    if (error) { toast.error('Erro: ' + error.message); return }
+    setLabels(prev => prev.map(l => l.id === editingLabel.id ? { ...l, ...editLabelForm } : l))
+    setEditingLabel(null)
+    toast.success('Etiqueta atualizada')
+  }
+  async function deleteLabel(id) {
+    if (!await confirm('Excluir esta etiqueta?', { danger: true, confirmLabel: 'Excluir' })) return
+    const { error } = await supabase.from('labels').delete().eq('id', id).eq('org_id', profile.org_id)
+    if (error) { toast.error('Erro: ' + error.message); return }
+    setLabels(prev => prev.filter(l => l.id !== id))
+    toast.success('Etiqueta excluída')
+  }
+
+  // ── Editar/Excluir instituição ──
+  function openEditInst(inst) {
+    setEditInstForm({ name: inst.name || '', type: inst.type || '', contact_name: inst.contact_name || '', contact_email: inst.contact_email || '', contact_phone: inst.contact_phone || '', notes: inst.notes || '' })
+    setEditingInst(inst)
+  }
+  async function saveInst() {
+    if (!editingInst) return
+    setSaving(true)
+    const { error } = await supabase.from('institutions').update({
+      name: editInstForm.name?.trim(), type: editInstForm.type,
+      contact_name: editInstForm.contact_name?.trim() || null,
+      contact_email: editInstForm.contact_email?.trim() || null,
+      contact_phone: editInstForm.contact_phone?.trim() || null,
+      notes: editInstForm.notes?.trim() || null,
+    }).eq('id', editingInst.id).eq('org_id', profile.org_id)
+    setSaving(false)
+    if (error) { toast.error('Erro: ' + error.message); return }
+    setInstitutions(prev => prev.map(i => i.id === editingInst.id ? { ...i, ...editInstForm } : i))
+    setEditingInst(null)
+    toast.success('Instituição atualizada')
+  }
+  async function deleteInst(id) {
+    if (!await confirm('Excluir esta instituição?', { danger: true, confirmLabel: 'Excluir' })) return
+    const { error } = await supabase.from('institutions').delete().eq('id', id).eq('org_id', profile.org_id)
+    if (error) { toast.error('Erro: ' + error.message); return }
+    setInstitutions(prev => prev.filter(i => i.id !== id))
+    toast.success('Instituição excluída')
+  }
+
   const VL = '#5452C1'
 
   return (
@@ -456,6 +556,179 @@ export default function Cadastro() {
         </div>
       </div>
     )}
+
+    {/* ── Modal Editar Colaborador ── */}
+    {editingProfile && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+        style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}
+        onClick={e => e.target === e.currentTarget && setEditingProfile(null)}>
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+          <div className="flex items-center justify-between mb-5">
+            <h3 className="text-lg font-bold text-zinc-800">Editar Colaborador</h3>
+            <button onClick={() => setEditingProfile(null)} className="text-zinc-400 hover:text-zinc-600"><X className="w-5 h-5" /></button>
+          </div>
+          <div className="space-y-3">
+            <div>
+              <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 block mb-1">Nome completo</label>
+              <input className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                value={editProfileForm.full_name || ''}
+                onChange={e => setEditProfileForm(p => ({ ...p, full_name: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 block mb-1">Cargo / Função</label>
+              <input className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                value={editProfileForm.cargo || ''}
+                onChange={e => setEditProfileForm(p => ({ ...p, cargo: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 block mb-1">Telefone</label>
+              <input className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                value={editProfileForm.phone || ''}
+                onChange={e => setEditProfileForm(p => ({ ...p, phone: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 block mb-1">Role</label>
+              <select className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                value={editProfileForm.role || 'analyst'}
+                onChange={e => setEditProfileForm(p => ({ ...p, role: e.target.value }))}>
+                {ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 block mb-1">Localização padrão</label>
+              <select className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                value={editProfileForm.location || 'escritorio'}
+                onChange={e => setEditProfileForm(p => ({ ...p, location: e.target.value }))}>
+                <option value="escritorio">🏢 Escritório</option>
+                <option value="cliente">🤝 Cliente</option>
+                <option value="remoto">🏠 Remoto</option>
+                <option value="viagem">✈️ Viagem</option>
+              </select>
+            </div>
+          </div>
+          <div className="flex gap-3 mt-5">
+            <button onClick={() => setEditingProfile(null)}
+              className="flex-1 py-2.5 text-sm text-zinc-500 border border-zinc-200 rounded-xl hover:bg-zinc-50 transition-colors">Cancelar</button>
+            <button onClick={saveProfile} disabled={saving}
+              className="flex-1 py-2.5 text-sm font-bold text-white rounded-xl disabled:opacity-50 hover:opacity-90 transition-opacity"
+              style={{ background: '#5452C1' }}>
+              {saving ? 'Salvando…' : 'Salvar'}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* ── Modal Editar Etiqueta ── */}
+    {editingLabel && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+        style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}
+        onClick={e => e.target === e.currentTarget && setEditingLabel(null)}>
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+          <div className="flex items-center justify-between mb-5">
+            <h3 className="text-lg font-bold text-zinc-800">Editar Etiqueta</h3>
+            <button onClick={() => setEditingLabel(null)} className="text-zinc-400 hover:text-zinc-600"><X className="w-5 h-5" /></button>
+          </div>
+          <div className="space-y-3">
+            <div>
+              <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 block mb-1">Nome</label>
+              <input className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                value={editLabelForm.name || ''}
+                onChange={e => setEditLabelForm(p => ({ ...p, name: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 block mb-1">Cor</label>
+              <div className="flex items-center gap-3">
+                <input type="color" value={editLabelForm.color || '#5452C1'}
+                  onChange={e => setEditLabelForm(p => ({ ...p, color: e.target.value }))}
+                  className="w-10 h-10 rounded-lg border border-zinc-200 cursor-pointer" />
+                <span className="text-sm font-bold px-3 py-1.5 rounded-full"
+                  style={{ background: (editLabelForm.color || '#5452C1') + '20', color: editLabelForm.color || '#5452C1' }}>
+                  {editLabelForm.name || 'Preview'}
+                </span>
+              </div>
+            </div>
+          </div>
+          <div className="flex gap-3 mt-5">
+            <button onClick={() => setEditingLabel(null)}
+              className="flex-1 py-2.5 text-sm text-zinc-500 border border-zinc-200 rounded-xl hover:bg-zinc-50">Cancelar</button>
+            <button onClick={saveLabel} disabled={saving || !editLabelForm.name?.trim()}
+              className="flex-1 py-2.5 text-sm font-bold text-white rounded-xl disabled:opacity-50"
+              style={{ background: '#5452C1' }}>
+              {saving ? 'Salvando…' : 'Salvar'}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* ── Modal Editar Instituição ── */}
+    {editingInst && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+        style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}
+        onClick={e => e.target === e.currentTarget && setEditingInst(null)}>
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+          <div className="flex items-center justify-between mb-5">
+            <h3 className="text-lg font-bold text-zinc-800">Editar Instituição</h3>
+            <button onClick={() => setEditingInst(null)} className="text-zinc-400 hover:text-zinc-600"><X className="w-5 h-5" /></button>
+          </div>
+          <div className="space-y-3">
+            <div>
+              <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 block mb-1">Nome</label>
+              <input className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                value={editInstForm.name || ''}
+                onChange={e => setEditInstForm(p => ({ ...p, name: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 block mb-1">Tipo</label>
+              <select className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                value={editInstForm.type || ''}
+                onChange={e => setEditInstForm(p => ({ ...p, type: e.target.value }))}>
+                {['Banco Comercial','Banco de Investimento','FIDC','FII','Securitizadora','Factoring','Cooperativa de Crédito','Fundo de PE','Outro'].map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 block mb-1">Contato</label>
+                <input className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                  placeholder="Nome"
+                  value={editInstForm.contact_name || ''}
+                  onChange={e => setEditInstForm(p => ({ ...p, contact_name: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 block mb-1">Telefone</label>
+                <input className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                  placeholder="(11) 9..."
+                  value={editInstForm.contact_phone || ''}
+                  onChange={e => setEditInstForm(p => ({ ...p, contact_phone: e.target.value }))} />
+              </div>
+            </div>
+            <div>
+              <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 block mb-1">Email</label>
+              <input className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                value={editInstForm.contact_email || ''}
+                onChange={e => setEditInstForm(p => ({ ...p, contact_email: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 block mb-1">Observações</label>
+              <textarea rows={2} className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500 resize-none"
+                value={editInstForm.notes || ''}
+                onChange={e => setEditInstForm(p => ({ ...p, notes: e.target.value }))} />
+            </div>
+          </div>
+          <div className="flex gap-3 mt-5">
+            <button onClick={() => setEditingInst(null)}
+              className="flex-1 py-2.5 text-sm text-zinc-500 border border-zinc-200 rounded-xl hover:bg-zinc-50">Cancelar</button>
+            <button onClick={saveInst} disabled={saving || !editInstForm.name?.trim()}
+              className="flex-1 py-2.5 text-sm font-bold text-white rounded-xl disabled:opacity-50"
+              style={{ background: '#5452C1' }}>
+              {saving ? 'Salvando…' : 'Salvar'}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+
     <div className="p-6 max-w-[1600px] mx-auto">
       {/* Hero */}
       <div className="bg-gradient-to-br from-zinc-800 to-zinc-900 rounded-2xl p-6 mb-6 text-white">
@@ -694,7 +967,7 @@ export default function Cadastro() {
                               <button onClick={() => openEditCompany(c)} className="p-1.5 text-zinc-500 hover:bg-zinc-100 rounded" title="Editar">
                                 <Edit3 className="w-3.5 h-3.5" />
                               </button>
-                              <button className="p-1.5 text-rose-600 hover:bg-rose-50 rounded" title="Excluir">
+                              <button onClick={() => deleteCompany(c.id)} className="p-1.5 text-zinc-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Excluir empresa">
                                 <Trash2 className="w-3.5 h-3.5" />
                               </button>
                             </div>
@@ -807,6 +1080,7 @@ export default function Cadastro() {
                     <th className="text-left px-4 py-3 text-[10px] font-bold uppercase tracking-wider">Email</th>
                     <th className="text-left px-4 py-3 text-[10px] font-bold uppercase tracking-wider">Role</th>
                     <th className="text-left px-4 py-3 text-[10px] font-bold uppercase tracking-wider">Localização</th>
+                    <th className="text-right px-4 py-3 text-[10px] font-bold uppercase tracking-wider">Ações</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-zinc-100">
@@ -818,7 +1092,7 @@ export default function Cadastro() {
                       ? 'w-9 h-9 rounded-full text-white flex items-center justify-center font-bold text-xs flex-shrink-0'
                       : 'w-9 h-9 rounded-full bg-gradient-to-br from-violet-500 to-violet-700 text-white flex items-center justify-center font-bold text-xs flex-shrink-0'
                     return (
-                      <tr key={p.id} onClick={() => navigate('/timeline')} className="hover:bg-zinc-50 cursor-pointer hover:bg-violet-50 transition-colors" title="Ver na Timeline">
+                      <tr key={p.id} className="hover:bg-violet-50 transition-colors">
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-3">
                             <div className={avatarClass} style={avatarStyle}>{initials}</div>
@@ -832,6 +1106,22 @@ export default function Cadastro() {
                           </span>
                         </td>
                         <td className="px-4 py-3 text-zinc-600 text-xs">{p.location || '—'}</td>
+                        <td className="px-4 py-3 text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <button onClick={() => openEditProfile(p)}
+                              className="p-1.5 text-zinc-400 hover:text-violet-600 hover:bg-violet-50 rounded-lg transition-colors"
+                              title="Editar">
+                              <Edit3 className="w-3.5 h-3.5" />
+                            </button>
+                            {isLeaderRole(profile?.role) && (
+                              <button onClick={() => deleteProfile(p.id)}
+                                className="p-1.5 text-zinc-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                title="Remover">
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </td>
                       </tr>
                     )
                   })}
@@ -858,20 +1148,18 @@ export default function Cadastro() {
             </div>
           ) : (
             <div className="bg-white border border-zinc-200 rounded-xl p-6">
-              <div className="flex flex-wrap gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                 {labels.map(l => (
-                  <span
-                    key={l.id}
-                    className="inline-flex items-center gap-2 text-sm font-semibold px-3 py-1.5 rounded-full"
-                    style={{
-                      background: l.color ? `${l.color}20` : '#F4F3FE',
-                      color: l.color || '#5452C1',
-                      border: `1px solid ${l.color || '#7C7AD9'}40`,
-                    }}
-                  >
-                    {l.color && <span className="w-2 h-2 rounded-full" style={{ background: l.color }} />}
-                    {l.name || l.label || l.title || '—'}
-                  </span>
+                  <div key={l.id} className="flex items-center gap-3 p-3 rounded-xl border border-zinc-100 hover:border-violet-200 hover:shadow-sm transition-all group">
+                    <span className="w-5 h-5 rounded-full shrink-0 ring-2 ring-white shadow-sm" style={{ background: l.color || '#5452C1' }} />
+                    <span className="text-sm font-semibold flex-1 truncate" style={{ color: l.color || '#5452C1' }}>
+                      {l.name || l.label || l.title || '—'}
+                    </span>
+                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                      <button onClick={() => openEditLabel(l)} className="p-1 text-zinc-400 hover:text-violet-600 hover:bg-violet-50 rounded-lg" title="Editar"><Edit3 className="w-3.5 h-3.5" /></button>
+                      <button onClick={() => deleteLabel(l.id)} className="p-1 text-zinc-400 hover:text-red-500 hover:bg-red-50 rounded-lg" title="Excluir"><Trash2 className="w-3.5 h-3.5" /></button>
+                    </div>
+                  </div>
                 ))}
               </div>
             </div>
@@ -906,7 +1194,7 @@ export default function Cadastro() {
                 </thead>
                 <tbody className="divide-y divide-zinc-100">
                   {projects.map(p => (
-                    <tr key={p.id} onClick={() => navigate('/timeline')} className="hover:bg-zinc-50 cursor-pointer hover:bg-violet-50 transition-colors" title="Ver na Timeline">
+                    <tr key={p.id} className="hover:bg-violet-50 transition-colors">
                       <td className="px-4 py-3 font-bold text-zinc-800">{p.name || p.title || '—'}</td>
                       <td className="px-4 py-3 text-zinc-600">{p.type || p.project_type || '—'}</td>
                       <td className="px-4 py-3 text-zinc-600">{p.deadline ? new Date(p.deadline).toLocaleDateString('pt-BR') : p.due_date ? new Date(p.due_date).toLocaleDateString('pt-BR') : '—'}</td>
@@ -954,7 +1242,11 @@ export default function Cadastro() {
                       {i.contact_name && <div className="text-xs text-zinc-600 mt-2">{i.contact_name}</div>}
                       {i.contact_email && <div className="text-xs text-zinc-500 truncate">{i.contact_email}</div>}
                     </div>
-                  </div>
+                    <div className="flex gap-1 mt-3 justify-end">
+                      <button onClick={() => openEditInst(i)} className="p-1.5 text-zinc-400 hover:text-violet-600 hover:bg-violet-50 rounded-lg transition-colors" title="Editar"><Edit3 className="w-3.5 h-3.5" /></button>
+                      <button onClick={() => deleteInst(i.id)} className="p-1.5 text-zinc-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Excluir"><Trash2 className="w-3.5 h-3.5" /></button>
+                    </div>
+                </div>
                 </div>
               ))}
             </div>
