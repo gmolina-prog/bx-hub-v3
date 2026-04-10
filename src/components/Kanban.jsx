@@ -200,7 +200,7 @@ function TaskModal({ task, projects, profiles, onClose, onSave, onDelete, onArch
           </div>
 
           {/* ZONA 2 — Checklist: flex col com 3 sub-zonas fixas */}
-          <div className="flex flex-col border-b border-zinc-100 bg-zinc-50/50 overflow-hidden" style={{ maxHeight: '40vh' }}>
+          <div className="flex flex-col border-b border-zinc-100 bg-zinc-50/50 overflow-hidden" style={{ flex: '0 0 40%', minHeight: 0 }}>
 
             {/* 2a — Header fixo: título + filtro + barra */}
             <div className="shrink-0 px-7 pt-3 pb-2">
@@ -280,7 +280,7 @@ function TaskModal({ task, projects, profiles, onClose, onSave, onDelete, onArch
           </div>
 
           {/* ZONA 3 — Comentários (rola) + Input fixo */}
-          <div className="flex-1 flex flex-col min-h-0">
+          <div className="flex flex-col min-h-0" style={{ flex: '0 0 60%' }}>
             {/* Lista de comentários — rola */}
             <div className="flex-1 overflow-y-auto px-7 py-4">
               <div className="flex items-center gap-2 mb-3">
