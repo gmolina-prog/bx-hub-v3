@@ -911,10 +911,12 @@ export default function Kanban() {
         <button onClick={load} title="Atualizar" className="p-2 border border-zinc-200 rounded-lg hover:bg-zinc-50 transition-colors">
           <RefreshCw className="w-4 h-4 text-zinc-500" />
         </button>
-        <button onClick={exportCSV} title="Exportar CSV"
+        {isLeaderRole(profile?.role) && (
+<button onClick={exportCSV} title="Exportar CSV"
           className="flex items-center gap-1.5 text-xs font-semibold text-zinc-600 border border-zinc-200 px-3 py-2 rounded-lg hover:bg-zinc-50 transition-colors">
           ↓ CSV
         </button>
+)}
         <button onClick={() => openNew()} className="flex items-center gap-2 bg-violet-600 text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-violet-700 transition-colors">
           <Plus className="w-4 h-4" /> Nova tarefa
         </button>

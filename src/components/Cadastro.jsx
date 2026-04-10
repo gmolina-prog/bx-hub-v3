@@ -6,6 +6,7 @@ import { toast } from './Toast'
 import { useEscapeKey } from '../hooks/useEscapeKey'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { useData } from '../contexts/DataContext'
+import { isLeaderRole } from '../lib/roles'
 import {
   FolderOpen,
   Building2,
@@ -427,12 +428,7 @@ export default function Cadastro() {
                 <input className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500"
                   value={editCompanyForm.contact_phone || ''} onChange={e => setEditCompanyForm(p => ({...p, contact_phone: e.target.value}))} />
               </div>
-              <div>
-                <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Website</label>
-                <input className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500"
-                  placeholder="https://..."
-                  value={editCompanyForm.website || ''} onChange={e => setEditCompanyForm(p => ({...p, website: e.target.value}))} />
-              </div>
+
               <div className="col-span-2">
                 <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Link Power BI</label>
                 <input className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500"
@@ -484,14 +480,15 @@ export default function Cadastro() {
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
               Atualizar
             </button>
-            {(activeTab === 'companies' || activeTab === 'profiles') && (
-              <button
+            {(activeTab === 'companies' || activeTab === 'profiles') && isLeaderRole(profile?.role) && (
+<button
                 onClick={exportCSV}
                 className="px-3 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-sm font-semibold flex items-center gap-2"
               >
                 <Download className="w-4 h-4" />
                 Exportar
               </button>
+)}
             )}
             <button
               onClick={() => {

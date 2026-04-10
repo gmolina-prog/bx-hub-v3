@@ -2,6 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { useData } from '../contexts/DataContext'
+import { ROLES, CARGO_OPTIONS } from '../lib/roles'
 import { toast, confirm } from './Toast'
 import {
   Settings,

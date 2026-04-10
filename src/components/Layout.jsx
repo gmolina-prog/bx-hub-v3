@@ -444,6 +444,86 @@ export default function Layout({ children }) {
     return () => window.removeEventListener('keydown', handleKey)
   }, [])
 
+  // Screenshot detection — notifica no activity_log + toast
+  useEffect(() => {
+    if (!profile) return
+    let lastBlur = 0
+
+    async function logScreenshot(method) {
+      const msg = `Captura de tela detectada (${method}) — ${profile.full_name}`
+      // Toast de aviso para o próprio usuário
+      toast.warning('⚠ Captura de tela detectada e registrada')
+      // Log no banco
+      try {
+        await supabase.from('activity_log').insert({
+          org_id:      profile.org_id,
+          actor_id:    profile.id,
+          entity_type: 'security',
+          entity_id:   profile.id,
+          action:      'screenshot',
+          module:      'security',
+          metadata:    { method, user: profile.full_name, url: window.location.pathname },
+        })
+        // Notificação para líderes
+        const { data: leaders } = await supabase.from('profiles')
+          .select('id').eq('org_id', profile.org_id)
+          .in('role', ['owner','gerente'])
+        if (leaders?.length) {
+          await supabase.from('notifications').insert(
+            leaders.filter(l => l.id !== profile.id).map(l => ({
+              org_id:      profile.org_id,
+              user_id:     l.id,
+              type:        'screenshot',
+              title:       '📸 Captura de tela',
+              message:     msg,
+              entity_type: 'security',
+              entity_id:   profile.id,
+              is_read:     false,
+            }))
+          )
+        }
+      } catch (_) { /* silent */ }
+    }
+
+    // Método 1: tecla PrintScreen
+    function handleKeyDown(e) {
+      if (e.key === 'PrintScreen' || e.key === 'Print') logScreenshot('PrintScreen')
+      // Cmd+Shift+3/4/5 no macOS
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && ['3','4','5','s'].includes(e.key)) {
+        logScreenshot('MacOS screenshot')
+      }
+    }
+
+    // Método 2: blur repentino (ferramentas de captura externas)
+    function handleBlur() { lastBlur = Date.now() }
+    function handleFocus() {
+      if (Date.now() - lastBlur < 1200 && lastBlur > 0) {
+        logScreenshot('blur+focus')
+      }
+      lastBlur = 0
+    }
+
+    // Método 3: visibilitychange
+    function handleVisibility() {
+      if (document.visibilityState === 'hidden') lastBlur = Date.now()
+      if (document.visibilityState === 'visible' && Date.now() - lastBlur < 1200 && lastBlur > 0) {
+        logScreenshot('visibilitychange')
+        lastBlur = 0
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    window.addEventListener('blur', handleBlur)
+    window.addEventListener('focus', handleFocus)
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+      window.removeEventListener('blur', handleBlur)
+      window.removeEventListener('focus', handleFocus)
+      document.removeEventListener('visibilitychange', handleVisibility)
+    }
+  }, [profile])
+
   // Fechar painéis ao mudar de rota
   useEffect(() => { setOpenPanel(null) }, [location.pathname])
 

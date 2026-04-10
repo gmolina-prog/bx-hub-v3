@@ -2,6 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { useData } from '../contexts/DataContext'
+import { isLeaderRole } from '../lib/roles'
 import {
   FileText,
   Search,
@@ -309,7 +310,8 @@ export default function Logs() {
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
               Atualizar
             </button>
-            <button
+            {isLeaderRole(profile?.role) && (
+<button
               onClick={exportCSV}
               disabled={filtered.length === 0}
               className="px-4 py-2 bg-violet-600 hover:bg-violet-500 rounded-lg text-sm font-semibold flex items-center gap-2 disabled:opacity-50"
@@ -317,6 +319,7 @@ export default function Logs() {
               <Download className="w-4 h-4" />
               Exportar CSV
             </button>
+)}
           </div>
         </div>
 

@@ -28,6 +28,7 @@ export default function Rotinas() {
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ title: '', frequency: 'semanal', assigned_to: '', project_id: '' })
   const [filterFreq, setFilterFreq] = useState('all')
+  const [filterProject, setFilterProject] = useState('all')
   const [search,     setSearch]     = useState('')
   const [viewDashboard, setViewDashboard] = useState(false)
 
@@ -237,6 +238,11 @@ export default function Rotinas() {
           <option value="all">Todas as frequências</option>
           {Object.entries(FREQ).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
         </select>
+        <select className="text-sm border border-zinc-200 rounded-lg px-3 py-2 bg-white" value={filterProject} onChange={e => setFilterProject(e.target.value)}>
+          <option value="all">Todos os projetos</option>
+          <option value="__sem_projeto__">Sem projeto</option>
+          {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+        </select>
         <button onClick={() => setViewDashboard(v => !v)} className="text-sm font-semibold border border-zinc-200 rounded-lg px-4 py-2 bg-white hover:bg-zinc-50 transition-colors">
           ⏱️ Dashboard Rotinas
         </button>
@@ -288,7 +294,18 @@ export default function Rotinas() {
         </div>
       ) : (
         <div className="space-y-2">
-          {filtered.map(r => {
+          {Object.entries(grouped).map(([projKey, projRoutines]) => {
+            const projName = projKey === '__sem_projeto__' ? 'Sem projeto' : (projMap[projKey]?.name || projKey)
+            return (
+              <div key={projKey} className="mb-6">
+                {filterProject === 'all' && (
+                  <div className="flex items-center gap-2 mb-3 px-1">
+                    <div className="h-px flex-1 bg-zinc-200" />
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 px-2">{projName}</span>
+                    <div className="h-px flex-1 bg-zinc-200" />
+                  </div>
+                )}
+                {projRoutines.map(r => {
             const done = isDoneToday(r.id)
             const overdueFl = !done && isOverdue(r)
             const last = lastDone(r.id)
@@ -313,6 +330,9 @@ export default function Rotinas() {
                   </div>
                 </div>
                 <button onClick={() => archive(r.id)} className="text-zinc-300 hover:text-zinc-500 transition-colors shrink-0"><X className="w-4 h-4" /></button>
+              </div>
+            )
+                })}
               </div>
             )
           })}

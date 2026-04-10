@@ -275,8 +275,35 @@ export default function Chat() {
       supabase.from('check_ins').select('user_id,status').eq('org_id', profile.org_id).eq('date', today).is('check_out_time', null),
     ]).then(([chR, profR, projR, ciR]) => {
       const chs = chR.status === 'fulfilled' && !chR.value.error ? chR.value.data || [] : []
-      setChannels(chs)
-      if (chs.length > 0) setActiveChannel(chs[0])
+
+      // Garantir canais fixos (Público + Alertas)
+      const FIXED = [
+        { slug: 'publico',  name: '# Público',  icon: '💬', description: 'Canal geral da equipe' },
+        { slug: 'alertas',  name: '🚨 Alertas', icon: '🚨', description: 'Alertas e comunicados urgentes' },
+      ]
+      const toCreate = FIXED.filter(f => !chs.find(ch => ch.name === f.name))
+      if (toCreate.length > 0 && profile) {
+        const inserts = toCreate.map(f => ({
+          org_id: profile.org_id, name: f.name, icon: f.icon,
+          description: f.description, is_general: true, project_id: null,
+        }))
+        supabase.from('chat_channels').insert(inserts).select().then(({ data: created }) => {
+          const allChs = [...(created || []), ...chs].sort((a,b) =>
+            a.is_general === b.is_general ? 0 : a.is_general ? -1 : 1
+          )
+          setChannels(allChs)
+          const pub = allChs.find(ch => ch.is_general) || allChs[0]
+          if (pub) setActiveChannel(pub)
+        })
+      } else {
+        // Ordenar: fixos primeiro
+        const sorted = [...chs].sort((a,b) =>
+          a.is_general === b.is_general ? 0 : a.is_general ? -1 : 1
+        )
+        setChannels(sorted)
+        const pub = sorted.find(ch => ch.is_general) || sorted[0]
+        if (pub) setActiveChannel(pub)
+      }
       if (profR.status === 'fulfilled' && !profR.value.error) setProfilesList(profR.value.data || [])
       if (projR.status === 'fulfilled' && !projR.value.error) setProjects(projR.value.data || [])
       if (ciR.status === 'fulfilled' && !ciR.value.error) setTodayCheckins(ciR.value.data || [])
@@ -598,28 +625,45 @@ export default function Chat() {
 
         {/* Channels */}
         <div className="flex-1 overflow-y-auto py-1">
-          <div className="px-4 py-1.5 text-[9px] font-bold uppercase tracking-widest text-zinc-500">Canais</div>
           {loading ? (
             <div className="px-4 py-2 text-xs text-zinc-500">Carregando…</div>
-          ) : channels.length === 0 ? (
-            <div className="px-4 py-2 text-xs text-zinc-500">Nenhum canal</div>
-          ) : channels.map(ch => {
-            const isActive = activeChannel?.id === ch.id
-            const unread = unreadByChannel[ch.id] || 0
+          ) : (() => {
+            const fixedChs   = channels.filter(ch => ch.is_general)
+            const projectChs = channels.filter(ch => !ch.is_general)
+            const renderCh = ch => {
+              const isActive = activeChannel?.id === ch.id
+              const unread = unreadByChannel[ch.id] || 0
+              return (
+                <button key={ch.id} onClick={() => { setActiveChannel(ch); markChannelRead(ch.id) }}
+                  className={`w-full text-left flex items-center gap-2.5 px-3 py-2 mx-1 rounded-lg transition-all ${isActive ? 'text-white' : 'text-zinc-400 hover:text-white hover:bg-white/5'}`}
+                  style={{ width: 'calc(100% - 8px)', background: isActive ? VL : 'transparent' }}>
+                  <span className="text-base w-5 text-center shrink-0">{ch.icon || '#'}</span>
+                  <span className="text-xs font-medium flex-1 truncate">{ch.name}</span>
+                  {unread > 0 && (
+                    <span className="shrink-0 min-w-[18px] h-[18px] rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center px-1">
+                      {unread > 99 ? '99+' : unread}
+                    </span>
+                  )}
+                </button>
+              )
+            }
             return (
-              <button key={ch.id} onClick={() => { setActiveChannel(ch); markChannelRead(ch.id) }}
-                className={`w-full text-left flex items-center gap-2.5 px-3 py-2 mx-1 rounded-lg transition-all ${isActive ? 'text-white' : 'text-zinc-400 hover:text-white hover:bg-white/5'}`}
-                style={{ width: 'calc(100% - 8px)', background: isActive ? VL : 'transparent' }}>
-                <span className="text-base w-5 text-center shrink-0">{ch.icon || '#'}</span>
-                <span className="text-xs font-medium flex-1 truncate">{ch.name}</span>
-                {unread > 0 && (
-                  <span className="shrink-0 min-w-[18px] h-[18px] rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center px-1">
-                    {unread > 99 ? '99+' : unread}
-                  </span>
+              <>
+                {/* Canais fixos */}
+                <div className="px-4 pt-3 pb-1 text-[9px] font-bold uppercase tracking-widest text-zinc-500">Geral</div>
+                {fixedChs.length === 0 ? (
+                  <div className="px-4 py-1 text-[10px] text-zinc-600">Criando canais…</div>
+                ) : fixedChs.map(renderCh)}
+                {/* Canais de projeto */}
+                {projectChs.length > 0 && (
+                  <>
+                    <div className="px-4 pt-3 pb-1 text-[9px] font-bold uppercase tracking-widest text-zinc-500">Projetos</div>
+                    {projectChs.map(renderCh)}
+                  </>
                 )}
-              </button>
+              </>
             )
-          })}
+          })()}
         </div>
 
         {/* Online members */}

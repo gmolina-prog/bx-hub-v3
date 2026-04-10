@@ -5,6 +5,7 @@ import { logActivity } from '../lib/activityLog'
 import { useEscapeKey } from '../hooks/useEscapeKey'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { useData } from '../contexts/DataContext'
+import { isLeaderRole } from '../lib/roles'
 import { toast, confirm } from './Toast'
 import {
   Target,
@@ -351,13 +352,15 @@ export default function Captacao() {
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
               Atualizar
             </button>
-            <button
+            {isLeaderRole(profile?.role) && (
+<button
               onClick={exportCSV}
               className="px-3 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-sm font-semibold flex items-center gap-2"
               title="Exportar pipeline filtrado como CSV"
             >
               ↓ CSV
             </button>
+)}
             <button
               onClick={() => setShowForm(true)}
               className="px-4 py-2 bg-violet-600 hover:bg-violet-500 rounded-lg text-sm font-semibold flex items-center gap-2"

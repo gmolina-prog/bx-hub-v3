@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import { GitBranch, Building2, History, Layers, CheckSquare, Clock3 } from 'lucide-react'
+import { GitBranch, Building2, History, Layers, CheckSquare, Clock3, X } from 'lucide-react'
 import { toast } from './Toast'
 import { supabase } from '../lib/supabase'
 import { logActivity } from '../lib/activityLog'
