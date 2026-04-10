@@ -235,6 +235,9 @@ export default function Timeline() {
   const [filterCompany, setFilterCompany] = useState('all')
   const [view, setView] = useState('gantt')
   const [showNewProject,  setShowNewProject]  = useState(false)
+  const [histProject,    setHistProject]    = useState(null)
+  const [projectLog,     setProjectLog]     = useState([])
+  const [loadingLog,     setLoadingLog]     = useState(false)
   const [editingProject,  setEditingProject]  = useState(null)   // projeto sendo editado
   const [editForm,        setEditForm]        = useState({})
   const [newProj, setNewProj] = useState({ name:'', type:'Diagnóstico', status:'Planejamento', company_id:'', analyst_id:'', associate_id:'', executive_id:'', deadline:'', priority:'medium', budget:'', observacoes:'', historico:'' })
