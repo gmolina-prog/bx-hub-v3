@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
+import GaugeChart from './GaugeChart'
 import { AlertTriangle, Plus, X, Save, Trash2, AlertCircle } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useEscapeKey } from '../hooks/useEscapeKey'
