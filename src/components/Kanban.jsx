@@ -751,7 +751,7 @@ export default function Kanban() {
         </select>
         <select className="text-sm border border-zinc-200 rounded-lg px-3 py-2 bg-white" value={filterAssignee} onChange={e => setFilterAssignee(e.target.value)}>
           <option value="all">Todos responsáveis</option>
-          {profilesList.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
+          {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
         </select>
         <button
           onClick={() => setFilterAssignee(filterAssignee === profile?.id ? 'all' : profile?.id)}

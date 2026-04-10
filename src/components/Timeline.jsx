@@ -618,7 +618,7 @@ export default function Timeline() {
                   <select className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
                     value={form.analyst_id || ''} onChange={e => setForm(p => ({...p, analyst_id: e.target.value}))}>
                     <option value="">— nenhum —</option>
-                    {profilesList.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
+                    {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
                   </select>
                 </div>
               </div>
@@ -635,7 +635,7 @@ export default function Timeline() {
                   <select className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
                     value={form.associate_id || ''} onChange={e => setForm(p => ({...p, associate_id: e.target.value}))}>
                     <option value="">— nenhum —</option>
-                    {profilesList.filter(p => ['owner','gerente','Gerente'].includes(p.role)).map(p => (
+                    {profiles.filter(p => ['owner','gerente','Gerente'].includes(p.role)).map(p => (
                       <option key={p.id} value={p.id}>{p.full_name}</option>
                     ))}
                   </select>
@@ -645,7 +645,7 @@ export default function Timeline() {
                   <select className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
                     value={form.executive_id || ''} onChange={e => setForm(p => ({...p, executive_id: e.target.value}))}>
                     <option value="">— nenhum —</option>
-                    {profilesList.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
+                    {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
                   </select>
                 </div>
               </div>
