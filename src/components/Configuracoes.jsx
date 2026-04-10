@@ -23,6 +23,7 @@ const LOCATIONS = [
 
 export default function Configuracoes() {
   const { profile, refreshProfile } = useData()
+  const role = ROLES.find(r => r.value === profile?.role)?.label || profile?.role || ''
   usePageTitle('Configurações')
   const [tab, setTab] = useState('perfil')
   const [saving, setSaving] = useState(false)
