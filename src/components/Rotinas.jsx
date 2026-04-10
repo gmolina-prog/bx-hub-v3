@@ -486,11 +486,8 @@ export default function Rotinas() {
   async function createRoutine() {
     if (!form.title.trim()) return
     if (!form.project_id) {
-      const ok = await confirm(
-        'Nenhum projeto selecionado. A rotina ficará em "Sem empresa" na lista.\n\nRecomendamos vincular a um projeto para melhor organização.',
-        { confirmLabel: 'Criar sem projeto', cancelLabel: 'Voltar e selecionar' }
-      )
-      if (!ok) return
+      toast.warning('Selecione um projeto antes de criar a rotina')
+      return
     }
     const { error } = await supabase.from('routines').insert({
       org_id: profile.org_id, title: form.title.trim(),
@@ -511,13 +508,10 @@ export default function Rotinas() {
   async function applyTemplate() {
     const tpl = TEMPLATE_LIBRARY.find(t => t.id === tplState.selectedId)
     if (!tpl) return
-    // Alertar se não selecionou projeto — rotinas sem projeto ficam em "Sem empresa"
+    // Bloquear se não selecionou projeto
     if (!tplState.project_id) {
-      const ok = await confirm(
-        'Nenhum projeto selecionado. As rotinas ficarão em "Sem empresa" na lista.\n\nRecomendamos vincular a um projeto. Continuar mesmo assim?',
-        { confirmLabel: 'Criar sem projeto', cancelLabel: 'Voltar e selecionar' }
-      )
-      if (!ok) return
+      toast.warning('Selecione um projeto antes de aplicar o template')
+      return
     }
     const inserts = tpl.routines.map(r => ({
       org_id: profile.org_id,
@@ -778,7 +772,8 @@ export default function Rotinas() {
                   </div>
                   <div>
                     <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1.5 block">
-                      Projeto {tplState.company_id && `(${projectsForTpl.length})`}
+                      Projeto <span className="text-red-500">*</span>
+                      {tplState.company_id && projectsForTpl.length > 0 && <span className="text-zinc-400 font-normal"> ({projectsForTpl.length})</span>}
                     </label>
                     <select className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:border-violet-500"
                       value={tplState.project_id}
@@ -819,10 +814,11 @@ export default function Rotinas() {
                 Voltar
               </button>
               <button onClick={applyTemplate}
-                className="flex items-center gap-2 text-white text-sm font-bold px-5 py-2.5 rounded-xl hover:opacity-90 transition-all"
+                disabled={!tplState.project_id}
+                className="flex items-center gap-2 text-white text-sm font-bold px-5 py-2.5 rounded-xl hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
                 style={{ background: tpl.color }}>
                 <Zap className="w-4 h-4" />
-                Criar {tpl.routines.length} rotinas
+                {tplState.project_id ? `Criar ${tpl.routines.length} rotinas` : 'Selecione um projeto'}
               </button>
             </div>
           )}
@@ -943,7 +939,8 @@ export default function Rotinas() {
             </div>
             <div>
               <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1.5 block">
-                Projeto {form.company_id && projectsForForm.length > 0 && `(${projectsForForm.length})`}
+                Projeto <span className="text-red-500">*</span>
+                {form.company_id && projectsForForm.length > 0 && <span className="text-zinc-400 font-normal"> ({projectsForForm.length} disponíveis)</span>}
               </label>
               <select className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:border-violet-500"
                 value={form.project_id} onChange={e => setForm(p => ({ ...p, project_id: e.target.value }))}>
@@ -985,8 +982,8 @@ export default function Rotinas() {
           </div>
           <div className="flex gap-3 justify-end">
             <button onClick={() => setShowForm(false)} className="text-sm text-zinc-500 px-4 py-2 rounded-xl hover:bg-zinc-100 transition-colors">Cancelar</button>
-            <button onClick={createRoutine} disabled={!form.title.trim()}
-              className="flex items-center gap-2 text-white text-sm font-bold px-5 py-2 rounded-xl hover:opacity-90 disabled:opacity-40 transition-all"
+            <button onClick={createRoutine} disabled={!form.title.trim() || !form.project_id}
+              className="flex items-center gap-2 text-white text-sm font-bold px-5 py-2 rounded-xl hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
               style={{ background: VL }}>
               <Plus className="w-4 h-4" /> Criar rotina
             </button>
