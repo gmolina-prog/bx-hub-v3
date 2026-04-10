@@ -46,6 +46,9 @@ function DueBadge({ date, colId }) {
 // MODAL COMPLETO — fiel ao sistema original
 // ═══════════════════════════════════════════════════════════════
 function TaskModal({ task, projects, profiles, onClose, onSave, onDelete, onArchive }) {
+  const { profile } = useData()
+  const VL = '#5452C1', CH = '#2D2E39'
+
   const [form, setForm] = useState({
     title:        task.title        || '',
     description:  task.description  || '',
@@ -57,378 +60,412 @@ function TaskModal({ task, projects, profiles, onClose, onSave, onDelete, onArch
     hours_logged: task.hours_logged || '',
     is_emergency: task.is_emergency || false,
     is_starred:   task.is_starred   || false,
-    tags:         Array.isArray(task.tags)       ? task.tags       : [],
+    tags:         Array.isArray(task.tags)        ? task.tags        : [],
     cover_color:  task.cover_color  || '',
     collaborators: Array.isArray(task.custom_field_values?.collaborators)
                    ? task.custom_field_values.collaborators : [],
   })
-  const [subtasks, setSubtasks] = useState(Array.isArray(task.checklist) ? task.checklist : [])
-  const [newSubtask, setNewSubtask] = useState('')
-  const [comments, setComments] = useState([])
-  const [newComment, setNewComment] = useState('')
-  const [activeTab, setActiveTab] = useState('detalhes')
-  const [saving, setSaving] = useState(false)
+
+  const [subtasks,        setSubtasks]        = useState(Array.isArray(task.checklist) ? task.checklist : [])
+  const [newSubtask,      setNewSubtask]      = useState('')
+  const [comments,        setComments]        = useState([])
+  const [newComment,      setNewComment]      = useState('')
   const [loadingComments, setLoadingComments] = useState(false)
-  const { profile } = useData()
-  usePageTitle('Kanban')
+  const [saving,          setSaving]          = useState(false)
+  const titleRef = useRef(null)
 
   // Load comments
   useEffect(() => {
-    if (activeTab !== 'comentarios' || !task.id || task.id === 'new') return
+    if (!task.id || task.id === 'new') return
     setLoadingComments(true)
     supabase.from('task_comments').select('*').eq('task_id', task.id).order('created_at')
       .then(({ data }) => { setComments(data || []); setLoadingComments(false) })
       .catch(() => setLoadingComments(false))
-  }, [activeTab, task.id])
+  }, [task.id])
 
-  async function handleSave() {
-    setSaving(true)
-    const { _newTag: _nt, ...cleanForm } = form
-    await onSave({ ...cleanForm, checklist: subtasks, id: task.id, _prevEmergency: task.is_emergency, _prevAssignedTo: task.assigned_to })
-    setSaving(false)
+  useEffect(() => { setTimeout(() => titleRef.current?.focus(), 50) }, [])
+
+  const doneSubtasks = subtasks.filter(s => s.done).length
+  const subtaskPct   = subtasks.length > 0 ? Math.round(doneSubtasks / subtasks.length * 100) : 0
+
+  function toggleSubtask(i) {
+    setSubtasks(prev => prev.map((s, j) => j === i ? { ...s, done: !s.done } : s))
+  }
+  function addSubtask() {
+    if (!newSubtask.trim()) return
+    setSubtasks(prev => [...prev, { text: newSubtask.trim(), done: false }])
+    setNewSubtask('')
+  }
+  function removeSubtask(i) {
+    setSubtasks(prev => prev.filter((_, j) => j !== i))
   }
 
   async function addComment() {
     if (!newComment.trim() || !task.id || task.id === 'new') return
     const { data, error } = await supabase.from('task_comments').insert({
       task_id: task.id, org_id: profile.org_id,
-      user_id: profile.id, user_name: profile.full_name, content: newComment, type: 'comment',
+      user_id: profile.id, user_name: profile.full_name,
+      content: newComment, type: 'comment',
     }).select().single()
-    if (error) { toast.error('Erro ao comentar: ' + error.message); return }
-    if (data) setComments(prev => [...prev, data])
+    if (!error && data) setComments(prev => [...prev, data])
     setNewComment('')
   }
 
-  function addSubtask() {
-    if (!newSubtask.trim()) return
-    setSubtasks(prev => [...prev, { id: Date.now(), title: newSubtask, done: false }])
-    setNewSubtask('')
+  async function handleSave() {
+    if (!form.title.trim()) return
+    setSaving(true)
+    const { _newTag: _nt, ...cleanForm } = form
+    await onSave({ ...cleanForm, checklist: subtasks, id: task.id,
+      _prevEmergency: task.is_emergency, _prevAssignedTo: task.assigned_to })
+    setSaving(false)
   }
 
-  function toggleSubtask(id) {
-    setSubtasks(prev => prev.map(s => s.id === id ? { ...s, done: !s.done } : s))
-  }
+  const coverStyle = form.cover_color
+    ? { borderTop: `3px solid ${form.cover_color}` }
+    : { borderTop: `3px solid ${form.is_emergency ? '#DC2626' : VL}` }
 
-  function deleteSubtask(id) {
-    setSubtasks(prev => prev.filter(s => s.id !== id))
-  }
-
-  const doneSubtasks = subtasks.filter(s => s.done).length
-  const subtaskPct = subtasks.length > 0 ? Math.round(doneSubtasks / subtasks.length * 100) : 0
-
-  const tabs = [
-    { id: 'detalhes', label: 'Detalhes' },
-    { id: 'subtarefas', label: `Subtarefas ${subtasks.length > 0 ? `(${doneSubtasks}/${subtasks.length})` : ''}` },
-    { id: 'comentarios', label: `Comentários ${comments.length > 0 ? `(${comments.length})` : ''}` },
-  ]
+  const COVER_COLORS = ['#5452C1','#10B981','#F59E0B','#EF4444','#3B82F6','#8B5CF6','#EC4899','#2D2E39','#6B7280']
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
-        {/* Header */}
-        <div className="flex items-start justify-between px-6 py-4 border-b border-zinc-100">
-          <div className="flex items-center gap-3 flex-wrap">
-            <PriorityBadge priority={form.priority} />
-            {form.is_emergency && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-700 flex items-center gap-1">🚨 Emergência</span>}
-            {form.column_id && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-600">{COLS.find(c => c.id === form.column_id)?.label}</span>}
-          </div>
-          <div className="flex items-center gap-2">
-            {task.id !== 'new' && (
-              <>
-                <button onClick={() => onArchive && onArchive(task.id)} className="p-1.5 text-zinc-400 hover:text-amber-500 transition-colors" title="Arquivar">
-                  <Archive className="w-4 h-4" />
-                </button>
-                <button onClick={() => onDelete(task.id)} className="p-1.5 text-zinc-400 hover:text-red-500 transition-colors" title="Excluir">
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: 'rgba(15,15,20,0.6)', backdropFilter: 'blur(4px)' }}
+      onClick={e => e.target === e.currentTarget && onClose()}>
+
+      {/* Modal — layout de duas colunas */}
+      <div className="bg-white rounded-2xl shadow-2xl w-full flex flex-col overflow-hidden"
+        style={{ maxWidth: 860, maxHeight: '92vh', ...coverStyle }}>
+
+        {/* ── HEADER ── */}
+        <div className="flex items-center justify-between px-6 py-3 border-b border-zinc-100 shrink-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Status pill */}
+            <select
+              className="text-[10px] font-bold px-2 py-1 rounded-full border-0 focus:outline-none focus:ring-1 focus:ring-violet-400 cursor-pointer"
+              style={{ background: PRIORITY[form.priority]?.bg, color: PRIORITY[form.priority]?.color }}
+              value={form.priority}
+              onChange={e => setForm(p => ({ ...p, priority: e.target.value }))}>
+              {Object.entries(PRIORITY).map(([k,v]) => <option key={k} value={k}>{v.label}</option>)}
+            </select>
+            <select
+              className="text-[10px] font-bold px-2 py-1 rounded-full border border-zinc-200 focus:outline-none focus:ring-1 focus:ring-violet-400 cursor-pointer bg-white text-zinc-600"
+              value={form.column_id}
+              onChange={e => setForm(p => ({ ...p, column_id: e.target.value }))}>
+              {COLS.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+            </select>
+            {form.is_emergency && (
+              <span className="text-[10px] font-bold px-2 py-1 rounded-full bg-red-100 text-red-700">🚨 Emergência</span>
             )}
-            <button onClick={onClose} className="p-1.5 text-zinc-400 hover:text-zinc-600"><X className="w-5 h-5" /></button>
+          </div>
+          <div className="flex items-center gap-1">
+            <button onClick={() => setForm(p => ({ ...p, is_starred: !p.is_starred }))}
+              title="Favoritar"
+              className={`p-1.5 rounded-lg transition-colors ${form.is_starred ? 'text-amber-400' : 'text-zinc-300 hover:text-amber-400'}`}>
+              ⭐
+            </button>
+            {task.id !== 'new' && <>
+              <button onClick={() => onArchive && onArchive(task.id)} title="Arquivar"
+                className="p-1.5 text-zinc-400 hover:text-amber-500 rounded-lg transition-colors">
+                <Archive className="w-4 h-4" />
+              </button>
+              <button onClick={() => onDelete(task.id)} title="Excluir"
+                className="p-1.5 text-zinc-400 hover:text-red-500 rounded-lg transition-colors">
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </>}
+            <button onClick={onClose} className="p-1.5 text-zinc-400 hover:text-zinc-600 rounded-lg">
+              <X className="w-5 h-5" />
+            </button>
           </div>
         </div>
 
-        {/* Title */}
-        <div className="px-6 pt-4">
-          <input
-            className="w-full text-lg font-bold text-zinc-800 border-0 outline-none placeholder:text-zinc-300 focus:border-b-2 focus:border-violet-500 pb-1"
-            placeholder="Título da tarefa…"
-            value={form.title}
-            onChange={e => setForm(p => ({ ...p, title: e.target.value }))}
-          />
-        </div>
+        {/* ── BODY: duas colunas ── */}
+        <div className="flex flex-1 min-h-0 overflow-hidden">
 
-        {/* Tabs */}
-        <div className="flex gap-0 border-b border-zinc-100 px-6 mt-3">
-          {tabs.map(t => (
-            <button key={t.id} onClick={() => setActiveTab(t.id)}
-              className={`px-4 py-2 text-xs font-semibold transition-colors border-b-2 -mb-px ${activeTab === t.id ? 'border-violet-500 text-violet-600' : 'border-transparent text-zinc-500 hover:text-zinc-700'}`}>
-              {t.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Body */}
-        <div className="flex-1 overflow-y-auto px-6 py-4">
-
-          {/* ── DETALHES ── */}
-          {activeTab === 'detalhes' && (
-            <div className="space-y-4">
-              <div>
-                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Descrição</label>
-                <textarea className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500 resize-none" rows={3}
-                  value={form.description || ''} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} placeholder="Descrição detalhada da tarefa…" />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Status</label>
-                  <select className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500" value={form.column_id} onChange={e => setForm(p => ({ ...p, column_id: e.target.value }))}>
-                    {COLS.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Prioridade</label>
-                  <select className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500" value={form.priority} onChange={e => setForm(p => ({ ...p, priority: e.target.value }))}>
-                    {Object.entries(PRIORITY).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Responsável principal</label>
-                  <select className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500" value={form.assigned_to || ''} onChange={e => setForm(p => ({ ...p, assigned_to: e.target.value }))}>
-                    <option value="">— nenhum —</option>
-                    {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
-                  </select>
-                </div>
-
-                {/* Colaboradores adicionais */}
-                <div>
-                  <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">
-                    Colaboradores
-                    {(form.collaborators||[]).length > 0 && <span className="text-zinc-400 font-normal ml-1 normal-case">({(form.collaborators||[]).length})</span>}
-                  </label>
-                  {(form.collaborators||[]).length > 0 && (
-                    <div className="flex flex-wrap gap-1.5 mb-2">
-                      {(form.collaborators||[]).map(uid => {
-                        const prof = profiles.find(p => p.id === uid)
-                        if (!prof) return null
-                        return (
-                          <div key={uid} className="flex items-center gap-1 bg-violet-50 border border-violet-200 rounded-full pl-0.5 pr-2 py-0.5">
-                            <div className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold text-white shrink-0"
-                              style={{ background: prof.avatar_color || '#5452C1' }}>
-                              {prof.initials || prof.full_name?.slice(0,2)}
-                            </div>
-                            <span className="text-[10px] text-violet-700 font-semibold">{prof.full_name?.split(' ')[0]}</span>
-                            <button onClick={() => setForm(p => ({ ...p, collaborators: p.collaborators.filter(id => id !== uid) }))}
-                              className="text-violet-400 hover:text-red-500 ml-0.5 text-xs">×</button>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )}
-                  <select className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500"
-                    value=""
-                    onChange={e => {
-                      const uid = e.target.value
-                      if (!uid || (form.collaborators||[]).includes(uid) || uid === form.assigned_to) return
-                      setForm(p => ({ ...p, collaborators: [...(p.collaborators||[]), uid] }))
-                    }}>
-                    <option value="">+ Adicionar colaborador…</option>
-                    {profiles
-                      .filter(p => p.id !== form.assigned_to && !(form.collaborators||[]).includes(p.id))
-                      .map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Projeto</label>
-                  <select className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500" value={form.project_id || ''} onChange={e => setForm(p => ({ ...p, project_id: e.target.value }))}>
-                    <option value="">— nenhum —</option>
-                    {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Prazo</label>
-                  <input type="date" className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500"
-                    value={form.due_date || ''} onChange={e => setForm(p => ({ ...p, due_date: e.target.value }))} />
-                </div>
-                <div>
-                  <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Horas registradas</label>
-                  <input type="number" min="0" step="0.5" className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500"
-                    value={form.hours_logged || ''} onChange={e => setForm(p => ({ ...p, hours_logged: e.target.value }))} placeholder="0h" />
-                </div>
-              </div>
-              {/* Emergência toggle */}
-              <div className={`flex items-center justify-between p-3 rounded-xl border transition-all ${form.is_emergency ? 'bg-red-50 border-red-300' : 'bg-zinc-50 border-zinc-100'}`}>
-                <div>
-                  <div className="text-sm font-semibold text-zinc-800 flex items-center gap-2">🚨 Emergência</div>
-                  <div className={`text-xs mt-0.5 ${form.is_emergency ? 'text-red-600 font-semibold' : 'text-zinc-500'}`}>
-                    {form.is_emergency
-                      ? '⚡ Alerta será enviado para sócios e liderança'
-                      : 'Ativa alerta imediato para sócios via chat e notificação'}
-                  </div>
-                </div>
-                <button onClick={() => setForm(p => ({ ...p, is_emergency: !p.is_emergency }))}
-                  className={`w-12 h-6 rounded-full transition-colors relative ${form.is_emergency ? 'bg-red-500' : 'bg-zinc-300'}`}>
-                  <div className={`w-5 h-5 bg-white rounded-full shadow absolute top-0.5 transition-all ${form.is_emergency ? 'left-6' : 'left-0.5'}`} />
-                </button>
-              </div>
-
-              {/* ── PERSONALIZAÇÃO (cor, tags, favorito) ── */}
-              <div className="border-t border-zinc-100 pt-3 space-y-3">
-                {/* is_starred toggle */}
-                <div className="flex items-center justify-between">
-                  <div className="text-xs font-semibold text-zinc-700 flex items-center gap-1.5">
-                    ⭐ Favoritar tarefa
-                  </div>
-                  <button onClick={() => setForm(p => ({ ...p, is_starred: !p.is_starred }))}
-                    className={`w-10 h-5 rounded-full transition-colors relative ${form.is_starred ? 'bg-amber-400' : 'bg-zinc-200'}`}>
-                    <div className={`w-4 h-4 bg-white rounded-full shadow absolute top-0.5 transition-all ${form.is_starred ? 'left-5' : 'left-0.5'}`} />
-                  </button>
-                </div>
-
-                {/* cover_color */}
-                <div>
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1.5">Cor do card</div>
-                  <div className="flex gap-1.5 flex-wrap">
-                    {['#5452C1','#10B981','#F59E0B','#EF4444','#3B82F6','#8B5CF6','#EC4899','#6B7280','#2D2E39'].map(col => (
-                      <button key={col}
-                        onClick={() => setForm(p => ({ ...p, cover_color: p.cover_color === col ? '' : col }))}
-                        className={`w-6 h-6 rounded-full ring-offset-1 transition-all ${form.cover_color === col ? 'ring-2 ring-zinc-500 scale-110' : 'hover:scale-110'}`}
-                        style={{ background: col }} />
-                    ))}
-                    {form.cover_color && (
-                      <button onClick={() => setForm(p => ({ ...p, cover_color: '' }))}
-                        className="text-[10px] text-zinc-400 hover:text-zinc-600 px-1">limpar</button>
-                    )}
-                  </div>
-                </div>
-
-                {/* tags */}
-                <div>
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1.5">Tags</div>
-                  <div className="flex flex-wrap gap-1 mb-1.5">
-                    {(form.tags || []).map((tag, i) => (
-                      <span key={i} className="inline-flex items-center gap-1 text-[10px] font-bold bg-violet-100 text-violet-700 px-2 py-0.5 rounded-full">
-                        {tag}
-                        <button onClick={() => setForm(p => ({ ...p, tags: p.tags.filter((_, j) => j !== i) }))} className="hover:text-red-600">×</button>
-                      </span>
-                    ))}
-                  </div>
-                  <div className="flex gap-2">
-                    <input
-                      className="flex-1 border border-zinc-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-violet-500"
-                      placeholder="Nova tag… (Enter)"
-                      value={form._newTag || ''}
-                      onChange={e => setForm(p => ({ ...p, _newTag: e.target.value }))}
-                      onKeyDown={e => {
-                        if (e.key === 'Enter' && form._newTag?.trim()) {
-                          setForm(p => ({ ...p, tags: [...(p.tags || []), p._newTag.trim()], _newTag: '' }))
-                        }
-                      }} />
-                    <button
-                      onClick={() => { if (form._newTag?.trim()) setForm(p => ({ ...p, tags: [...(p.tags || []), p._newTag.trim()], _newTag: '' })) }}
-                      className="px-2 py-1.5 bg-violet-600 text-white text-xs rounded-lg hover:bg-violet-500">
-                      + Tag
-                    </button>
-                  </div>
-                </div>
-              </div>
+          {/* COLUNA ESQUERDA — conteúdo principal */}
+          <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
+            <div className="px-7 pt-5 pb-3">
+              {/* Título */}
+              <textarea
+                ref={titleRef}
+                className="w-full text-xl font-bold text-zinc-800 resize-none border-0 outline-none placeholder:text-zinc-300 leading-snug"
+                placeholder="Título da tarefa…"
+                rows={2}
+                value={form.title}
+                onChange={e => { setForm(p => ({ ...p, title: e.target.value })); e.target.style.height='auto'; e.target.style.height=e.target.scrollHeight+'px' }}
+              />
             </div>
-          )}
 
-          {/* ── SUBTAREFAS ── */}
-          {activeTab === 'subtarefas' && (
-            <div>
+            {/* Descrição */}
+            <div className="px-7 pb-4">
+              <textarea
+                className="w-full text-sm text-zinc-600 resize-none border-0 outline-none placeholder:text-zinc-300 leading-relaxed"
+                placeholder="Adicionar descrição, contexto, links relevantes…"
+                rows={3}
+                value={form.description || ''}
+                onChange={e => { setForm(p => ({ ...p, description: e.target.value })); e.target.style.height='auto'; e.target.style.height=e.target.scrollHeight+'px' }}
+              />
+            </div>
+
+            <div className="border-t border-zinc-100 mx-7" />
+
+            {/* ── CHECKLIST ── */}
+            <div className="px-7 py-4">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <CheckSquare className="w-4 h-4 text-zinc-400" />
+                  <span className="text-xs font-bold text-zinc-700 uppercase tracking-wider">Checklist</span>
+                  {subtasks.length > 0 && (
+                    <span className="text-[10px] text-zinc-400">{doneSubtasks}/{subtasks.length}</span>
+                  )}
+                </div>
+                {subtasks.length > 0 && (
+                  <span className="text-[10px] font-bold" style={{ color: subtaskPct === 100 ? '#10B981' : VL }}>{subtaskPct}%</span>
+                )}
+              </div>
               {subtasks.length > 0 && (
-                <div className="mb-4">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs text-zinc-500">{doneSubtasks}/{subtasks.length} concluídas</span>
-                    <span className="text-xs font-bold text-violet-600">{subtaskPct}%</span>
-                  </div>
-                  <div className="h-2 bg-zinc-100 rounded-full overflow-hidden">
-                    <div className="h-full bg-violet-500 rounded-full transition-all" style={{ width: `${subtaskPct}%` }} />
-                  </div>
+                <div className="h-1 bg-zinc-100 rounded-full overflow-hidden mb-3">
+                  <div className="h-full rounded-full transition-all" style={{ width: `${subtaskPct}%`, background: subtaskPct === 100 ? '#10B981' : VL }} />
                 </div>
               )}
-              <div className="space-y-2 mb-4">
-                {subtasks.map(s => (
-                  <div key={s.id} className="flex items-center gap-3 p-3 bg-zinc-50 rounded-lg group">
-                    <button onClick={() => toggleSubtask(s.id)}
-                      className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${s.done ? 'bg-violet-600 border-violet-600' : 'border-zinc-300 hover:border-violet-400'}`}>
-                      {s.done && <Check className="w-3 h-3 text-white" />}
+              <div className="space-y-1.5 mb-3">
+                {subtasks.map((s, i) => (
+                  <div key={i} className="flex items-start gap-2.5 group">
+                    <button onClick={() => toggleSubtask(i)}
+                      className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 mt-0.5 transition-colors ${s.done ? 'border-violet-500' : 'border-zinc-300 hover:border-violet-400'}`}
+                      style={s.done ? { background: VL, borderColor: VL } : {}}>
+                      {s.done && <Check className="w-2.5 h-2.5 text-white" />}
                     </button>
-                    <span className={`flex-1 text-sm ${s.done ? 'line-through text-zinc-400' : 'text-zinc-700'}`}>{s.title}</span>
-                    <button onClick={() => deleteSubtask(s.id)} className="opacity-0 group-hover:opacity-100 text-zinc-400 hover:text-red-500 transition-all">
-                      <X className="w-3.5 h-3.5" />
-                    </button>
+                    <span className={`text-sm flex-1 leading-snug ${s.done ? 'line-through text-zinc-400' : 'text-zinc-700'}`}>{s.text}</span>
+                    <button onClick={() => removeSubtask(i)}
+                      className="opacity-0 group-hover:opacity-100 text-zinc-300 hover:text-red-500 transition-all text-xs px-1">×</button>
                   </div>
                 ))}
               </div>
               <div className="flex gap-2">
-                <input className="flex-1 border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500"
-                  placeholder="Nova subtarefa…" value={newSubtask}
+                <input
+                  className="flex-1 text-sm border border-zinc-200 rounded-lg px-3 py-1.5 focus:outline-none focus:border-violet-500 placeholder:text-zinc-300"
+                  placeholder="Novo item… (Enter)"
+                  value={newSubtask}
                   onChange={e => setNewSubtask(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && addSubtask()} />
-                <button onClick={addSubtask} className="bg-violet-600 text-white px-3 py-2 rounded-lg hover:bg-violet-700 transition-colors">
-                  <Plus className="w-4 h-4" />
+                <button onClick={addSubtask}
+                  className="px-3 py-1.5 text-xs font-semibold text-zinc-500 border border-zinc-200 rounded-lg hover:border-violet-400 hover:text-violet-600 transition-colors">
+                  + Item
                 </button>
               </div>
             </div>
-          )}
 
-          {/* ── COMENTÁRIOS ── */}
-          {activeTab === 'comentarios' && (
-            <div>
+            <div className="border-t border-zinc-100 mx-7" />
+
+            {/* ── COMENTÁRIOS ── */}
+            <div className="px-7 py-4 flex-1">
+              <div className="flex items-center gap-2 mb-3">
+                <MessageSquare className="w-4 h-4 text-zinc-400" />
+                <span className="text-xs font-bold text-zinc-700 uppercase tracking-wider">Comentários</span>
+                {comments.length > 0 && <span className="text-[10px] text-zinc-400">{comments.length}</span>}
+              </div>
+
               {loadingComments ? (
-                <p className="text-xs text-zinc-400 text-center py-6">Carregando…</p>
-              ) : comments.length === 0 ? (
-                <div className="text-center py-8">
-                  <MessageSquare className="w-8 h-8 text-zinc-300 mx-auto mb-2" />
-                  <p className="text-xs text-zinc-400">Nenhum comentário ainda.</p>
-                </div>
+                <div className="text-xs text-zinc-400 py-2">Carregando…</div>
               ) : (
-                <div className="space-y-3 mb-4">
-                  {comments.map(c => {
-                    const prof = profiles.find(p => p.id === c.user_id)
-                    return (
-                      <div key={c.id} className="flex gap-3">
-                        <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0" style={{ background: prof?.avatar_color || '#5452C1' }}>
-                          {prof?.initials || '?'}
-                        </div>
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="text-xs font-bold text-zinc-700">{c.user_name || prof?.full_name || 'Usuário'}</span>
-                            <span className="text-[10px] text-zinc-400">{new Date(c.created_at).toLocaleDateString('pt-BR')}</span>
-                          </div>
-                          <div className="bg-zinc-50 rounded-xl px-3 py-2 text-sm text-zinc-700">{c.content}</div>
-                        </div>
+                <div className="space-y-3 mb-3">
+                  {comments.length === 0 && (
+                    <p className="text-xs text-zinc-400 italic">Sem comentários ainda.</p>
+                  )}
+                  {comments.map((c, i) => (
+                    <div key={i} className="flex gap-2.5">
+                      <div className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold text-white shrink-0 mt-0.5"
+                        style={{ background: VL }}>
+                        {(c.user_name || '?').slice(0, 2).toUpperCase()}
                       </div>
-                    )
-                  })}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-baseline gap-2 mb-0.5">
+                          <span className="text-[11px] font-bold text-zinc-700">{c.user_name?.split(' ')[0]}</span>
+                          <span className="text-[10px] text-zinc-400">{new Date(c.created_at).toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })}</span>
+                        </div>
+                        <div className="text-sm text-zinc-600 leading-relaxed bg-zinc-50 rounded-xl px-3 py-2">{c.content}</div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
+
               {task.id !== 'new' && (
-                <div className="flex gap-2 mt-4">
-                  <textarea className="flex-1 border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500 resize-none" rows={2}
-                    placeholder="Adicionar comentário…" value={newComment} onChange={e => setNewComment(e.target.value)} />
-                  <button onClick={addComment} disabled={!newComment.trim()} className="bg-violet-600 text-white px-3 py-2 rounded-lg hover:bg-violet-700 disabled:opacity-50 transition-colors self-end">
-                    <Plus className="w-4 h-4" />
-                  </button>
+                <div className="flex gap-2">
+                  <div className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold text-white shrink-0 mt-1.5"
+                    style={{ background: profile?.avatar_color || VL }}>
+                    {profile?.initials || profile?.full_name?.slice(0,2) || 'EU'}
+                  </div>
+                  <div className="flex-1 flex gap-2">
+                    <input
+                      className="flex-1 text-sm border border-zinc-200 rounded-xl px-3 py-2 focus:outline-none focus:border-violet-500 placeholder:text-zinc-300"
+                      placeholder="Adicionar comentário…"
+                      value={newComment}
+                      onChange={e => setNewComment(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), addComment())} />
+                    <button onClick={addComment} disabled={!newComment.trim()}
+                      className="px-3 py-2 text-xs font-bold text-white rounded-xl disabled:opacity-40 transition-opacity"
+                      style={{ background: VL }}>
+                      Enviar
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
-          )}
+          </div>
 
+          {/* COLUNA DIREITA — metadados */}
+          <div className="w-64 shrink-0 border-l border-zinc-100 overflow-y-auto bg-zinc-50/50">
+            <div className="p-5 space-y-5">
+
+              {/* Responsável principal */}
+              <div>
+                <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 block mb-1.5">Responsável</label>
+                <select className="w-full text-sm bg-white border border-zinc-200 rounded-lg px-2.5 py-2 focus:outline-none focus:border-violet-500"
+                  value={form.assigned_to || ''}
+                  onChange={e => setForm(p => ({ ...p, assigned_to: e.target.value }))}>
+                  <option value="">— nenhum —</option>
+                  {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
+                </select>
+              </div>
+
+              {/* Colaboradores */}
+              <div>
+                <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 block mb-1.5">
+                  Colaboradores {(form.collaborators||[]).length > 0 && <span className="font-normal">({(form.collaborators||[]).length})</span>}
+                </label>
+                {(form.collaborators||[]).length > 0 && (
+                  <div className="flex flex-wrap gap-1 mb-2">
+                    {(form.collaborators||[]).map(uid => {
+                      const prof = profiles.find(p => p.id === uid)
+                      if (!prof) return null
+                      return (
+                        <div key={uid} className="flex items-center gap-1 bg-white border border-violet-200 rounded-full pl-0.5 pr-1.5 py-0.5">
+                          <div className="w-4 h-4 rounded-full flex items-center justify-center text-[8px] font-bold text-white"
+                            style={{ background: prof.avatar_color || VL }}>
+                            {prof.initials || prof.full_name?.slice(0,2)}
+                          </div>
+                          <span className="text-[10px] text-zinc-600">{prof.full_name?.split(' ')[0]}</span>
+                          <button onClick={() => setForm(p => ({ ...p, collaborators: p.collaborators.filter(id => id !== uid) }))}
+                            className="text-zinc-300 hover:text-red-500 text-xs ml-0.5">×</button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+                <select className="w-full text-sm bg-white border border-zinc-200 rounded-lg px-2.5 py-2 focus:outline-none focus:border-violet-500"
+                  value=""
+                  onChange={e => {
+                    const uid = e.target.value
+                    if (!uid || (form.collaborators||[]).includes(uid) || uid === form.assigned_to) return
+                    setForm(p => ({ ...p, collaborators: [...(p.collaborators||[]), uid] }))
+                  }}>
+                  <option value="">+ Adicionar…</option>
+                  {profiles.filter(p => p.id !== form.assigned_to && !(form.collaborators||[]).includes(p.id))
+                    .map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
+                </select>
+              </div>
+
+              {/* Projeto */}
+              <div>
+                <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 block mb-1.5">Projeto</label>
+                <select className="w-full text-sm bg-white border border-zinc-200 rounded-lg px-2.5 py-2 focus:outline-none focus:border-violet-500"
+                  value={form.project_id || ''}
+                  onChange={e => setForm(p => ({ ...p, project_id: e.target.value }))}>
+                  <option value="">— nenhum —</option>
+                  {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+              </div>
+
+              {/* Prazo */}
+              <div>
+                <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 block mb-1.5">Prazo</label>
+                <input type="date" className="w-full text-sm bg-white border border-zinc-200 rounded-lg px-2.5 py-2 focus:outline-none focus:border-violet-500"
+                  value={form.due_date || ''}
+                  onChange={e => setForm(p => ({ ...p, due_date: e.target.value }))} />
+                {form.due_date && <DueBadge date={form.due_date} colId={form.column_id} />}
+              </div>
+
+              {/* Cor do card */}
+              <div>
+                <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 block mb-1.5">Cor do card</label>
+                <div className="flex gap-1.5 flex-wrap">
+                  {COVER_COLORS.map(col => (
+                    <button key={col}
+                      onClick={() => setForm(p => ({ ...p, cover_color: p.cover_color === col ? '' : col }))}
+                      className={`w-5 h-5 rounded-full transition-all ${form.cover_color === col ? 'ring-2 ring-offset-1 ring-zinc-500 scale-110' : 'hover:scale-110'}`}
+                      style={{ background: col }} />
+                  ))}
+                </div>
+              </div>
+
+              {/* Tags */}
+              <div>
+                <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 block mb-1.5">Tags</label>
+                <div className="flex flex-wrap gap-1 mb-2">
+                  {(form.tags||[]).map((tag, i) => (
+                    <span key={i} className="inline-flex items-center gap-0.5 text-[10px] font-bold bg-violet-100 text-violet-700 px-2 py-0.5 rounded-full">
+                      {tag}
+                      <button onClick={() => setForm(p => ({ ...p, tags: p.tags.filter((_,j) => j !== i) }))} className="hover:text-red-600 ml-0.5">×</button>
+                    </span>
+                  ))}
+                </div>
+                <div className="flex gap-1.5">
+                  <input
+                    className="flex-1 min-w-0 text-xs bg-white border border-zinc-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-violet-500"
+                    placeholder="Nova tag…"
+                    value={form._newTag || ''}
+                    onChange={e => setForm(p => ({ ...p, _newTag: e.target.value }))}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' && form._newTag?.trim()) {
+                        setForm(p => ({ ...p, tags: [...(p.tags||[]), p._newTag.trim()], _newTag: '' }))
+                      }
+                    }} />
+                  <button
+                    onClick={() => { if (form._newTag?.trim()) setForm(p => ({ ...p, tags: [...(p.tags||[]), p._newTag.trim()], _newTag: '' })) }}
+                    className="px-2 py-1.5 bg-white border border-zinc-200 text-xs text-zinc-500 rounded-lg hover:border-violet-400 hover:text-violet-600 transition-colors">
+                    +
+                  </button>
+                </div>
+              </div>
+
+              {/* Emergência */}
+              <div className={`flex items-center justify-between p-2.5 rounded-xl border transition-all ${form.is_emergency ? 'bg-red-50 border-red-300' : 'bg-white border-zinc-200'}`}>
+                <div>
+                  <div className="text-xs font-semibold text-zinc-700 flex items-center gap-1.5">🚨 Emergência</div>
+                  <div className={`text-[10px] mt-0.5 ${form.is_emergency ? 'text-red-500 font-semibold' : 'text-zinc-400'}`}>
+                    {form.is_emergency ? 'Ativa — notifica liderança' : 'Desativada'}
+                  </div>
+                </div>
+                <button onClick={() => setForm(p => ({ ...p, is_emergency: !p.is_emergency }))}
+                  className={`w-10 h-5 rounded-full transition-colors relative shrink-0 ${form.is_emergency ? 'bg-red-500' : 'bg-zinc-200'}`}>
+                  <div className={`w-4 h-4 bg-white rounded-full shadow absolute top-0.5 transition-all ${form.is_emergency ? 'left-5' : 'left-0.5'}`} />
+                </button>
+              </div>
+
+              {/* Criado por */}
+              {task.id !== 'new' && task.created_at && (
+                <div className="text-[10px] text-zinc-400 leading-relaxed pt-1 border-t border-zinc-100">
+                  Criado {new Date(task.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
 
-        {/* Footer */}
-        <div className="flex items-center justify-between px-6 py-4 border-t border-zinc-100">
-          <div className="text-xs text-zinc-400">
-            {task.id !== 'new' && task.created_at && `Criada em ${new Date(task.created_at).toLocaleDateString('pt-BR')}`}
+        {/* ── FOOTER ── */}
+        <div className="flex items-center justify-between px-6 py-3 border-t border-zinc-100 shrink-0 bg-white">
+          <div className="text-[10px] text-zinc-400">
+            {task.id === 'new' ? 'Nova tarefa' : `ID: ${task.id?.slice(0,8)}`}
           </div>
-          <div className="flex gap-3">
-            <button onClick={onClose} className="text-sm text-zinc-500 hover:text-zinc-700 px-4 py-2">Cancelar</button>
-            <button onClick={handleSave} disabled={saving || !form.title.trim()} className="flex items-center gap-2 bg-violet-600 text-white text-sm font-semibold px-5 py-2 rounded-lg hover:bg-violet-700 disabled:opacity-50 transition-colors">
-              <Save className="w-4 h-4" />{saving ? 'Salvando…' : 'Salvar'}
+          <div className="flex items-center gap-2">
+            <button onClick={onClose} className="px-4 py-2 text-sm text-zinc-500 hover:text-zinc-700 transition-colors">
+              Cancelar
+            </button>
+            <button onClick={handleSave} disabled={!form.title.trim() || saving}
+              className="flex items-center gap-2 px-5 py-2 text-sm font-bold text-white rounded-xl disabled:opacity-50 hover:opacity-90 transition-opacity"
+              style={{ background: VL }}>
+              {saving ? 'Salvando…' : task.id === 'new' ? 'Criar tarefa' : 'Salvar'}
             </button>
           </div>
         </div>
@@ -436,6 +473,7 @@ function TaskModal({ task, projects, profiles, onClose, onSave, onDelete, onArch
     </div>
   )
 }
+
 
 // ═══════════════════════════════════════════════════════════════
 // KANBAN PRINCIPAL
