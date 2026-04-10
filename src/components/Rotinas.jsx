@@ -131,9 +131,17 @@ export default function Rotinas() {
       (r.description || '').toLowerCase().includes(search.toLowerCase())
     return matchFreq && matchSearch
   })
-  const doneToday = filtered.filter(r => isDoneToday(r.id)).length
-  const overdue = filtered.filter(r => !isDoneToday(r.id) && isOverdue(r)).length
+  const doneToday  = filtered.filter(r => isDoneToday(r.id)).length
+  const overdue    = filtered.filter(r => !isDoneToday(r.id) && isOverdue(r)).length
   const compliance = filtered.length > 0 ? Math.round(doneToday / filtered.length * 100) : 0
+
+  // Agrupamento por projeto para renderização
+  const grouped = filtered.reduce((acc, r) => {
+    const key = r.project_id || '__sem_projeto__'
+    if (!acc[key]) acc[key] = []
+    acc[key].push(r)
+    return acc
+  }, {})
   const profMap = {}; profiles.forEach(p => { profMap[p.id] = p })
   const projMap = {}; projects.forEach(p => { projMap[p.id] = p })
 
