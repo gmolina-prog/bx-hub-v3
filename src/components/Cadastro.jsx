@@ -2,6 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { ROLES, CARGO_OPTIONS } from '../lib/roles'
+import { NovaEmpresaModal, NovoColaboradorModal, NovoProjetoModal } from './CadastroModal'
 import { toast } from './Toast'
 import { useEscapeKey } from '../hooks/useEscapeKey'
 import { usePageTitle } from '../hooks/usePageTitle'
@@ -1429,74 +1430,21 @@ export default function Cadastro() {
     </div>
 
     {/* ── Modal Nova Empresa ── */}
-    {showNewCompany && (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.45)' }}
-        onClick={e => e.target === e.currentTarget && setShowNewCompany(false)}>
-        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
-          <div className="flex items-center justify-between mb-5">
-            <h3 className="text-base font-bold text-zinc-800">Nova Empresa</h3>
-            <button onClick={() => setShowNewCompany(false)} className="text-zinc-400 hover:text-zinc-600">
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-            </button>
-          </div>
-          <div className="space-y-3">
-            <div>
-              <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Razão Social *</label>
-              <input autoFocus className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
-                value={newCompanyForm.name} onChange={e => setNewCompanyForm(p => ({...p, name: e.target.value}))} placeholder="Nome da empresa..." />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">CNPJ</label>
-                <input className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
-                  value={newCompanyForm.cnpj} onChange={e => setNewCompanyForm(p => ({...p, cnpj: e.target.value}))} placeholder="00.000.000/0000-00" />
-              </div>
-              <div>
-                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Segmento</label>
-                <input className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
-                  value={newCompanyForm.segment} onChange={e => setNewCompanyForm(p => ({...p, segment: e.target.value}))} placeholder="Ex: Têxtil, Saúde..." />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Criticidade</label>
-                <select className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
-                  value={newCompanyForm.criticality} onChange={e => setNewCompanyForm(p => ({...p, criticality: e.target.value}))}>
-                  <option value="baixo">Baixo</option>
-                  <option value="medio">Médio</option>
-                  <option value="alto">Alto</option>
-                  <option value="critico">Crítico</option>
-                </select>
-              </div>
-              <div>
-                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Status</label>
-                <select className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
-                  value={newCompanyForm.status} onChange={e => setNewCompanyForm(p => ({...p, status: e.target.value}))}>
-                  <option value="ativo">Ativo</option>
-                  <option value="em_reestruturacao">Em Reestruturação</option>
-                  <option value="arquivado">Arquivado</option>
-                </select>
-              </div>
-            </div>
-            <div>
-              <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Observações</label>
-              <textarea className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500 resize-none" rows={2}
-                value={newCompanyForm.notes} onChange={e => setNewCompanyForm(p => ({...p, notes: e.target.value}))} placeholder="Contexto, histórico..." />
-            </div>
-            <div className="flex gap-3 pt-2">
-              <button onClick={createCompany} disabled={saving || !newCompanyForm.name.trim()}
-                className="flex-1 py-2.5 text-sm font-bold text-white rounded-xl hover:opacity-90 disabled:opacity-50"
-                style={{ background: '#5452C1' }}>
-                {saving ? 'Salvando…' : 'Criar Empresa'}
-              </button>
-              <button onClick={() => setShowNewCompany(false)} className="px-4 text-sm text-zinc-500 hover:text-zinc-700">Cancelar</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    )}
+      {showNewCompany && (
+        <NovaEmpresaModal
+          onClose={() => setShowNewCompany(false)}
+          companies={companies}
+          onSave={(newCo) => { setCompanies(prev => [newCo, ...prev]); setShowNewCompany(false) }}
+        />
+      )}
 
-    {/* ── Modal Nova Etiqueta ── */}
+      {showNewProfile && (
+        <NovoColaboradorModal
+          onClose={() => setShowNewProfile(false)}
+          onSave={(newProf) => { setProfiles(prev => [newProf, ...prev]); setShowNewProfile(false) }}
+        />
+      )}
+
     {showNewLabel && (
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.45)' }}
         onClick={e => e.target === e.currentTarget && setShowNewLabel(false)}>
