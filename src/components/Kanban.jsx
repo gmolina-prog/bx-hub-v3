@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
-import { Plus, X, Save, Trash2, Search, AlertCircle, Check, Clock, User, FolderOpen, Flag, MessageSquare, CheckSquare, MoreHorizontal, Archive, RefreshCw } from 'lucide-react'
+import { Plus, X, Save, Trash2, Search, AlertCircle, Check, Clock, User, FolderOpen, Flag, MessageSquare, CheckSquare, MoreHorizontal, Archive, RefreshCw, Edit3 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { logActivity } from '../lib/activityLog'
 import { isLeaderRole } from '../lib/roles'
@@ -202,8 +202,8 @@ function TaskModal({ task, projects, profiles, onClose, onSave, onDelete, onArch
             </div>
           </div>
 
-          {/* ZONA 2 — Checklist (fixo, shrink-0) */}
-          <div className="shrink-0 border-b border-zinc-100 bg-zinc-50/50">
+          {/* ZONA 2 — Checklist (altura limitada, scroll próprio) */}
+          <div className="flex flex-col border-b border-zinc-100 bg-zinc-50/50" style={{ maxHeight: '38vh', minHeight: 120 }}>
             <div className="px-7 py-3">
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
@@ -223,8 +223,8 @@ function TaskModal({ task, projects, profiles, onClose, onSave, onDelete, onArch
                 )}
               </div>
 
-              {/* Itens */}
-              <div className="space-y-1.5">
+              {/* Itens — rola dentro da zona */}
+              <div className="overflow-y-auto space-y-1.5" style={{ maxHeight: '22vh' }}>
                 {visibleSubtasks.map((s, i) => (
                   <div key={i} className="flex items-center gap-2.5 group">
                     <button onClick={() => toggleSubtask(i)}
@@ -978,19 +978,19 @@ export default function Kanban() {
                     </div>
                   )}
                   {colTasks.map(t => {
-                    const prof       = profMap[t.assigned_to]
-                    const proj       = projMap[t.project_id]
-                    const pr         = PRIORITY[t.priority] || PRIORITY.medium
-                    const subtasks   = Array.isArray(t.checklist) ? t.checklist : []
-                    const subDone    = subtasks.filter(s => s.done).length
-                    const subPct     = subtasks.length > 0 ? Math.round(subDone / subtasks.length * 100) : 0
-                    const tags       = Array.isArray(t.tags) ? t.tags : []
-                    const collabs    = Array.isArray(t.custom_field_values?.collaborators) ? t.custom_field_values.collaborators : []
-                    const overdue    = t.due_date && new Date(t.due_date) < new Date() && t.column_id !== 'done'
-                    const daysLeft   = t.due_date ? Math.ceil((new Date(t.due_date) - new Date()) / 86400000) : null
-                    const doneTask   = t.column_id === 'done'
-
-                    // Cor dominante: emergência > cover_color > prioridade
+                    const prof      = profMap[t.assigned_to]
+                    const proj      = projMap[t.project_id]
+                    const pr        = PRIORITY[t.priority] || PRIORITY.medium
+                    const subtasks  = Array.isArray(t.checklist) ? t.checklist : []
+                    const subDone   = subtasks.filter(s => s.done).length
+                    const subPct    = subtasks.length > 0 ? Math.round(subDone / subtasks.length * 100) : 0
+                    const tags      = Array.isArray(t.tags) ? t.tags : []
+                    const collabs   = Array.isArray(t.custom_field_values?.collaborators) ? t.custom_field_values.collaborators : []
+                    const overdue   = t.due_date && new Date(t.due_date) < new Date() && t.column_id !== 'done'
+                    const daysLeft  = t.due_date ? Math.ceil((new Date(t.due_date) - new Date()) / 86400000) : null
+                    const doneTask  = t.column_id === 'done'
+                    const hasCover  = !!(t.cover_color || t.is_emergency)
+                    const coverBg   = t.is_emergency ? '#DC2626' : t.cover_color
                     const accentColor = t.is_emergency ? '#DC2626' : (t.cover_color || pr.color)
 
                     return (
@@ -999,137 +999,162 @@ export default function Kanban() {
                         onDragStart={e => onDragStart(e, t)}
                         onDragEnd={onDragEnd}
                         onClick={() => setModalTask(t)}
-                        className="group relative bg-white rounded-xl cursor-pointer select-none transition-all duration-150 hover:shadow-lg hover:-translate-y-0.5"
+                        className="group relative bg-white rounded-xl cursor-pointer select-none"
                         style={{
-                          opacity:    dragging?.id === t.id ? 0.4 : 1,
-                          boxShadow:  '0 1px 3px rgba(0,0,0,0.08)',
-                          borderTop:  `3px solid ${accentColor}`,
-                          background: t.is_emergency ? '#FFF5F5' : t.cover_color ? `${t.cover_color}08` : 'white',
-                        }}>
+                          opacity:   dragging?.id === t.id ? 0.35 : 1,
+                          boxShadow: '0 1px 3px rgba(0,0,0,0.10), 0 0 0 1px rgba(0,0,0,0.04)',
+                          transition: 'box-shadow 0.15s, transform 0.15s',
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 6px 20px rgba(0,0,0,0.12), 0 0 0 1px rgba(0,0,0,0.06)'; e.currentTarget.style.transform = 'translateY(-2px)' }}
+                        onMouseLeave={e => { e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.10), 0 0 0 1px rgba(0,0,0,0.04)'; e.currentTarget.style.transform = 'translateY(0)' }}>
 
-                        {/* Linha topo: projeto + ações rápidas */}
-                        <div className="flex items-center justify-between px-3 pt-2.5 pb-0">
-                          <div className="flex items-center gap-1.5 min-w-0">
+                        {/* ── COVER (Trello-style full bleed) ── */}
+                        {hasCover && (
+                          <div className="w-full rounded-t-xl flex items-end px-3 pb-2"
+                            style={{ background: coverBg, height: 40 }}>
                             {t.is_emergency && (
-                              <span className="text-[9px] font-bold bg-red-100 text-red-600 px-1.5 py-0.5 rounded-md shrink-0">🚨</span>
-                            )}
-                            {proj && (
-                              <span className="text-[10px] font-semibold text-zinc-400 truncate">{proj.name}</span>
+                              <span className="text-[9px] font-bold text-white/90 bg-black/20 px-1.5 py-0.5 rounded-md">
+                                🚨 EMERGÊNCIA
+                              </span>
                             )}
                           </div>
-                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                            {t.is_starred && <span className="text-amber-400 text-xs">⭐</span>}
+                        )}
+
+                        {/* ── LABEL STRIPS (Trello-style) ── */}
+                        {tags.length > 0 && (
+                          <div className="flex gap-1 flex-wrap px-3 pt-2.5">
+                            {tags.slice(0, 4).map((tag, i) => {
+                              // Cores variadas por índice
+                              const tagColors = [
+                                { bg: '#BAF3DB', text: '#164B35' },
+                                { bg: '#DFFCF0', text: '#055C3F' },  // fallback
+                              ]
+                              const palettes = [
+                                { bg: accentColor + '22', text: accentColor },
+                                { bg: '#BAF3DB',          text: '#164B35' },
+                                { bg: '#F8E6A0',          text: '#533F04' },
+                                { bg: '#FFD2CC',          text: '#601E16' },
+                                { bg: '#DFE1E6',          text: '#172B4D' },
+                              ]
+                              const pal = palettes[i % palettes.length]
+                              return (
+                                <span key={i}
+                                  className="text-[10px] font-bold px-2 py-0.5 rounded-full leading-tight"
+                                  style={{ background: pal.bg, color: pal.text }}>
+                                  {tag}
+                                </span>
+                              )
+                            })}
+                            {tags.length > 4 && (
+                              <span className="text-[10px] text-zinc-400 self-center">+{tags.length - 4}</span>
+                            )}
                           </div>
-                          {!proj && t.is_starred && (
-                            <span className="text-amber-400 text-xs">⭐</span>
+                        )}
+
+                        {/* ── TÍTULO ── */}
+                        <div className={`px-3 ${tags.length > 0 || hasCover ? 'pt-1.5' : 'pt-3'} pb-1 relative`}>
+                          <p className={`text-sm font-semibold leading-snug line-clamp-2 pr-5 ${doneTask ? 'line-through text-zinc-400' : 'text-zinc-800'}`}>
+                            {t.title}
+                          </p>
+                          {/* Editar (hover) */}
+                          <button
+                            onClick={e => { e.stopPropagation(); setModalTask(t) }}
+                            className="absolute top-1 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 hover:bg-violet-50 border border-zinc-200 hover:border-violet-300 rounded-md p-0.5"
+                            title="Editar">
+                            <Edit3 className="w-2.5 h-2.5 text-zinc-500" />
+                          </button>
+                          {/* Favorito */}
+                          {t.is_starred && (
+                            <span className="absolute top-1 right-7 text-amber-400 text-[11px]">⭐</span>
                           )}
                         </div>
 
-                        {/* Favorito sempre visível se ativo, mesmo sem hover */}
-                        {t.is_starred && proj && (
-                          <div className="absolute top-2 right-2.5 text-amber-400 text-xs">⭐</div>
-                        )}
-
-                        {/* Título */}
-                        <div className="px-3 pt-2 pb-1">
-                          <p className={`text-sm font-semibold leading-snug line-clamp-2 ${doneTask ? 'line-through text-zinc-400' : 'text-zinc-800'}`}>
-                            {t.title}
-                          </p>
-                        </div>
-
-                        {/* Descrição — só 1 linha se existir */}
-                        {t.description && (
+                        {/* ── PROJETO (se não for cover) ── */}
+                        {proj && !hasCover && (
                           <div className="px-3 pb-1">
-                            <p className="text-[11px] text-zinc-400 line-clamp-1">{t.description}</p>
+                            <span className="text-[10px] text-zinc-400 font-medium">{proj.name}</span>
                           </div>
                         )}
 
-                        {/* Checklist */}
-                        {subtasks.length > 0 && (
-                          <div className="px-3 pb-2">
-                            <div className="flex items-center gap-2">
-                              <div className="flex-1 h-1 bg-zinc-100 rounded-full overflow-hidden">
-                                <div className="h-full rounded-full transition-all"
-                                  style={{ width: `${subPct}%`, background: subPct === 100 ? '#10B981' : accentColor }} />
-                              </div>
-                              <span className="text-[10px] text-zinc-400 shrink-0 font-medium">
-                                {subDone}/{subtasks.length}
-                              </span>
-                            </div>
-                          </div>
-                        )}
+                        {/* ── FOOTER ── */}
+                        <div className="flex items-center justify-between px-3 pb-3 pt-1 gap-2">
 
-                        {/* Tags */}
-                        {tags.length > 0 && (
-                          <div className="px-3 pb-2 flex gap-1 flex-wrap">
-                            {tags.slice(0, 3).map((tag, i) => (
-                              <span key={i} className="text-[9px] font-bold px-1.5 py-0.5 rounded-md"
-                                style={{ background: `${accentColor}15`, color: accentColor }}>
-                                {tag}
-                              </span>
-                            ))}
-                            {tags.length > 3 && (
-                              <span className="text-[9px] text-zinc-400">+{tags.length - 3}</span>
-                            )}
-                          </div>
-                        )}
+                          {/* Esquerda: badges de contexto */}
+                          <div className="flex items-center gap-1.5 flex-wrap min-w-0">
 
-                        {/* Footer */}
-                        <div className="flex items-center justify-between px-3 pb-2.5 pt-1 gap-2">
-                          {/* Esquerda: prazo + prioridade */}
-                          <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
                             {/* Prazo */}
                             {t.due_date && (
-                              <span className={`text-[10px] font-bold flex items-center gap-0.5 px-1.5 py-0.5 rounded-md ${
-                                doneTask ? 'bg-green-50 text-green-600' :
-                                overdue  ? 'bg-red-100 text-red-600' :
+                              <span className={`inline-flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-md ${
+                                doneTask ? 'bg-green-100 text-green-700' :
+                                overdue  ? 'bg-red-100 text-red-700' :
                                 daysLeft === 0 ? 'bg-amber-100 text-amber-700' :
-                                daysLeft <= 3  ? 'bg-blue-50 text-blue-600' :
-                                'text-zinc-400 bg-transparent'
+                                daysLeft !== null && daysLeft <= 3 ? 'bg-blue-50 text-blue-700' :
+                                'bg-zinc-100 text-zinc-500'
                               }`}>
                                 <Clock className="w-2.5 h-2.5" />
                                 {doneTask ? '✓' :
-                                 overdue  ? `${Math.abs(daysLeft)}d atraso` :
+                                 overdue  ? `${Math.abs(daysLeft)}d` :
                                  daysLeft === 0 ? 'Hoje' :
-                                 daysLeft <= 7  ? `${daysLeft}d` :
-                                 new Date(t.due_date).toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit' })}
+                                 daysLeft !== null && daysLeft <= 7 ? `${daysLeft}d` :
+                                 new Date(t.due_date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
                               </span>
                             )}
-                            {/* Prioridade — só se urgente ou alta */}
-                            {(t.priority === 'urgent' || t.priority === 'high') && (
-                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md"
+
+                            {/* Checklist */}
+                            {subtasks.length > 0 && (
+                              <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-md ${
+                                subPct === 100 ? 'bg-green-100 text-green-700' : 'bg-zinc-100 text-zinc-500'
+                              }`}>
+                                <CheckSquare className="w-2.5 h-2.5" />
+                                {subDone}/{subtasks.length}
+                              </span>
+                            )}
+
+                            {/* Prioridade — só urgente */}
+                            {t.priority === 'urgent' && (
+                              <span className="inline-flex items-center text-[10px] font-bold px-1.5 py-0.5 rounded-md"
                                 style={{ background: pr.bg, color: pr.color }}>
-                                {pr.label}
+                                ! Urgente
                               </span>
                             )}
                           </div>
 
                           {/* Direita: avatares empilhados */}
-                          <div className="flex items-center shrink-0" style={{ marginRight: -2 }}>
-                            {/* Colaboradores */}
-                            {collabs.slice(0, 3).map((uid, i) => {
+                          <div className="flex items-center shrink-0">
+                            {collabs.slice(0, 2).map((uid, i) => {
                               const cp = profMap[uid]
                               if (!cp) return null
                               return (
-                                <div key={uid}
-                                  className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold text-white ring-2 ring-white"
-                                  style={{ background: cp.avatar_color || '#8B5CF6', marginLeft: i === 0 ? 0 : -6, zIndex: i }}
-                                  title={cp.full_name}>
-                                  {cp.initials || cp.full_name?.slice(0,2)}
+                                <div key={uid} title={cp.full_name}
+                                  className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold text-white ring-[1.5px] ring-white"
+                                  style={{ background: cp.avatar_color || '#8B5CF6', marginLeft: i > 0 ? -5 : 0, zIndex: i }}>
+                                  {cp.initials || cp.full_name?.slice(0, 2)}
                                 </div>
                               )
                             })}
-                            {/* Responsável principal */}
+                            {collabs.length > 2 && (
+                              <div className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold text-zinc-500 bg-zinc-100 ring-[1.5px] ring-white"
+                                style={{ marginLeft: -5 }}>
+                                +{collabs.length - 2}
+                              </div>
+                            )}
                             {prof && (
-                              <div
-                                className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold text-white ring-2 ring-white"
-                                style={{ background: prof.avatar_color || '#5452C1', marginLeft: collabs.length > 0 ? -6 : 0, zIndex: collabs.length }}
-                                title={prof.full_name}>
+                              <div title={prof.full_name}
+                                className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold text-white ring-[1.5px] ring-white"
+                                style={{ background: prof.avatar_color || '#5452C1', marginLeft: (collabs.length > 0) ? -5 : 0, zIndex: collabs.length }}>
                                 {prof.initials || prof.full_name?.slice(0, 2)}
                               </div>
                             )}
                           </div>
                         </div>
+
+                        {/* ── BARRA DE PROGRESSO DO CHECKLIST (base do card) ── */}
+                        {subtasks.length > 0 && (
+                          <div className="h-0.5 rounded-b-xl overflow-hidden bg-zinc-100">
+                            <div className="h-full transition-all duration-500"
+                              style={{ width: `${subPct}%`, background: subPct === 100 ? '#10B981' : accentColor }} />
+                          </div>
+                        )}
 
                       </div>
                     )
