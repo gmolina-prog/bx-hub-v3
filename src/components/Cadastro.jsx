@@ -101,6 +101,8 @@ export default function Cadastro() {
   const [editLabelForm,   setEditLabelForm]   = useState({})
   const [editingInst,     setEditingInst]     = useState(null)
   const [editInstForm,    setEditInstForm]    = useState({})
+  const [editingProject,  setEditingProject]  = useState(null)
+  const [editProjectForm, setEditProjectForm] = useState({})
   const navigate = useNavigate()
   // Modais de criação
   const [showNewLabel, setShowNewLabel]             = useState(false)
@@ -395,6 +397,49 @@ export default function Cadastro() {
     setProfiles(prev => prev.map(p => p.id === editingProfile.id ? { ...p, ...editProfileForm } : p))
     setEditingProfile(null)
     toast.success('Colaborador atualizado')
+  }
+
+  // ── Editar/Excluir projeto ──
+  function openEditProject(p) {
+    setEditProjectForm({
+      name:       p.name       || '',
+      type:       p.type       || 'Diagnóstico',
+      status:     p.status     || 'Em andamento',
+      deadline:   p.deadline   ? p.deadline.split('T')[0] : '',
+      budget:     p.budget     || '',
+      priority:   p.priority   || 'medium',
+      company_id: p.company_id || '',
+      observacoes:p.observacoes|| '',
+      historico:  p.historico  || '',
+    })
+    setEditingProject(p)
+  }
+  async function saveProject() {
+    if (!editingProject) return
+    setSaving(true)
+    const { error } = await supabase.from('projects').update({
+      name:       editProjectForm.name?.trim(),
+      type:       editProjectForm.type,
+      status:     editProjectForm.status,
+      deadline:   editProjectForm.deadline || null,
+      budget:     editProjectForm.budget ? parseFloat(editProjectForm.budget) : null,
+      priority:   editProjectForm.priority,
+      company_id: editProjectForm.company_id || null,
+      observacoes:editProjectForm.observacoes?.trim() || null,
+      historico:  editProjectForm.historico?.trim()   || null,
+    }).eq('id', editingProject.id).eq('org_id', profile.org_id)
+    setSaving(false)
+    if (error) { toast.error('Erro: ' + error.message); return }
+    setProjects(prev => prev.map(p => p.id === editingProject.id ? { ...p, ...editProjectForm } : p))
+    setEditingProject(null)
+    toast.success('Projeto atualizado')
+  }
+  async function deleteProject(id) {
+    if (!await confirm('Excluir este projeto? Tasks e riscos associados serão mantidos.', { danger: true, confirmLabel: 'Excluir' })) return
+    const { error } = await supabase.from('projects').delete().eq('id', id).eq('org_id', profile.org_id)
+    if (error) { toast.error('Erro: ' + error.message); return }
+    setProjects(prev => prev.filter(p => p.id !== id))
+    toast.success('Projeto excluído')
   }
 
   // ── Excluir colaborador ──
@@ -729,6 +774,86 @@ export default function Cadastro() {
       </div>
     )}
 
+
+    {/* ── Modal Editar Projeto ── */}
+    {editingProject && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+        style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)' }}
+        onClick={e => e.target === e.currentTarget && setEditingProject(null)}>
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6">
+          <div className="flex items-center justify-between mb-5">
+            <h3 className="text-lg font-bold text-zinc-800">Editar Projeto</h3>
+            <button onClick={() => setEditingProject(null)} className="text-zinc-400 hover:text-zinc-600"><X className="w-5 h-5" /></button>
+          </div>
+          <div className="space-y-3">
+            <div>
+              <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 block mb-1">Nome do projeto *</label>
+              <input className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                value={editProjectForm.name || ''}
+                onChange={e => setEditProjectForm(p => ({ ...p, name: e.target.value }))} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 block mb-1">Tipo</label>
+                <select className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                  value={editProjectForm.type || 'Diagnóstico'}
+                  onChange={e => setEditProjectForm(p => ({ ...p, type: e.target.value }))}>
+                  {['Diagnóstico','RJ','M&A','Reestruturação','Assessoria'].map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 block mb-1">Status</label>
+                <select className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                  value={editProjectForm.status || 'Em andamento'}
+                  onChange={e => setEditProjectForm(p => ({ ...p, status: e.target.value }))}>
+                  {['Em andamento','Planejamento','Concluído','Pausado','Cancelado'].map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 block mb-1">Prazo</label>
+                <input type="date" className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                  value={editProjectForm.deadline || ''}
+                  onChange={e => setEditProjectForm(p => ({ ...p, deadline: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 block mb-1">Orçamento (R$)</label>
+                <input type="number" className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                  placeholder="0,00"
+                  value={editProjectForm.budget || ''}
+                  onChange={e => setEditProjectForm(p => ({ ...p, budget: e.target.value }))} />
+              </div>
+            </div>
+            <div>
+              <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 block mb-1">Empresa cliente</label>
+              <select className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+                value={editProjectForm.company_id || ''}
+                onChange={e => setEditProjectForm(p => ({ ...p, company_id: e.target.value }))}>
+                <option value="">— nenhuma —</option>
+                {companies.map(co => <option key={co.id} value={co.id}>{co.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 block mb-1">Observações</label>
+              <textarea rows={2} className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500 resize-none"
+                value={editProjectForm.observacoes || ''}
+                onChange={e => setEditProjectForm(p => ({ ...p, observacoes: e.target.value }))} />
+            </div>
+          </div>
+          <div className="flex gap-3 mt-5">
+            <button onClick={() => setEditingProject(null)}
+              className="flex-1 py-2.5 text-sm text-zinc-500 border border-zinc-200 rounded-xl hover:bg-zinc-50">Cancelar</button>
+            <button onClick={saveProject} disabled={saving || !editProjectForm.name?.trim()}
+              className="flex-1 py-2.5 text-sm font-bold text-white rounded-xl disabled:opacity-50 hover:opacity-90 transition-opacity"
+              style={{ background: '#5452C1' }}>
+              {saving ? 'Salvando…' : 'Salvar alterações'}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+
     <div className="p-6 max-w-[1600px] mx-auto">
       {/* Hero */}
       <div className="bg-gradient-to-br from-zinc-800 to-zinc-900 rounded-2xl p-6 mb-6 text-white">
@@ -754,14 +879,13 @@ export default function Cadastro() {
               Atualizar
             </button>
             {(activeTab === 'companies' || activeTab === 'profiles') && isLeaderRole(profile?.role) && (
-<button
+              <button
                 onClick={exportCSV}
                 className="px-3 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-sm font-semibold flex items-center gap-2"
               >
                 <Download className="w-4 h-4" />
                 Exportar
               </button>
-)}
             )}
             <button
               onClick={() => {
@@ -1190,6 +1314,7 @@ export default function Cadastro() {
                     <th className="text-left px-4 py-3 text-[10px] font-bold uppercase tracking-wider">Tipo</th>
                     <th className="text-left px-4 py-3 text-[10px] font-bold uppercase tracking-wider">Prazo</th>
                     <th className="text-left px-4 py-3 text-[10px] font-bold uppercase tracking-wider">Status</th>
+                    <th className="text-right px-4 py-3 text-[10px] font-bold uppercase tracking-wider">Ações</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-zinc-100">
@@ -1204,6 +1329,22 @@ export default function Cadastro() {
                             {p.status}
                           </span>
                         )}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <button onClick={() => openEditProject(p)}
+                            className="p-1.5 text-zinc-400 hover:text-violet-600 hover:bg-violet-50 rounded-lg transition-colors"
+                            title="Editar projeto">
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                          {isLeaderRole(profile?.role) && (
+                            <button onClick={() => deleteProject(p.id)}
+                              className="p-1.5 text-zinc-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                              title="Excluir projeto">
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
