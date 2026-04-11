@@ -1,6 +1,10 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
-import { Hash, Send, Plus, X, Search, Bell, BellOff, Pin, Reply, Smile, MoreHorizontal, Users, Check, CheckCheck, Circle, ChevronDown, AlertCircle, Paperclip, AtSign } from 'lucide-react'
-import { toast } from './Toast'
+import {
+  Hash, Send, Plus, X, Search, Pin, Reply, Smile, MoreHorizontal,
+  Users, Check, CheckCheck, Archive, Trash2, Edit3, ChevronDown,
+  ChevronRight, AlertCircle, AtSign, ArchiveRestore
+} from 'lucide-react'
+import { toast, confirm } from './Toast'
 import { supabase } from '../lib/supabase'
 import { useEscapeKey } from '../hooks/useEscapeKey'
 import { usePageTitle } from '../hooks/usePageTitle'
@@ -8,12 +12,11 @@ import { useData } from '../contexts/DataContext'
 import { useNavigate } from 'react-router-dom'
 
 const CH = '#2D2E39', VL = '#5452C1'
-const REACTIONS_LIST = ['👍', '❤️', '🔥', '✅', '😂', '🙏', '👀', '⚡']
+const REACTIONS_LIST = ['👍','❤️','🔥','✅','😂','🙏','👀','⚡']
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 function fmtTime(d) {
-  const dt = new Date(d)
-  return dt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+  return new Date(d).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
 }
 function fmtDate(d) {
   const dt = new Date(d)
@@ -23,23 +26,12 @@ function fmtDate(d) {
   if (dt >= yesterday) return 'Ontem'
   return dt.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })
 }
-function relTime(d) {
-  const s = (Date.now() - new Date(d)) / 1000
-  if (s < 60) return 'agora'
-  if (s < 3600) return `${Math.floor(s/60)}min`
-  if (s < 86400) return `${Math.floor(s/3600)}h`
-  return `${Math.floor(s/86400)}d`
-}
 function initials(name) {
   if (!name) return '?'
   return name.split(' ').slice(0,2).map(w => w[0]).join('').toUpperCase()
 }
-function parseContent(text, profMap) {
-  // Highlight @mentions
-  return text.replace(/@[\w\s]+/g, match => `<span class="mention">${match}</span>`)
-}
 
-// ─── Avatar ──────────────────────────────────────────────────────────────────
+// ─── Avatar ───────────────────────────────────────────────────────────────────
 function Avatar({ profile, size = 32, showStatus = false, isOnline = false }) {
   const sz = { width: size, height: size, minWidth: size, fontSize: size * 0.35 }
   return (
@@ -52,6 +44,92 @@ function Avatar({ profile, size = 32, showStatus = false, isOnline = false }) {
         <div className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 ${isOnline ? 'bg-green-400' : 'bg-zinc-400'}`}
           style={{ borderColor: '#fff' }} />
       )}
+    </div>
+  )
+}
+
+// ─── Channel Context Menu ─────────────────────────────────────────────────────
+function ChannelMenu({ channel, isLeader, onArchive, onUnarchive, onDelete, onRename, onClose }) {
+  const menuRef = useRef(null)
+  useEffect(() => {
+    function handleClick(e) {
+      if (menuRef.current && !menuRef.current.contains(e.target)) onClose()
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [onClose])
+
+  return (
+    <div ref={menuRef}
+      className="absolute left-full top-0 ml-1 bg-white border border-zinc-200 rounded-xl shadow-xl z-50 py-1 w-44 overflow-hidden"
+      onClick={e => e.stopPropagation()}>
+      {!channel.is_general && (
+        <button onClick={() => { onRename(); onClose() }}
+          className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-zinc-700 hover:bg-zinc-50 transition-colors">
+          <Edit3 className="w-3.5 h-3.5 text-zinc-400" />
+          Renomear canal
+        </button>
+      )}
+      {!channel.is_archived ? (
+        <button onClick={() => { onArchive(); onClose() }}
+          className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-zinc-700 hover:bg-zinc-50 transition-colors">
+          <Archive className="w-3.5 h-3.5 text-zinc-400" />
+          Arquivar canal
+        </button>
+      ) : (
+        <button onClick={() => { onUnarchive(); onClose() }}
+          className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-zinc-700 hover:bg-zinc-50 transition-colors">
+          <ArchiveRestore className="w-3.5 h-3.5 text-zinc-400" />
+          Desarquivar
+        </button>
+      )}
+      {isLeader && !channel.is_general && (
+        <>
+          <div className="h-px bg-zinc-100 mx-2 my-1" />
+          <button onClick={() => { onDelete(); onClose() }}
+            className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-rose-600 hover:bg-rose-50 transition-colors">
+            <Trash2 className="w-3.5 h-3.5" />
+            Excluir canal
+          </button>
+        </>
+      )}
+    </div>
+  )
+}
+
+// ─── Rename Modal ─────────────────────────────────────────────────────────────
+function RenameModal({ channel, onSave, onClose }) {
+  const [name, setName] = useState(channel.name)
+  const [saving, setSaving] = useState(false)
+  async function save() {
+    if (!name.trim() || name.trim() === channel.name) { onClose(); return }
+    setSaving(true)
+    const { error } = await supabase.from('chat_channels')
+      .update({ name: name.trim() })
+      .eq('id', channel.id)
+    if (error) { toast.error('Erro ao renomear: ' + error.message); setSaving(false); return }
+    onSave(channel.id, name.trim())
+    setSaving(false)
+    onClose()
+  }
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.5)' }}
+      onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+        <h3 className="text-sm font-bold text-zinc-800 mb-4">Renomear canal</h3>
+        <input autoFocus
+          className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500 mb-4"
+          value={name} onChange={e => setName(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && save()} />
+        <div className="flex gap-3">
+          <button onClick={save} disabled={saving || !name.trim()}
+            className="flex-1 py-2 text-sm font-bold text-white rounded-xl disabled:opacity-50"
+            style={{ background: VL }}>
+            {saving ? 'Salvando…' : 'Salvar'}
+          </button>
+          <button onClick={onClose} className="px-4 text-sm text-zinc-500 hover:text-zinc-700">Cancelar</button>
+        </div>
+      </div>
     </div>
   )
 }
@@ -70,10 +148,10 @@ function NewChannelModal({ profile, projects, onCreated, onClose }) {
     setSaving(true)
     const { data, error } = await supabase.from('chat_channels').insert({
       org_id: profile.org_id, name: name.trim(), description: desc.trim() || null,
-      icon, project_id: projectId || null, is_general: false,
+      icon, project_id: projectId || null, is_general: false, is_archived: false,
     }).select().single()
-    if (error) { console.error('[Chat] criar canal:', error.message); setSaving(false); return }
-    if (data) { onCreated(data) }
+    if (error) { toast.error('Erro ao criar canal: ' + error.message); setSaving(false); return }
+    if (data) onCreated(data)
     setSaving(false)
   }
 
@@ -100,7 +178,7 @@ function NewChannelModal({ profile, projects, onCreated, onClose }) {
           <div>
             <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Nome *</label>
             <input autoFocus className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
-              placeholder="ex: marketing, financeiro, geral…" value={name} onChange={e => setName(e.target.value)}
+              placeholder="ex: marketing, financeiro…" value={name} onChange={e => setName(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && create()} />
           </div>
           <div>
@@ -118,7 +196,7 @@ function NewChannelModal({ profile, projects, onCreated, onClose }) {
           </div>
           <div className="flex gap-3 pt-2">
             <button onClick={create} disabled={saving || !name.trim()}
-              className="flex-1 py-2.5 text-sm font-bold text-white rounded-xl hover:opacity-90 disabled:opacity-50 transition-all"
+              className="flex-1 py-2.5 text-sm font-bold text-white rounded-xl hover:opacity-90 disabled:opacity-50"
               style={{ background: VL }}>
               {saving ? 'Criando…' : 'Criar canal'}
             </button>
@@ -131,27 +209,23 @@ function NewChannelModal({ profile, projects, onCreated, onClose }) {
 }
 
 // ─── Message Component ────────────────────────────────────────────────────────
-function Message({ msg, mine, author, allProfiles, onReact, onReply, onPin, replyMsg, replyAuthor }) {
+function Message({ msg, mine, isLeader, author, allProfiles, onReact, onReply, onPin, onDelete, replyMsg, replyAuthor }) {
   const [showActions, setShowActions] = useState(false)
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
   const isRead = Array.isArray(msg.read_by) && msg.read_by.length > 0
   const isPinned = msg.is_pinned
-
+  const canDelete = mine || isLeader
   const reactions = msg.reactions && typeof msg.reactions === 'object'
-    ? Object.entries(msg.reactions)
-    : []
+    ? Object.entries(msg.reactions) : []
 
   return (
     <div className={`group flex gap-2.5 px-4 py-1 hover:bg-zinc-50/80 transition-colors relative ${mine ? 'flex-row-reverse' : ''}`}
       onMouseEnter={() => setShowActions(true)}
       onMouseLeave={() => { setShowActions(false); setShowEmojiPicker(false) }}>
 
-      {/* Avatar */}
       {!mine && <div className="shrink-0 mt-0.5"><Avatar profile={author} size={32} /></div>}
 
-      {/* Bubble */}
       <div className={`flex flex-col max-w-[72%] ${mine ? 'items-end' : ''}`}>
-        {/* Author + time */}
         {!mine && (
           <div className="flex items-center gap-2 mb-0.5 px-1">
             <span className="text-xs font-bold text-zinc-700">{author?.full_name}</span>
@@ -160,7 +234,6 @@ function Message({ msg, mine, author, allProfiles, onReact, onReply, onPin, repl
           </div>
         )}
 
-        {/* Reply reference */}
         {replyMsg && (
           <div className={`text-xs border-l-2 pl-2 py-1 mb-1 rounded-r-md mx-1 ${mine ? 'border-violet-300 bg-violet-50 text-violet-700' : 'border-zinc-300 bg-zinc-100 text-zinc-600'}`}>
             <span className="font-semibold">{replyAuthor?.full_name || 'Usuário'}: </span>
@@ -168,33 +241,25 @@ function Message({ msg, mine, author, allProfiles, onReact, onReply, onPin, repl
           </div>
         )}
 
-        {/* Message bubble */}
-        <div className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed shadow-sm relative ${mine ? 'text-white rounded-tr-sm' : 'bg-white text-zinc-800 rounded-tl-sm border border-zinc-100'}`}
+        <div className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed shadow-sm ${mine ? 'text-white rounded-tr-sm' : 'bg-white text-zinc-800 rounded-tl-sm border border-zinc-100'}`}
           style={mine ? { background: VL } : {}}>
-
-          {/* Mentions highlight via CSS */}
           <div dangerouslySetInnerHTML={{
             __html: (msg.content || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
               .replace(/@(\S+(\s\S+)?)/g, '<span style="font-weight:700;color:' + (mine ? '#C4B5FD' : VL) + '">@$1</span>')
           }} />
-
-          {/* Time for own messages */}
           {mine && (
             <div className="flex items-center justify-end gap-1 mt-1">
               <span className="text-[10px] text-violet-200">{fmtTime(msg.created_at)}</span>
-              {isRead
-                ? <CheckCheck className="w-3 h-3 text-violet-200" />
-                : <Check className="w-3 h-3 text-violet-300" />}
+              {isRead ? <CheckCheck className="w-3 h-3 text-violet-200" /> : <Check className="w-3 h-3 text-violet-300" />}
             </div>
           )}
         </div>
 
-        {/* Reactions */}
         {reactions.length > 0 && (
           <div className={`flex gap-1 mt-1 flex-wrap ${mine ? 'justify-end' : ''}`}>
             {reactions.map(([emoji, users]) => (
               <button key={emoji} onClick={() => onReact(msg.id, emoji)}
-                className="flex items-center gap-1 bg-white border border-zinc-200 rounded-full px-2 py-0.5 text-xs hover:border-violet-300 transition-colors shadow-sm">
+                className="flex items-center gap-1 bg-white border border-zinc-200 rounded-full px-2 py-0.5 text-xs hover:border-violet-300 shadow-sm">
                 <span>{emoji}</span>
                 <span className="text-zinc-600 font-semibold">{Array.isArray(users) ? users.length : users}</span>
               </button>
@@ -203,19 +268,18 @@ function Message({ msg, mine, author, allProfiles, onReact, onReply, onPin, repl
         )}
       </div>
 
-      {/* Hover action buttons */}
       {showActions && (
         <div className={`absolute top-1 flex items-center gap-0.5 bg-white border border-zinc-200 rounded-xl shadow-lg px-1 py-0.5 z-20 ${mine ? 'left-4' : 'right-4'}`}>
           <div className="relative">
             <button onClick={() => setShowEmojiPicker(p => !p)} title="Reagir"
-              className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-zinc-100 transition-colors text-zinc-500 hover:text-zinc-800">
+              className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-zinc-100 text-zinc-500 hover:text-zinc-800">
               <Smile className="w-3.5 h-3.5" />
             </button>
             {showEmojiPicker && (
               <div className={`absolute top-8 ${mine ? 'right-0' : 'left-0'} bg-white border border-zinc-200 rounded-xl shadow-xl p-2 flex gap-1 z-30`}>
                 {REACTIONS_LIST.map(em => (
                   <button key={em} onClick={() => { onReact(msg.id, em); setShowEmojiPicker(false) }}
-                    className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-zinc-100 text-lg transition-colors">
+                    className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-zinc-100 text-lg">
                     {em}
                   </button>
                 ))}
@@ -223,13 +287,19 @@ function Message({ msg, mine, author, allProfiles, onReact, onReply, onPin, repl
             )}
           </div>
           <button onClick={() => onReply(msg)} title="Responder"
-            className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-zinc-100 transition-colors text-zinc-500 hover:text-zinc-800">
+            className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-zinc-100 text-zinc-500 hover:text-zinc-800">
             <Reply className="w-3.5 h-3.5" />
           </button>
           <button onClick={() => onPin(msg)} title="Fixar"
-            className={`w-7 h-7 flex items-center justify-center rounded-lg hover:bg-zinc-100 transition-colors ${msg.is_pinned ? 'text-amber-500' : 'text-zinc-500 hover:text-zinc-800'}`}>
+            className={`w-7 h-7 flex items-center justify-center rounded-lg hover:bg-zinc-100 ${msg.is_pinned ? 'text-amber-500' : 'text-zinc-500 hover:text-zinc-800'}`}>
             <Pin className="w-3.5 h-3.5" />
           </button>
+          {canDelete && (
+            <button onClick={() => onDelete(msg)} title="Excluir mensagem"
+              className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-rose-50 text-zinc-400 hover:text-rose-500">
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -258,11 +328,18 @@ export default function Chat() {
   const [sending, setSending] = useState(false)
   const [showNewChannel, setShowNewChannel] = useState(false)
   const [showPinned, setShowPinned] = useState(false)
+  const [showArchived, setShowArchived] = useState(false)
+  const [channelMenu, setChannelMenu] = useState(null) // { channelId }
+  const [renamingChannel, setRenamingChannel] = useState(null)
   const [toasts, setToasts] = useState([])
   const bottomRef = useRef(null)
   const inputRef = useRef(null)
   const realtimeRef = useRef(null)
+
   const profMap = {}; profiles.forEach(p => { profMap[p.id] = p })
+  const isLeader = ['socio', 'lider', 'admin', 'partner', 'managing_partner'].includes(profile?.role?.toLowerCase())
+
+  usePageTitle('Chat')
 
   // ── Load initial data ──
   useEffect(() => {
@@ -271,45 +348,62 @@ export default function Chat() {
     Promise.allSettled([
       supabase.from('chat_channels').select('*').eq('org_id', profile.org_id).order('created_at'),
       supabase.from('profiles').select('id,full_name,initials,avatar_color,role').eq('org_id', profile.org_id).order('full_name'),
-      supabase.from('projects').select('id,name').eq('org_id', profile.org_id).order('name'),
+      supabase.from('projects').select('id,name,status').eq('org_id', profile.org_id).order('name'),
       supabase.from('check_ins').select('user_id,status').eq('org_id', profile.org_id).eq('date', today).is('check_out_time', null),
     ]).then(([chR, profR, projR, ciR]) => {
       const chs = chR.status === 'fulfilled' && !chR.value.error ? chR.value.data || [] : []
 
-      // Garantir canais fixos (Público + Alertas)
       const FIXED = [
-        { slug: 'publico',  name: '# Público',  icon: '💬', description: 'Canal geral da equipe' },
-        { slug: 'alertas',  name: '🚨 Alertas', icon: '🚨', description: 'Alertas e comunicados urgentes' },
+        { slug: 'publico', name: '# Público',  icon: '💬', description: 'Canal geral da equipe' },
+        { slug: 'alertas', name: '🚨 Alertas', icon: '🚨', description: 'Alertas e comunicados urgentes' },
       ]
       const toCreate = FIXED.filter(f => !chs.find(ch => ch.name === f.name))
-      if (toCreate.length > 0 && profile) {
-        const inserts = toCreate.map(f => ({
-          org_id: profile.org_id, name: f.name, icon: f.icon,
-          description: f.description, is_general: true, project_id: null,
-        }))
-        supabase.from('chat_channels').insert(inserts).select().then(({ data: created }) => {
-          const allChs = [...(created || []), ...chs].sort((a,b) =>
-            a.is_general === b.is_general ? 0 : a.is_general ? -1 : 1
-          )
-          setChannels(allChs)
-          const pub = allChs.find(ch => ch.is_general) || allChs[0]
-          if (pub) setActiveChannel(pub)
-        })
-      } else {
-        // Ordenar: fixos primeiro
-        const sorted = [...chs].sort((a,b) =>
+      const doSetChannels = (list) => {
+        const sorted = [...list].sort((a,b) =>
           a.is_general === b.is_general ? 0 : a.is_general ? -1 : 1
         )
         setChannels(sorted)
-        const pub = sorted.find(ch => ch.is_general) || sorted[0]
+        const pub = sorted.find(ch => ch.is_general && !ch.is_archived) || sorted.find(ch => !ch.is_archived) || sorted[0]
         if (pub) setActiveChannel(pub)
+        setLoading(false)
+      }
+      if (toCreate.length > 0) {
+        const inserts = toCreate.map(f => ({
+          org_id: profile.org_id, name: f.name, icon: f.icon,
+          description: f.description, is_general: true, project_id: null, is_archived: false,
+        }))
+        supabase.from('chat_channels').insert(inserts).select().then(({ data: created }) => {
+          doSetChannels([...(created || []), ...chs])
+        })
+      } else {
+        doSetChannels(chs)
       }
       if (profR.status === 'fulfilled' && !profR.value.error) setProfilesList(profR.value.data || [])
       if (projR.status === 'fulfilled' && !projR.value.error) setProjects(projR.value.data || [])
       if (ciR.status === 'fulfilled' && !ciR.value.error) setTodayCheckins(ciR.value.data || [])
-      setLoading(false)
     })
   }, [profile])
+
+  // ── Auto-archive channels when linked project is closed/encerrado ──
+  useEffect(() => {
+    if (!projects.length || !channels.length) return
+    const closedStatuses = ['encerrado', 'concluido', 'cancelado', 'fechado', 'closed', 'done', 'completed']
+    channels.forEach(ch => {
+      if (!ch.project_id || ch.is_archived || ch.is_general) return
+      const proj = projects.find(p => p.id === ch.project_id)
+      if (proj && closedStatuses.includes((proj.status || '').toLowerCase())) {
+        // Auto-archive silently
+        supabase.from('chat_channels')
+          .update({ is_archived: true })
+          .eq('id', ch.id)
+          .then(({ error }) => {
+            if (!error) {
+              setChannels(prev => prev.map(c => c.id === ch.id ? { ...c, is_archived: true } : c))
+            }
+          })
+      }
+    })
+  }, [projects, channels.length])
 
   // ── Load messages for active channel ──
   useEffect(() => {
@@ -322,23 +416,17 @@ export default function Chat() {
       .eq('org_id', profile.org_id).eq('channel_id', activeChannel.id)
       .order('created_at', { ascending: true }).limit(200)
       .then(({ data }) => {
-        // B-104: merge com msgs que possam ter chegado via realtime antes deste then()
-        // usar setter funcional para combinar sem duplicatas
         setMessages(prev => {
           const loaded = data || []
           if (prev.length === 0) return loaded
           const ids = new Set(loaded.map(m => m.id))
           const extras = prev.filter(m => !ids.has(m.id))
-          return [...loaded, ...extras].sort((a, b) =>
-            new Date(a.created_at) - new Date(b.created_at)
-          )
+          return [...loaded, ...extras].sort((a,b) => new Date(a.created_at) - new Date(b.created_at))
         })
         setLoadingMsgs(false)
-        // Mark as read
         markChannelRead(activeChannel.id)
       })
 
-    // Realtime subscription
     if (realtimeRef.current) supabase.removeChannel(realtimeRef.current)
     const ch = supabase.channel(`chat-${activeChannel.id}`)
       .on('postgres_changes', {
@@ -347,7 +435,6 @@ export default function Chat() {
       }, payload => {
         if (payload.eventType === 'INSERT') {
           setMessages(prev => [...prev, payload.new])
-          // Notify if not from self
           if (payload.new.sender_id !== profile.id) {
             const sender = profMap[payload.new.sender_id]
             addToast(sender?.full_name || 'Alguém', payload.new.content, activeChannel)
@@ -356,14 +443,16 @@ export default function Chat() {
         if (payload.eventType === 'UPDATE') {
           setMessages(prev => prev.map(m => m.id === payload.new.id ? payload.new : m))
         }
+        if (payload.eventType === 'DELETE') {
+          setMessages(prev => prev.filter(m => m.id !== payload.old.id))
+        }
       })
       .subscribe()
     realtimeRef.current = ch
-
     return () => { if (realtimeRef.current) supabase.removeChannel(realtimeRef.current) }
   }, [activeChannel?.id, profile])
 
-  // ── Global realtime — notificações de outros canais ──
+  // ── Global realtime ──
   useEffect(() => {
     if (!profile) return
     const globalCh = supabase.channel('chat-global-notif')
@@ -373,13 +462,8 @@ export default function Chat() {
       }, payload => {
         const msg = payload.new
         if (msg.sender_id === profile.id) return
-        // Update unread count
         if (!activeChannel || msg.channel_id !== activeChannel.id) {
-          setUnreadByChannel(prev => ({
-            ...prev,
-            [msg.channel_id]: (prev[msg.channel_id] || 0) + 1,
-          }))
-          // Toast notification mesmo em outro canal
+          setUnreadByChannel(prev => ({ ...prev, [msg.channel_id]: (prev[msg.channel_id] || 0) + 1 }))
           const sender = profMap[msg.sender_id]
           const ch = channels.find(c => c.id === msg.channel_id)
           addToast(sender?.full_name || 'Alguém', msg.content, ch)
@@ -396,132 +480,150 @@ export default function Chat() {
     }
   }, [messages])
 
-  // ── Toast notifications ──
+  // ── Badge sync ──
+  const totalUnread = Object.values(unreadByChannel).reduce((a,b) => a+b, 0)
+  useEffect(() => { setUnreadChat(totalUnread) }, [totalUnread])
+
   function addToast(senderName, content, channel) {
     const id = Date.now() + Math.random()
-    const toast = {
-      id, senderName,
-      content: (content || '').slice(0, 80),
-      channelName: channel?.name || '',
-      channelId: channel?.id,
-    }
-    setToasts(prev => [...prev.slice(-3), toast]) // max 4 toasts
+    setToasts(prev => [...prev.slice(-3), { id, senderName, content: (content||'').slice(0,80), channelName: channel?.name||'', channelId: channel?.id }])
     setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 5000)
   }
 
   async function markChannelRead(channelId) {
     setUnreadByChannel(prev => ({ ...prev, [channelId]: 0 }))
-    // Persistir no banco: marcar mensagens não lidas como lidas pelo usuário atual
-    // read_by é um array de UUIDs — adicionar profile.id se ainda não estiver
     if (!profile?.id) return
     try {
-      // Buscar mensagens não lidas do canal (onde profile.id não está em read_by)
-      const { data: unread } = await supabase
-        .from('chat_messages')
-        .select('id,read_by')
-        .eq('channel_id', channelId)
-        .eq('org_id', profile.org_id)
-        .not('sender_id', 'eq', profile.id)
-        .order('created_at', { ascending: false })
-        .limit(50)
-
+      const { data: unread } = await supabase.from('chat_messages').select('id,read_by')
+        .eq('channel_id', channelId).eq('org_id', profile.org_id)
+        .not('sender_id', 'eq', profile.id).order('created_at', { ascending: false }).limit(50)
       if (!unread?.length) return
-
-      // Atualizar as mensagens que ainda não têm profile.id em read_by
       const toUpdate = unread.filter(m => !Array.isArray(m.read_by) || !m.read_by.includes(profile.id))
       for (const msg of toUpdate) {
         const newReadBy = Array.isArray(msg.read_by) ? [...msg.read_by, profile.id] : [profile.id]
-        await supabase.from('chat_messages')
-          .update({ read_by: newReadBy })
-          .eq('id', msg.id).eq('org_id', profile.org_id)
+        await supabase.from('chat_messages').update({ read_by: newReadBy }).eq('id', msg.id).eq('org_id', profile.org_id)
       }
-    } catch (err) {
-      // Falha silenciosa — não crítico para UX
-      console.warn('[Chat] markChannelRead persist:', err.message)
+    } catch (err) { console.warn('[Chat] markChannelRead:', err.message) }
+  }
+
+  // ── Archive channel ──
+  async function archiveChannel(channelId) {
+    const ch = channels.find(c => c.id === channelId)
+    if (!ch) return
+    const { error } = await supabase.from('chat_channels')
+      .update({ is_archived: true })
+      .eq('id', channelId).eq('org_id', profile.org_id)
+    if (error) { toast.error('Erro ao arquivar: ' + error.message); return }
+    setChannels(prev => prev.map(c => c.id === channelId ? { ...c, is_archived: true } : c))
+    if (activeChannel?.id === channelId) {
+      const next = channels.find(c => c.id !== channelId && !c.is_archived)
+      setActiveChannel(next || null)
     }
+    toast.success(`Canal "${ch.name}" arquivado`)
+  }
+
+  // ── Unarchive channel ──
+  async function unarchiveChannel(channelId) {
+    const ch = channels.find(c => c.id === channelId)
+    if (!ch) return
+    const { error } = await supabase.from('chat_channels')
+      .update({ is_archived: false })
+      .eq('id', channelId).eq('org_id', profile.org_id)
+    if (error) { toast.error('Erro ao desarquivar: ' + error.message); return }
+    setChannels(prev => prev.map(c => c.id === channelId ? { ...c, is_archived: false } : c))
+    toast.success(`Canal "${ch.name}" desarquivado`)
+  }
+
+  // ── Delete channel ──
+  async function deleteChannel(channelId) {
+    const ch = channels.find(c => c.id === channelId)
+    if (!ch) return
+    const confirmed = await confirm(`Excluir o canal "${ch.name}" e todas as suas mensagens? Esta ação não pode ser desfeita.`)
+    if (!confirmed) return
+    // Delete messages first
+    await supabase.from('chat_messages').delete().eq('channel_id', channelId).eq('org_id', profile.org_id)
+    const { error } = await supabase.from('chat_channels').delete().eq('id', channelId).eq('org_id', profile.org_id)
+    if (error) { toast.error('Erro ao excluir canal: ' + error.message); return }
+    setChannels(prev => prev.filter(c => c.id !== channelId))
+    if (activeChannel?.id === channelId) {
+      const next = channels.find(c => c.id !== channelId && !c.is_archived)
+      setActiveChannel(next || null)
+    }
+    toast.success(`Canal "${ch.name}" excluído`)
+  }
+
+  // ── Rename channel ──
+  function handleRenameSuccess(channelId, newName) {
+    setChannels(prev => prev.map(c => c.id === channelId ? { ...c, name: newName } : c))
+    if (activeChannel?.id === channelId) setActiveChannel(prev => ({ ...prev, name: newName }))
+    toast.success('Canal renomeado')
+  }
+
+  // ── Delete message ──
+  async function deleteMessage(msg) {
+    const confirmed = await confirm('Excluir esta mensagem?')
+    if (!confirmed) return
+    const { error } = await supabase.from('chat_messages')
+      .delete().eq('id', msg.id).eq('org_id', profile.org_id)
+    if (error) { toast.error('Erro ao excluir mensagem: ' + error.message); return }
+    setMessages(prev => prev.filter(m => m.id !== msg.id))
   }
 
   // ── Send message ──
   async function sendMessage() {
     const text = input.trim()
     if (!text || !activeChannel || sending) return
+    if (activeChannel.is_archived) { toast.warning('Este canal está arquivado — não é possível enviar mensagens'); return }
     setSending(true)
     setInput('')
     setReplyTo(null)
     setMentioning(false)
-
-    // Extract mentions
     const mentionMatches = [...text.matchAll(/@(\w+(?:\s\w+)?)/g)]
     const mentions = mentionMatches.map(m => {
       const found = profiles.find(p => p.full_name.toLowerCase().startsWith(m[1].toLowerCase()))
       return found?.id
     }).filter(Boolean)
-
     const { error } = await supabase.from('chat_messages').insert({
-      org_id: profile.org_id,
-      channel_id: activeChannel.id,
-      sender_id: profile.id,
-      content: text,
-      reply_to: replyTo?.id || null,
-      mentions,
-      reactions: {},
-      read_by: [profile.id],
+      org_id: profile.org_id, channel_id: activeChannel.id, sender_id: profile.id,
+      content: text, reply_to: replyTo?.id || null, mentions, reactions: {}, read_by: [profile.id],
     })
-    if (error) { console.error(error); setInput(text) }
+    if (error) { toast.error('Erro ao enviar: ' + error.message); setInput(text) }
     else if (mentions.length > 0) {
-      // B-92: criar notificações para usuários mencionados
-      const notifPayloads = mentions
-        .filter(uid => uid !== profile.id) // não notificar a si mesmo
-        .map(uid => ({
-          org_id:      profile.org_id,
-          user_id:     uid,
-          type:        'mention',
-          title:       `${profile.full_name || 'Alguém'} mencionou você`,
-          message:     `#${activeChannel.name}: ${text.slice(0, 80)}${text.length > 80 ? '…' : ''}`,
-          entity_type: 'chat_channel',
-          entity_id:   activeChannel.id,
-          is_read:     false,
-        }))
-      if (notifPayloads.length > 0) {
-        supabase.from('notifications').insert(notifPayloads)
-          .then(({ error: ne }) => { if (ne) console.warn('[Chat] notif mention:', ne.message) })
-      }
+      const notifPayloads = mentions.filter(uid => uid !== profile.id).map(uid => ({
+        org_id: profile.org_id, user_id: uid, type: 'mention',
+        title: `${profile.full_name || 'Alguém'} mencionou você`,
+        message: `#${activeChannel.name}: ${text.slice(0,80)}${text.length > 80 ? '…' : ''}`,
+        entity_type: 'chat_channel', entity_id: activeChannel.id, is_read: false,
+      }))
+      if (notifPayloads.length > 0) supabase.from('notifications').insert(notifPayloads)
     }
     setSending(false)
     inputRef.current?.focus()
   }
 
-  // ── React to message ──
+  // ── React ──
   async function handleReact(msgId, emoji) {
     const msg = messages.find(m => m.id === msgId)
     if (!msg) return
     const reactions = { ...(msg.reactions || {}) }
     const users = reactions[emoji] ? [...reactions[emoji]] : []
     const idx = users.indexOf(profile.id)
-    if (idx > -1) users.splice(idx, 1)
-    else users.push(profile.id)
-    if (users.length === 0) delete reactions[emoji]
-    else reactions[emoji] = users
-    // Optimistic update
+    if (idx > -1) users.splice(idx, 1); else users.push(profile.id)
+    if (users.length === 0) delete reactions[emoji]; else reactions[emoji] = users
     setMessages(prev => prev.map(m => m.id === msgId ? { ...m, reactions } : m))
-    const { error } = await supabase.from('chat_messages')
-      .update({ reactions }).eq('id', msgId).eq('org_id', profile.org_id)
-    if (error) {
-      // Reverter em caso de falha
-      setMessages(prev => prev.map(m => m.id === msgId ? { ...m, reactions: msg.reactions } : m))
-    }
+    const { error } = await supabase.from('chat_messages').update({ reactions }).eq('id', msgId).eq('org_id', profile.org_id)
+    if (error) setMessages(prev => prev.map(m => m.id === msgId ? { ...m, reactions: msg.reactions } : m))
   }
 
-  // ── Pin message ──
+  // ── Pin ──
   async function handlePin(msg) {
     const { error } = await supabase.from('chat_messages')
       .update({ is_pinned: !msg.is_pinned }).eq('id', msg.id).eq('org_id', profile.org_id)
-    if (error) { toast.error('Erro ao fixar mensagem: ' + error.message); return }
-    // Atualizar localmente para UX imediata
+    if (error) { toast.error('Erro ao fixar: ' + error.message); return }
     setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, is_pinned: !msg.is_pinned } : m))
   }
 
-  // ── Input handling: @mentions ──
+  // ── @mention input ──
   function handleInput(e) {
     const val = e.target.value
     setInput(val)
@@ -529,23 +631,17 @@ export default function Chat() {
     if (lastAt > -1) {
       const query = val.slice(lastAt + 1)
       if (!query.includes(' ') && lastAt === val.length - query.length - 1) {
-        setMentioning(true)
-        setMentionQuery(query)
-        setMentionIndex(0)
-        return
+        setMentioning(true); setMentionQuery(query); setMentionIndex(0); return
       }
     }
     setMentioning(false)
   }
-
-  function insertMention(profile) {
+  function insertMention(p) {
     const lastAt = input.lastIndexOf('@')
-    const newText = input.slice(0, lastAt) + '@' + profile.full_name + ' '
-    setInput(newText)
+    setInput(input.slice(0, lastAt) + '@' + p.full_name + ' ')
     setMentioning(false)
     inputRef.current?.focus()
   }
-
   const mentionFiltered = mentionQuery
     ? profiles.filter(p => p.full_name.toLowerCase().includes(mentionQuery.toLowerCase()) && p.id !== profile?.id)
     : profiles.filter(p => p.id !== profile?.id)
@@ -563,34 +659,74 @@ export default function Chat() {
   // ── Group messages ──
   function groupMessages(msgs) {
     const items = []
-    let lastDate = null
-    let lastGroup = null
+    let lastDate = null, lastGroup = null
     msgs.filter(m => !search || m.content?.toLowerCase().includes(search.toLowerCase())).forEach(msg => {
       const dateStr = fmtDate(msg.created_at)
-      if (dateStr !== lastDate) {
-        items.push({ type: 'divider', label: dateStr })
-        lastDate = dateStr
-        lastGroup = null
-      }
+      if (dateStr !== lastDate) { items.push({ type: 'divider', label: dateStr }); lastDate = dateStr; lastGroup = null }
       const sameAuthor = lastGroup && lastGroup.sender_id === msg.sender_id
       const timeDiff = lastGroup ? (new Date(msg.created_at) - new Date(lastGroup.messages[lastGroup.messages.length-1].created_at)) / 60000 : 999
-      if (sameAuthor && timeDiff < 5) {
-        lastGroup.messages.push(msg)
-      } else {
-        const g = { type: 'group', sender_id: msg.sender_id, messages: [msg] }
-        items.push(g)
-        lastGroup = g
-      }
+      if (sameAuthor && timeDiff < 5) { lastGroup.messages.push(msg) }
+      else { const g = { type: 'group', sender_id: msg.sender_id, messages: [msg] }; items.push(g); lastGroup = g }
     })
     return items
   }
 
   const pinnedMessages = messages.filter(m => m.is_pinned)
-  const totalUnread = Object.values(unreadByChannel).reduce((a, b) => a + b, 0)
-  // B-52: sincronizar badge da Sidebar com contagem real
-  React.useEffect(() => { setUnreadChat(totalUnread) }, [totalUnread])
+  const activeChannels  = channels.filter(ch => !ch.is_archived)
+  const archivedChannels = channels.filter(ch => ch.is_archived)
   const onlineIds = new Set(todayCheckins.map(c => c.user_id))
   const onlineCount = profiles.filter(p => onlineIds.has(p.id)).length
+
+  // ── Render channel row ──
+  function renderChannel(ch) {
+    const isActive = activeChannel?.id === ch.id
+    const unread = unreadByChannel[ch.id] || 0
+    const menuOpen = channelMenu?.channelId === ch.id
+    return (
+      <div key={ch.id} className="relative group/ch">
+        <button
+          onClick={() => { setActiveChannel(ch); markChannelRead(ch.id) }}
+          className={`w-full text-left flex items-center gap-2.5 px-3 py-2 mx-1 rounded-lg transition-all ${isActive ? 'text-white' : 'text-zinc-400 hover:text-white hover:bg-white/5'} ${ch.is_archived ? 'opacity-60' : ''}`}
+          style={{ width: 'calc(100% - 8px)', background: isActive ? VL : 'transparent' }}>
+          <span className="text-base w-5 text-center shrink-0">{ch.icon || '#'}</span>
+          <span className="text-xs font-medium flex-1 truncate">{ch.name}</span>
+          {ch.is_archived && <Archive className="w-3 h-3 text-zinc-500 shrink-0" />}
+          {unread > 0 && !ch.is_archived && (
+            <span className="shrink-0 min-w-[18px] h-[18px] rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center px-1">
+              {unread > 99 ? '99+' : unread}
+            </span>
+          )}
+        </button>
+        {/* ⋯ menu button */}
+        {!ch.is_general && (
+          <button
+            onClick={e => { e.stopPropagation(); setChannelMenu(menuOpen ? null : { channelId: ch.id }) }}
+            className={`absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center rounded-md transition-all text-zinc-500 hover:text-white hover:bg-white/10 ${menuOpen ? 'opacity-100' : 'opacity-0 group-hover/ch:opacity-100'}`}>
+            <MoreHorizontal className="w-3.5 h-3.5" />
+          </button>
+        )}
+        {/* Archived channels: show ⋯ always */}
+        {ch.is_general && ch.is_archived && (
+          <button
+            onClick={e => { e.stopPropagation(); setChannelMenu(menuOpen ? null : { channelId: ch.id }) }}
+            className={`absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center rounded-md transition-all text-zinc-500 hover:text-white hover:bg-white/10 ${menuOpen ? 'opacity-100' : 'opacity-0 group-hover/ch:opacity-100'}`}>
+            <MoreHorizontal className="w-3.5 h-3.5" />
+          </button>
+        )}
+        {menuOpen && (
+          <ChannelMenu
+            channel={ch}
+            isLeader={isLeader}
+            onArchive={() => archiveChannel(ch.id)}
+            onUnarchive={() => unarchiveChannel(ch.id)}
+            onDelete={() => deleteChannel(ch.id)}
+            onRename={() => setRenamingChannel(ch)}
+            onClose={() => setChannelMenu(null)}
+          />
+        )}
+      </div>
+    )
+  }
 
   return (
     <div className="flex h-[calc(100vh-56px)] overflow-hidden font-['Montserrat',system-ui,sans-serif]">
@@ -608,7 +744,7 @@ export default function Chat() {
               <div className="text-[10px] text-zinc-500 mt-0.5">{onlineCount} online agora</div>
             </div>
             <button onClick={() => setShowNewChannel(true)} title="Novo canal"
-              className="w-7 h-7 flex items-center justify-center rounded-lg bg-white/10 hover:bg-white/20 transition-colors text-white">
+              className="w-7 h-7 flex items-center justify-center rounded-lg bg-white/10 hover:bg-white/20 text-white">
               <Plus className="w-3.5 h-3.5" />
             </button>
           </div>
@@ -623,47 +759,38 @@ export default function Chat() {
           </div>
         </div>
 
-        {/* Channels */}
-        <div className="flex-1 overflow-y-auto py-1">
+        {/* Channels list */}
+        <div className="flex-1 overflow-y-auto py-1" onClick={() => setChannelMenu(null)}>
           {loading ? (
             <div className="px-4 py-2 text-xs text-zinc-500">Carregando…</div>
-          ) : (() => {
-            const fixedChs   = channels.filter(ch => ch.is_general)
-            const projectChs = channels.filter(ch => !ch.is_general)
-            const renderCh = ch => {
-              const isActive = activeChannel?.id === ch.id
-              const unread = unreadByChannel[ch.id] || 0
-              return (
-                <button key={ch.id} onClick={() => { setActiveChannel(ch); markChannelRead(ch.id) }}
-                  className={`w-full text-left flex items-center gap-2.5 px-3 py-2 mx-1 rounded-lg transition-all ${isActive ? 'text-white' : 'text-zinc-400 hover:text-white hover:bg-white/5'}`}
-                  style={{ width: 'calc(100% - 8px)', background: isActive ? VL : 'transparent' }}>
-                  <span className="text-base w-5 text-center shrink-0">{ch.icon || '#'}</span>
-                  <span className="text-xs font-medium flex-1 truncate">{ch.name}</span>
-                  {unread > 0 && (
-                    <span className="shrink-0 min-w-[18px] h-[18px] rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center px-1">
-                      {unread > 99 ? '99+' : unread}
-                    </span>
-                  )}
-                </button>
-              )
-            }
-            return (
-              <>
-                {/* Canais fixos */}
-                <div className="px-4 pt-3 pb-1 text-[9px] font-bold uppercase tracking-widest text-zinc-500">Geral</div>
-                {fixedChs.length === 0 ? (
-                  <div className="px-4 py-1 text-[10px] text-zinc-600">Criando canais…</div>
-                ) : fixedChs.map(renderCh)}
-                {/* Canais de projeto */}
-                {projectChs.length > 0 && (
-                  <>
-                    <div className="px-4 pt-3 pb-1 text-[9px] font-bold uppercase tracking-widest text-zinc-500">Projetos</div>
-                    {projectChs.map(renderCh)}
-                  </>
-                )}
-              </>
-            )
-          })()}
+          ) : (
+            <>
+              {/* Fixed / General */}
+              <div className="px-4 pt-3 pb-1 text-[9px] font-bold uppercase tracking-widest text-zinc-500">Geral</div>
+              {activeChannels.filter(ch => ch.is_general).map(renderChannel)}
+
+              {/* Project channels */}
+              {activeChannels.filter(ch => !ch.is_general).length > 0 && (
+                <>
+                  <div className="px-4 pt-3 pb-1 text-[9px] font-bold uppercase tracking-widest text-zinc-500">Projetos</div>
+                  {activeChannels.filter(ch => !ch.is_general).map(renderChannel)}
+                </>
+              )}
+
+              {/* Archived section */}
+              {archivedChannels.length > 0 && (
+                <>
+                  <button
+                    onClick={() => setShowArchived(p => !p)}
+                    className="w-full flex items-center gap-2 px-4 pt-3 pb-1 text-[9px] font-bold uppercase tracking-widest text-zinc-600 hover:text-zinc-400 transition-colors">
+                    {showArchived ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+                    Arquivados ({archivedChannels.length})
+                  </button>
+                  {showArchived && archivedChannels.map(renderChannel)}
+                </>
+              )}
+            </>
+          )}
         </div>
 
         {/* Online members */}
@@ -675,8 +802,7 @@ export default function Chat() {
               const ci = todayCheckins.find(c => c.user_id === p.id)
               const statusIcons = { escritorio: '🏢', cliente: '🤝', remoto: '🏠', viagem: '✈️' }
               return (
-                <div key={p.id} title={`${p.full_name}${ci ? ' — ' + (statusIcons[ci.status] || '📍') : ''}`}
-                  className="relative cursor-default">
+                <div key={p.id} title={`${p.full_name}${ci ? ' — ' + (statusIcons[ci.status] || '📍') : ''}`} className="relative cursor-default">
                   <Avatar profile={p} size={28} />
                   {isOnline && (
                     <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border border-zinc-800 flex items-center justify-center"
@@ -708,12 +834,18 @@ export default function Chat() {
         {activeChannel ? (
           <div className="flex items-center justify-between px-5 py-3 border-b border-zinc-100 shrink-0 bg-white">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center text-xl"
-                style={{ background: '#F4F5F9' }}>
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center text-xl" style={{ background: '#F4F5F9' }}>
                 {activeChannel.icon || '#'}
               </div>
               <div>
-                <div className="text-sm font-bold text-zinc-800">{activeChannel.name}</div>
+                <div className="flex items-center gap-2">
+                  <div className="text-sm font-bold text-zinc-800">{activeChannel.name}</div>
+                  {activeChannel.is_archived && (
+                    <span className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wide text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                      <Archive className="w-2.5 h-2.5" /> Arquivado
+                    </span>
+                  )}
+                </div>
                 <div className="text-[10px] text-zinc-400">
                   {activeChannel.description || `${messages.length} mensagens`}
                   {pinnedMessages.length > 0 && ` · 📌 ${pinnedMessages.length} fixada${pinnedMessages.length > 1 ? 's' : ''}`}
@@ -721,14 +853,20 @@ export default function Chat() {
               </div>
             </div>
             <div className="flex items-center gap-1">
+              {activeChannel.is_archived && isLeader && (
+                <button onClick={() => unarchiveChannel(activeChannel.id)}
+                  className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 transition-colors">
+                  <ArchiveRestore className="w-3 h-3" /> Desarquivar
+                </button>
+              )}
               {pinnedMessages.length > 0 && (
-                <button onClick={() => setShowPinned(p => !p)} title="Ver fixadas"
+                <button onClick={() => setShowPinned(p => !p)}
                   className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold transition-colors ${showPinned ? 'bg-amber-100 text-amber-700' : 'text-zinc-500 hover:bg-zinc-100'}`}>
                   <Pin className="w-3 h-3" /> {pinnedMessages.length}
                 </button>
               )}
-              <button onClick={() => navigate('/time')} title="Ver equipe"
-                className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-zinc-100 transition-colors text-zinc-500">
+              <button onClick={() => navigate('/time')}
+                className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-zinc-100 text-zinc-500">
                 <Users className="w-4 h-4" />
               </button>
             </div>
@@ -751,6 +889,16 @@ export default function Chat() {
                 {(m.content || '').slice(0, 100)}
               </div>
             ))}
+          </div>
+        )}
+
+        {/* Archived banner */}
+        {activeChannel?.is_archived && (
+          <div className="border-b border-amber-100 bg-amber-50 px-5 py-2.5 shrink-0 flex items-center gap-2">
+            <Archive className="w-4 h-4 text-amber-600 shrink-0" />
+            <span className="text-xs text-amber-700 font-semibold">
+              Este canal está arquivado. As mensagens são somente leitura.
+            </span>
           </div>
         )}
 
@@ -780,9 +928,7 @@ export default function Chat() {
                 if (item.type === 'divider') return (
                   <div key={`d-${idx}`} className="flex items-center gap-3 px-4 py-3">
                     <div className="flex-1 h-px bg-zinc-200" />
-                    <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider bg-zinc-100 px-3 py-1 rounded-full">
-                      {item.label}
-                    </span>
+                    <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider bg-zinc-100 px-3 py-1 rounded-full">{item.label}</span>
                     <div className="flex-1 h-px bg-zinc-200" />
                   </div>
                 )
@@ -790,22 +936,15 @@ export default function Chat() {
                 const author = profMap[item.sender_id]
                 return (
                   <div key={`g-${idx}`}>
-                    {item.messages.map((msg, mi) => {
+                    {item.messages.map(msg => {
                       const replyMsg = msg.reply_to ? messages.find(m => m.id === msg.reply_to) : null
                       const replyAuthor = replyMsg ? profMap[replyMsg.sender_id] : null
                       return (
-                        <Message
-                          key={msg.id}
-                          msg={msg}
-                          mine={mine}
-                          author={author}
-                          allProfiles={profiles}
-                          replyMsg={replyMsg}
-                          replyAuthor={replyAuthor}
-                          onReact={handleReact}
-                          onReply={setReplyTo}
-                          onPin={handlePin}
-                        />
+                        <Message key={msg.id} msg={msg} mine={mine} isLeader={isLeader}
+                          author={author} allProfiles={profiles}
+                          replyMsg={replyMsg} replyAuthor={replyAuthor}
+                          onReact={handleReact} onReply={setReplyTo}
+                          onPin={handlePin} onDelete={deleteMessage} />
                       )
                     })}
                   </div>
@@ -818,7 +957,6 @@ export default function Chat() {
 
         {/* Input area */}
         <div className="border-t border-zinc-100 bg-white px-4 py-3 shrink-0">
-          {/* Reply preview */}
           {replyTo && (
             <div className="flex items-center gap-2 bg-violet-50 border border-violet-200 rounded-xl px-3 py-2 mb-2">
               <Reply className="w-3 h-3 text-violet-500 shrink-0" />
@@ -831,14 +969,10 @@ export default function Chat() {
               </button>
             </div>
           )}
-
-          {/* Mention autocomplete */}
           {mentioning && mentionFiltered.length > 0 && (
             <div className="bg-white border border-zinc-200 rounded-xl shadow-lg mb-2 overflow-hidden max-h-48 overflow-y-auto">
-              <div className="px-3 py-1.5 text-[9px] font-bold uppercase tracking-wider text-zinc-400 bg-zinc-50 border-b border-zinc-100">
-                Mencionar membro
-              </div>
-              {mentionFiltered.slice(0, 6).map((p, i) => (
+              <div className="px-3 py-1.5 text-[9px] font-bold uppercase tracking-wider text-zinc-400 bg-zinc-50 border-b border-zinc-100">Mencionar membro</div>
+              {mentionFiltered.slice(0,6).map((p, i) => (
                 <button key={p.id} onClick={() => insertMention(p)}
                   className={`w-full text-left flex items-center gap-2.5 px-3 py-2 text-sm transition-colors ${i === mentionIndex ? 'bg-violet-50' : 'hover:bg-zinc-50'}`}>
                   <Avatar profile={p} size={24} />
@@ -851,78 +985,71 @@ export default function Chat() {
               ))}
             </div>
           )}
-
-          {/* Main input */}
           <div className="flex items-end gap-2">
-            <div className="flex-1 flex items-end bg-zinc-50 border border-zinc-200 rounded-2xl px-4 py-2.5 focus-within:border-violet-300 focus-within:bg-white transition-all gap-2">
-              <button onClick={() => { setInput(prev => prev + '@'); inputRef.current?.focus(); setMentioning(true); setMentionQuery('') }}
-                className="text-zinc-400 hover:text-violet-500 transition-colors shrink-0 pb-0.5" title="Mencionar">
+            <div className={`flex-1 flex items-end rounded-2xl px-4 py-2.5 gap-2 transition-all ${activeChannel?.is_archived ? 'bg-zinc-100 border border-zinc-200 opacity-60' : 'bg-zinc-50 border border-zinc-200 focus-within:border-violet-300 focus-within:bg-white'}`}>
+              <button onClick={() => { if (activeChannel?.is_archived) return; setInput(prev => prev + '@'); inputRef.current?.focus(); setMentioning(true); setMentionQuery('') }}
+                className="text-zinc-400 hover:text-violet-500 shrink-0 pb-0.5" title="Mencionar">
                 <AtSign className="w-4 h-4" />
               </button>
-              <textarea
-                ref={inputRef}
+              <textarea ref={inputRef}
                 className="flex-1 bg-transparent text-sm resize-none outline-none placeholder:text-zinc-400 max-h-32 py-0.5 leading-relaxed"
                 rows={1}
-                placeholder={activeChannel ? `Mensagem em ${activeChannel.icon || '#'}${activeChannel.name}…` : 'Selecione um canal…'}
-                disabled={!activeChannel}
-                value={input}
-                onChange={handleInput}
-                onKeyDown={handleKeyDown}
-                style={{ minHeight: 24 }}
-              />
+                placeholder={activeChannel?.is_archived ? 'Canal arquivado — somente leitura' : activeChannel ? `Mensagem em ${activeChannel.icon || '#'}${activeChannel.name}…` : 'Selecione um canal…'}
+                disabled={!activeChannel || activeChannel.is_archived}
+                value={input} onChange={handleInput} onKeyDown={handleKeyDown}
+                style={{ minHeight: 24 }} />
             </div>
-            <button onClick={sendMessage} disabled={!input.trim() || !activeChannel || sending}
+            <button onClick={sendMessage} disabled={!input.trim() || !activeChannel || sending || activeChannel?.is_archived}
               className="w-10 h-10 rounded-xl flex items-center justify-center text-white shrink-0 transition-all hover:opacity-90 disabled:opacity-40 shadow-sm"
-              style={{ background: input.trim() ? VL : '#CBD5E1' }}>
+              style={{ background: input.trim() && !activeChannel?.is_archived ? VL : '#CBD5E1' }}>
               <Send className="w-4 h-4" />
             </button>
           </div>
-          <div className="text-[10px] text-zinc-400 mt-1 px-1">
-            Enter para enviar · Shift+Enter para quebrar linha · @ para mencionar
-          </div>
+          {!activeChannel?.is_archived && (
+            <div className="text-[10px] text-zinc-400 mt-1 px-1">
+              Enter para enviar · Shift+Enter para quebrar linha · @ para mencionar
+            </div>
+          )}
         </div>
       </div>
 
-      {/* ══════════ TOASTS — WhatsApp style ══════════ */}
+      {/* ══════════ TOASTS ══════════ */}
       <div className="fixed bottom-6 right-6 flex flex-col gap-2 z-50 pointer-events-none">
-        {toasts.map(toast => (
-          <div key={toast.id}
-            className="pointer-events-auto flex items-start gap-3 bg-white rounded-2xl shadow-2xl border border-zinc-100 p-3 w-80 animate-in slide-in-from-right-5"
+        {toasts.map(t => (
+          <div key={t.id}
+            className="pointer-events-auto flex items-start gap-3 bg-white rounded-2xl shadow-2xl border border-zinc-100 p-3 w-80"
             style={{ animation: 'slideInRight 0.3s ease' }}>
             <div className="w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0"
-              style={{ background: VL }}>
-              {initials(toast.senderName)}
-            </div>
+              style={{ background: VL }}>{initials(t.senderName)}</div>
             <div className="flex-1 min-w-0 cursor-pointer" onClick={() => {
-              const ch = channels.find(c => c.id === toast.channelId)
+              const ch = channels.find(c => c.id === t.channelId)
               if (ch) { setActiveChannel(ch); markChannelRead(ch.id) }
             }}>
               <div className="flex items-center justify-between mb-0.5">
-                <span className="text-xs font-bold text-zinc-800 truncate">{toast.senderName}</span>
-                <span className="text-[9px] text-zinc-400 shrink-0 ml-2">
-                  {toast.channelName && `#${toast.channelName}`}
-                </span>
+                <span className="text-xs font-bold text-zinc-800 truncate">{t.senderName}</span>
+                <span className="text-[9px] text-zinc-400 shrink-0 ml-2">{t.channelName && `#${t.channelName}`}</span>
               </div>
-              <p className="text-xs text-zinc-600 leading-relaxed line-clamp-2">{toast.content}</p>
+              <p className="text-xs text-zinc-600 leading-relaxed line-clamp-2">{t.content}</p>
             </div>
-            <button onClick={() => setToasts(p => p.filter(t => t.id !== toast.id))}
-              className="text-zinc-300 hover:text-zinc-500 shrink-0">
+            <button onClick={() => setToasts(p => p.filter(x => x.id !== t.id))} className="text-zinc-300 hover:text-zinc-500 shrink-0">
               <X className="w-3.5 h-3.5" />
             </button>
           </div>
         ))}
       </div>
 
-      {/* New channel modal */}
+      {/* Modals */}
       {showNewChannel && (
-        <NewChannelModal
-          profile={profile} projects={projects}
-          onCreated={(ch) => { setChannels(prev => [...prev, ch]); setActiveChannel(ch); setShowNewChannel(false) }}
-          onClose={() => setShowNewChannel(false)}
-        />
+        <NewChannelModal profile={profile} projects={projects}
+          onCreated={ch => { setChannels(prev => [...prev, ch]); setActiveChannel(ch); setShowNewChannel(false) }}
+          onClose={() => setShowNewChannel(false)} />
+      )}
+      {renamingChannel && (
+        <RenameModal channel={renamingChannel}
+          onSave={handleRenameSuccess}
+          onClose={() => setRenamingChannel(null)} />
       )}
 
-      {/* Global CSS for animations */}
       <style>{`
         @keyframes slideInRight {
           from { opacity: 0; transform: translateX(24px); }
