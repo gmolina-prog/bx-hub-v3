@@ -890,7 +890,6 @@ export default function Rotinas() {
         <select className="text-sm border border-zinc-200 rounded-lg px-3 py-2 bg-white max-w-[280px]"
           value={filterProject} onChange={e => setFilterProject(e.target.value)}>
           <option value="all">Todos os projetos</option>
-          <option value="__sem_projeto__">Sem projeto</option>
           {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select>
         <div className="ml-auto flex gap-2">
