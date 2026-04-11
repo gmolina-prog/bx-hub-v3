@@ -298,7 +298,7 @@ function ScheduleModal({ onSchedule, onClose }) {
 }
 
 // ─── Channel Menu ─────────────────────────────────────────────────────────────
-function ChannelMenu({ channel, isLeader, onArchive, onUnarchive, onDelete, onRename, onClose }) {
+function ChannelMenu({ channel, isLeader, onArchive, onUnarchive, onDelete, onRename, onClose, position }) {
   const menuRef = useRef(null)
   useEffect(() => {
     function h(e) { if(menuRef.current&&!menuRef.current.contains(e.target)) onClose() }
@@ -307,7 +307,8 @@ function ChannelMenu({ channel, isLeader, onArchive, onUnarchive, onDelete, onRe
   },[onClose])
   return (
     <div ref={menuRef}
-      className="absolute left-full top-0 ml-1 bg-white border border-zinc-200 rounded-xl shadow-xl z-50 py-1 w-44"
+      className="fixed bg-white border border-zinc-200 rounded-xl shadow-xl z-[9999] py-1 w-44"
+      style={{ top: position?.y||0, left: position?.x||0 }}
       onClick={e=>e.stopPropagation()}>
       {!channel.is_general && (
         <button onClick={()=>{onRename();onClose()}}
@@ -1112,13 +1113,14 @@ export default function Chat() {
           )}
         </button>
         {showMenu&&(
-          <button onClick={e=>{e.stopPropagation();setChannelMenu(menuOpen?null:{channelId:ch.id})}}
+          <button onClick={e=>{e.stopPropagation();if(menuOpen){setChannelMenu(null)}else{const r=e.currentTarget.getBoundingClientRect();setChannelMenu({channelId:ch.id,x:r.right+4,y:r.top})}}}
             className={`absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center rounded-md text-zinc-500 hover:text-white hover:bg-white/10 ${menuOpen?'opacity-100':'opacity-0 group-hover/ch:opacity-100'}`}>
             <MoreHorizontal className="w-3.5 h-3.5"/>
           </button>
         )}
         {menuOpen&&(
           <ChannelMenu channel={ch} isLeader={isLeader}
+            position={channelMenu}
             onArchive={()=>archiveChannel(ch.id)}
             onUnarchive={()=>unarchiveChannel(ch.id)}
             onDelete={()=>deleteChannel(ch.id)}
