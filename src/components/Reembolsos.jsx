@@ -20,7 +20,8 @@ const STAGES = [
   { id: 'submetido',  label: 'Submetido',  color: '#F59E0B', header: '#FFFBEB', border: '#FDE68A', dot: '#EAB308', text: '#713F12', next: 'em_analise' },
   { id: 'em_analise', label: 'Em Análise', color: '#6366F1', header: '#EEF2FF', border: '#DDD6FE', dot: '#818CF8', text: '#4338CA', next: 'aprovado'   },
   { id: 'aprovado',   label: 'Aprovado',   color: '#10B981', header: '#F0FDF4', border: '#BBF7D0', dot: '#22C55E', text: '#14532D', next: 'pago'        },
-  { id: 'pago',       label: 'Pago',       color: '#3B82F6', header: '#EFF6FF', border: '#BFDBFE', dot: '#60A5FA', text: '#1E40AF', next: null          },
+  { id: 'pago',       label: 'Pago',       color: '#3B82F6', header: '#EFF6FF', border: '#BFDBFE', dot: '#60A5FA', text: '#1E40AF', next: 'pago_cliente' },
+  { id: 'pago_cliente',label:'Pago pelo Cliente',color:'#10B981',header:'#F0FDF4',border:'#A7F3D0',dot:'#34D399',text:'#065F46',next: null },
 ]
 const STAGE_MAP = Object.fromEntries(STAGES.map(s => [s.id, s]))
 
@@ -1073,7 +1074,8 @@ export default function Reembolsos() {
   async function advanceStatus(report, nextStatus) {
     const updates = { status: nextStatus }
     if (nextStatus === 'aprovado')   { updates.approved_by = profile.id; updates.approved_at = new Date().toISOString() }
-    if (nextStatus === 'pago')       { updates.paid_at = new Date().toISOString() }
+    if (nextStatus === 'pago')        { updates.paid_at = new Date().toISOString() }
+    if (nextStatus === 'pago_cliente'){ updates.paid_by_client_at = new Date().toISOString() }
     if (nextStatus === 'submetido')  { updates.submitted_at = new Date().toISOString() }
     const { error } = await supabase.from('expense_reports')
       .update(updates).eq('id', report.id).eq('org_id', profile.org_id)
@@ -1121,9 +1123,11 @@ export default function Reembolsos() {
   const profMap = Object.fromEntries(profiles.map(p => [p.id, p]))
 
   // KPIs
-  const totalPendente = reports.filter(r => r.status === 'submetido' || r.status === 'em_analise').reduce((s, r) => s + (parseFloat(r.total_amount) || 0), 0)
-  const totalAprovado = reports.filter(r => r.status === 'aprovado').reduce((s, r) => s + (parseFloat(r.total_amount) || 0), 0)
-  const totalPago = reports.filter(r => r.status === 'pago').reduce((s, r) => s + (parseFloat(r.total_amount) || 0), 0)
+  const totalPendente   = reports.filter(r => ['submetido','em_analise'].includes(r.status)).reduce((s,r) => s+(parseFloat(r.total_amount)||0), 0)
+  const totalAprovado   = reports.filter(r => r.status === 'aprovado').reduce((s,r) => s+(parseFloat(r.total_amount)||0), 0)
+  const totalPago       = reports.filter(r => r.status === 'pago').reduce((s,r) => s+(parseFloat(r.total_amount)||0), 0)
+  const totalPagoCliente= reports.filter(r => r.status === 'pago_cliente').reduce((s,r) => s+(parseFloat(r.total_amount)||0), 0)
+  const totalAReceber   = reports.filter(r => ['aprovado','pago'].includes(r.status)).reduce((s,r) => s+(parseFloat(r.total_amount)||0), 0)
 
   return (
     <div className="p-6 max-w-[1600px] mx-auto">
@@ -1149,7 +1153,15 @@ export default function Reembolsos() {
             </div>
             <div className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-center">
               <div className="text-lg font-bold text-blue-400">{fmtBRL(totalPago)}</div>
-              <div className="text-[10px] text-zinc-400 uppercase tracking-wider mt-0.5">Pago</div>
+              <div className="text-[10px] text-zinc-400 uppercase tracking-wider mt-0.5">Pago BX</div>
+            </div>
+            <div className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-center border-violet-500/40" style={{borderColor:'#818CF8AA'}}>
+              <div className="text-lg font-bold" style={{color:'#818CF8'}}>{fmtBRL(totalAReceber)}</div>
+              <div className="text-[10px] text-violet-300 uppercase tracking-wider mt-0.5 font-semibold">A Receber</div>
+            </div>
+            <div className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-center">
+              <div className="text-lg font-bold text-teal-400">{fmtBRL(totalPagoCliente)}</div>
+              <div className="text-[10px] text-zinc-400 uppercase tracking-wider mt-0.5">Recebido</div>
             </div>
           </div>
         </div>
@@ -1267,10 +1279,16 @@ export default function Reembolsos() {
                         <div className="p-4">
                           {/* Badge */}
                           <div className="flex items-center gap-1.5 mb-2.5 flex-wrap">
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border"
-                              style={{ background: isStale ? '#FEF2F2' : stage.header, color: isStale ? '#B91C1C' : stage.text, borderColor: isStale ? '#FECACA' : stage.border }}>
-                              {isStale ? 'Parado +7d' : stage.label}
-                            </span>
+                            {report.status === 'pago_cliente' ? (
+                              <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-300 flex items-center gap-1">
+                                ✅ Processo Finalizado
+                              </span>
+                            ) : (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border"
+                                style={{ background: isStale ? '#FEF2F2' : stage.header, color: isStale ? '#B91C1C' : stage.text, borderColor: isStale ? '#FECACA' : stage.border }}>
+                                {isStale ? 'Parado +7d' : stage.label}
+                              </span>
+                            )}
                             {report.status === 'rejeitado' && (
                               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-50 text-red-700 border border-red-200">Rejeitado</span>
                             )}
