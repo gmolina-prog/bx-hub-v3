@@ -84,7 +84,7 @@ export default function Dashboard() {
     if (!profile) return
     setLoading(true)
     const today = new Date().toISOString().split('T')[0]
-    const [tasksR, pipeR, projR, ciR, profR, routR, actR, risksR, compR] = await Promise.allSettled([
+    const [tasksR, pipeR, projR, ciR, profR, routR, actR, risksR, compR, expR] = await Promise.allSettled([
       supabase.from('tasks').select('id,column_id,priority,assigned_to,due_date,title,project_id,updated_at').eq('org_id', profile.org_id).is('deleted_at', null).limit(500),
       supabase.from('pipeline_items').select('id,stage,value,probability,name').eq('org_id', profile.org_id).eq('is_archived', false).limit(200),
       supabase.from('projects').select('id,name,status,deadline,type,budget,associate_id,company_id').eq('org_id', profile.org_id),
@@ -94,6 +94,7 @@ export default function Dashboard() {
       supabase.from('activity_log').select('id,actor_id,entity_type,action,metadata,created_at,module').eq('org_id', profile.org_id).order('created_at', { ascending: false }).limit(10),
       supabase.from('risks').select('id,name,status,probability,impact,owner_id,project_id,mitigation_due').eq('org_id', profile.org_id).neq('status','closed').limit(50),
       supabase.from('companies').select('id,name,status,criticality').eq('org_id', profile.org_id).eq('status','ativo').limit(50),
+      supabase.from('expense_reports').select('id,status,total_amount,submitted_by,period_start,period_end,title').eq('org_id', profile.org_id),
     ])
 
     const tasks    = tasksR.status === 'fulfilled' && !tasksR.value.error ? tasksR.value.data || [] : []
@@ -121,7 +122,13 @@ export default function Dashboard() {
     const INACTIVE_STATUSES = ['Cancelado','Completo','cancelled','complete','Concluído','concluido','Pausado','pausado']
     const activeProjs = projects.filter(p => !INACTIVE_STATUSES.includes(p.status))
     const risks    = risksR?.status === 'fulfilled' && !risksR.value.error ? risksR.value.data  || [] : []
-    const companies = compR?.status  === 'fulfilled' && !compR.value.error  ? compR.value.data   || [] : []
+    const companies  = compR?.status === 'fulfilled' && !compR.value.error ? compR.value.data || [] : []
+    const expenses   = expR?.status  === 'fulfilled' && !expR.value.error  ? expR.value.data  || [] : []
+    const expAReceber  = expenses.filter(r => ['aprovado','pago'].includes(r.status)).reduce((s,r) => s+(parseFloat(r.total_amount)||0), 0)
+    const expAprovado  = expenses.filter(r => r.status === 'aprovado').reduce((s,r) => s+(parseFloat(r.total_amount)||0), 0)
+    const expPago      = expenses.filter(r => r.status === 'pago').reduce((s,r) => s+(parseFloat(r.total_amount)||0), 0)
+    const expRecebido  = expenses.filter(r => r.status === 'pago_cliente').reduce((s,r) => s+(parseFloat(r.total_amount)||0), 0)
+    const expPendente  = expenses.filter(r => ['submetido','em_analise'].includes(r.status)).reduce((s,r) => s+(parseFloat(r.total_amount)||0), 0)
     const profMap = {}
     profiles.forEach(p => { profMap[p.id] = p })
     const compMap = {}
@@ -170,7 +177,7 @@ export default function Dashboard() {
 
     const firstName = profile.full_name?.split(' ')[0] || 'Gabriel'
 
-    setData({ tasks, pipeline, projects, checkins, profiles, routines, todo, doing, done, overdue, doneWeek, pipeTotal, pipeWeighted, activeProjs, profMap, ciByStatus, memberLoadArr, recentActivity, health, statusIcon, statusText, pipeStages, firstName, ciPct, dueSoon, actLog })
+    setData({ tasks, pipeline, projects, checkins, profiles, routines, todo, doing, done, overdue, doneWeek, pipeTotal, pipeWeighted, activeProjs, profMap, ciByStatus, memberLoadArr, recentActivity, health, statusIcon, statusText, pipeStages, firstName, ciPct, dueSoon, actLog, expenses, expAReceber, expAprovado, expPago, expRecebido, expPendente })
     setLoading(false)
   }, [profile])
 
@@ -523,6 +530,51 @@ export default function Dashboard() {
           </div>
         ))}
       </div>
+
+      {/* ── REEMBOLSOS ── */}
+      {(data.expenses?.length > 0 || data.expAReceber > 0) && (
+        <div className="mb-6">
+          <div className="text-[10px] font-bold uppercase tracking-widest text-violet-600 mb-3 flex items-center gap-2">
+            <span className="w-5 h-0.5 bg-violet-600 rounded inline-block" />Reembolsos de Despesas
+          </div>
+          <div className="rounded-xl overflow-hidden border border-zinc-200" style={{ background: '#2D2E39' }}>
+            <div className="flex items-center justify-between px-5 py-3 border-b border-white/10">
+              <span className="text-xs font-bold text-zinc-300 flex items-center gap-2">🧾 Controle de Reembolsos</span>
+              <button onClick={() => navigate('/reembolsos')} className="text-[10px] text-violet-400 hover:text-violet-300 font-semibold">Ver todos →</button>
+            </div>
+            <div className="grid grid-cols-5 gap-0 divide-x divide-white/10">
+              {[
+                { label: 'Pendente', value: data.expPendente, color: '#F59E0B', icon: '⏳' },
+                { label: 'Aprovado', value: data.expAprovado, color: '#10B981', icon: '✅' },
+                { label: 'Pago BX',  value: data.expPago,     color: '#60A5FA', icon: '💸' },
+                { label: 'A Receber', value: data.expAReceber, color: '#818CF8', icon: '📥', highlight: true },
+                { label: 'Recebido', value: data.expRecebido,  color: '#34D399', icon: '🏦' },
+              ].map((item, i) => (
+                <div key={i} className="px-4 py-3 text-center" style={item.highlight ? { background: 'rgba(129,140,248,0.1)' } : {}}>
+                  <div className="text-lg mb-0.5">{item.icon}</div>
+                  <div className="text-sm font-bold" style={{ color: item.color }}>
+                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.value || 0)}
+                  </div>
+                  <div className="text-[9px] font-bold uppercase tracking-wider mt-1" style={{ color: item.highlight ? '#A5B4FC' : '#94A3B8' }}>
+                    {item.label}
+                  </div>
+                </div>
+              ))}
+            </div>
+            {data.expAReceber > 0 && (
+              <div className="px-5 py-2.5 border-t border-white/10 flex items-center gap-2">
+                <div className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-pulse" />
+                <span className="text-[11px] text-violet-300 font-semibold">
+                  {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(data.expAReceber)} aguardando reembolso dos clientes
+                </span>
+                <span className="text-[10px] text-zinc-500 ml-auto">
+                  {data.expenses?.filter(r => ['aprovado','pago'].includes(r.status)).length} relatório{data.expenses?.filter(r => ['aprovado','pago'].includes(r.status)).length !== 1 ? 's' : ''}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ── VISÃO OPERACIONAL ── */}
       <div className="text-[10px] font-bold uppercase tracking-widest text-violet-600 mb-3 flex items-center gap-2">
