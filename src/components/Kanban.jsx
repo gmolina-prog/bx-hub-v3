@@ -143,17 +143,18 @@ function TaskModal({ task, projects, profiles, allTasks, onClose, onSave, onDele
     cover_color:  task.cover_color  || '',
     collaborators: Array.isArray(task.custom_field_values?.collaborators)
                    ? task.custom_field_values.collaborators : [],
-    hours_estimated: task.hours_estimated || '',
-    hours_logged:    task.hours_logged    || '',
-    blocked_by:   task.blocked_by || null,
+    next_action:  task.next_action  || '',
+    waiting_for:  task.waiting_for  || '',
+    client_impact: task.client_impact || false,
   })
 
   const [subtasks,        setSubtasks]        = useState(Array.isArray(task.checklist) ? task.checklist : [])
-  const [newSubtask,      setNewSubtask]      = useState('')
-  const [comments,        setComments]        = useState([])
-  const [newComment,      setNewComment]      = useState('')
-  const [loadingComments, setLoadingComments] = useState(false)
-  const [saving,          setSaving]          = useState(false)
+  const [newSubtask,      setNewSubtask]       = useState('')
+  const [comments,        setComments]         = useState([])
+  const [newComment,      setNewComment]       = useState('')
+  const [loadingComments, setLoadingComments]  = useState(false)
+  const [commentTab,      setCommentTab]       = useState('comments') // 'comments' | 'history'
+  const [saving,          setSaving]           = useState(false)
   const commentsEndRef  = useRef(null)
   const titleRef        = useRef(null)
   const commentInputRef = useRef(null)
@@ -172,11 +173,14 @@ function TaskModal({ task, projects, profiles, allTasks, onClose, onSave, onDele
   const doneSubtasks = subtasks.filter(s => s.done).length
   const subPct = subtasks.length > 0 ? Math.round(doneSubtasks / subtasks.length * 100) : 0
   const accentColor = form.is_emergency ? '#DC2626' : (form.cover_color || VL)
+  const proj = projects.find(p => p.id === form.project_id)
 
-  // Esforço: % de horas logadas
-  const effortPct = form.hours_estimated > 0
-    ? Math.min(100, Math.round((parseFloat(form.hours_logged) || 0) / parseFloat(form.hours_estimated) * 100))
-    : null
+  // Prazo
+  const today = new Date(); today.setHours(0,0,0,0)
+  const dueDate = form.due_date ? new Date(form.due_date) : null
+  const daysLeft = dueDate ? Math.ceil((dueDate - today) / 86400000) : null
+  const isOverdue = daysLeft !== null && daysLeft < 0 && form.column_id !== 'done'
+  const isDueSoon = daysLeft !== null && daysLeft >= 0 && daysLeft <= 3 && form.column_id !== 'done'
 
   function toggleSubtask(i) { setSubtasks(prev => prev.map((s,j) => j===i ? {...s,done:!s.done} : s)) }
   function addSubtask() {
@@ -207,364 +211,452 @@ function TaskModal({ task, projects, profiles, allTasks, onClose, onSave, onDele
     setSaving(false)
   }
 
-  const COVER_COLORS = ['#5452C1','#10B981','#F59E0B','#EF4444','#3B82F6','#8B5CF6','#EC4899','#2D2E39','#6B7280']
+  // Agrupar comentários por data
+  function groupByDate(comments) {
+    const groups = []
+    let lastDate = null
+    comments.forEach(cm => {
+      const d = new Date(cm.created_at)
+      const today = new Date(); today.setHours(0,0,0,0)
+      const yesterday = new Date(today); yesterday.setDate(today.getDate()-1)
+      let label = d >= today ? 'Hoje' : d >= yesterday ? 'Ontem' : d.toLocaleDateString('pt-BR',{day:'2-digit',month:'long'})
+      if (label !== lastDate) { groups.push({ type:'divider', label }); lastDate = label }
+      groups.push({ type:'comment', ...cm })
+    })
+    return groups
+  }
 
-  // Bloqueadores — outras tasks do mesmo projeto
-  const blockCandidates = allTasks.filter(t =>
-    t.id !== task.id && t.column_id !== 'done' &&
-    (!form.project_id || t.project_id === form.project_id)
-  )
+  const grouped = groupByDate(comments)
+
+  // Assigned profile
+  const assignedProf = profiles.find(p => p.id === form.assigned_to)
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
       style={{ background: 'rgba(10,10,16,0.65)', backdropFilter: 'blur(6px)' }}
       onClick={e => e.target === e.currentTarget && onClose()}>
 
-      <div className="bg-white rounded-2xl shadow-2xl flex overflow-hidden"
+      <div className="bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col"
         style={{ width: '96vw', maxWidth: 1100, height: '90vh', borderTop: `3px solid ${accentColor}` }}>
 
-        {/* ── Coluna Esquerda ── */}
-        <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
-
-          {/* Header */}
-          <div className="shrink-0 border-b border-zinc-100">
-            <div className="flex items-center justify-between px-6 py-3">
-              <div className="flex items-center gap-2 flex-wrap">
-                <select className="text-[10px] font-bold px-2.5 py-1 rounded-full border-0 focus:outline-none cursor-pointer"
+        {/* ── HEADER ─────────────────────────────────────────────── */}
+        <div className="shrink-0 px-6 pt-4 pb-3 border-b border-zinc-100">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex-1 min-w-0">
+              {/* Breadcrumb */}
+              <div className="flex items-center gap-1.5 mb-2 flex-wrap">
+                {proj && <>
+                  <div className="w-2 h-2 rounded-full shrink-0" style={{ background: accentColor }} />
+                  <span className="text-[11px] text-zinc-400">{proj.name}</span>
+                  <span className="text-[11px] text-zinc-300">›</span>
+                </>}
+                <select className="text-[10px] font-bold px-2 py-0.5 rounded-full border-0 outline-none cursor-pointer"
                   style={{ background: PRIORITY[form.priority]?.bg, color: PRIORITY[form.priority]?.color }}
                   value={form.priority} onChange={e => setForm(p => ({...p, priority: e.target.value}))}>
                   {Object.entries(PRIORITY).map(([k,v]) => <option key={k} value={k}>{v.label}</option>)}
                 </select>
-                <select className="text-[10px] font-bold px-2.5 py-1 rounded-full border border-zinc-200 focus:outline-none cursor-pointer bg-white text-zinc-600"
+                <select className="text-[10px] font-bold px-2 py-0.5 rounded-full border border-zinc-200 outline-none cursor-pointer bg-white text-zinc-600"
                   value={form.column_id} onChange={e => setForm(p => ({...p, column_id: e.target.value}))}>
                   {COLS.map(c => <option key={c.id} value={c.id}>{c.emoji} {c.label}</option>)}
                 </select>
-                {form.is_emergency && <span className="text-[10px] font-bold px-2 py-1 rounded-full bg-red-100 text-red-700">🚨 Emergência</span>}
-                {form.blocked_by && <span className="text-[10px] font-bold px-2 py-1 rounded-full bg-amber-100 text-amber-700">🔒 Bloqueada</span>}
-              </div>
-              <div className="flex items-center gap-1">
+                {/* Emergência inline */}
+                <button onClick={() => setForm(p => ({...p, is_emergency: !p.is_emergency}))}
+                  className={`flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-0.5 rounded-full border transition-all ${form.is_emergency ? 'bg-red-50 border-red-300 text-red-700' : 'bg-zinc-50 border-zinc-200 text-zinc-500 hover:border-zinc-300'}`}>
+                  <div className={`w-3 h-3 rounded-full border transition-all flex items-center justify-center ${form.is_emergency ? 'bg-red-500 border-red-500' : 'border-zinc-300'}`}>
+                    {form.is_emergency && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                  </div>
+                  Emergência
+                </button>
                 <button onClick={() => setForm(p => ({...p, is_starred: !p.is_starred}))}
-                  className={`p-1.5 rounded-lg text-sm ${form.is_starred ? 'text-amber-400' : 'text-zinc-300 hover:text-amber-400'}`}>⭐</button>
-                {task.id !== 'new' && <>
-                  <button onClick={() => onArchive?.(task.id)} className="p-1.5 text-zinc-400 hover:text-amber-500 rounded-lg"><Archive className="w-4 h-4" /></button>
-                  <button onClick={() => onDelete(task.id)} className="p-1.5 text-zinc-400 hover:text-red-500 rounded-lg"><Trash2 className="w-4 h-4" /></button>
-                </>}
-                <button onClick={onClose} className="p-1.5 text-zinc-400 hover:text-zinc-700 rounded-lg"><X className="w-5 h-5" /></button>
+                  className={`text-sm px-1 ${form.is_starred ? 'text-amber-400' : 'text-zinc-300 hover:text-amber-400'}`}>★</button>
               </div>
-            </div>
-
-            <div className="px-7 pb-2">
+              {/* Título */}
               <textarea ref={titleRef} rows={2}
-                className="w-full text-xl font-bold text-zinc-800 resize-none border-0 outline-none placeholder:text-zinc-300 leading-snug"
+                className="w-full text-lg font-bold text-zinc-800 resize-none border-0 outline-none placeholder:text-zinc-300 leading-snug"
                 placeholder="Título da tarefa…"
                 value={form.title} onChange={e => setForm(p => ({...p, title: e.target.value}))} />
-            </div>
-            <div className="px-7 pb-4">
-              <textarea rows={2}
-                className="w-full text-sm text-zinc-500 resize-none border-0 outline-none placeholder:text-zinc-300 leading-relaxed"
+              {/* Descrição */}
+              <textarea rows={1}
+                className="w-full text-sm text-zinc-400 resize-none border-0 outline-none placeholder:text-zinc-300 leading-relaxed mt-1"
                 placeholder="Descrição, contexto, links…"
                 value={form.description || ''} onChange={e => setForm(p => ({...p, description: e.target.value}))} />
             </div>
-          </div>
-
-          {/* Checklist + Comentários */}
-          <div className="flex flex-1 min-h-0 overflow-hidden">
-
-            {/* Checklist */}
-            <div className="flex flex-col border-r border-zinc-100 bg-zinc-50/30 overflow-hidden" style={{ flex: '0 0 40%' }}>
-              <div className="shrink-0 px-7 pt-3 pb-2">
-                <div className="flex items-center gap-2 mb-2">
-                  <CheckSquare className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
-                  <span className="text-[11px] font-bold text-zinc-500 uppercase tracking-wider">Checklist</span>
-                  {subtasks.length > 0 && <>
-                    <span className="text-[11px] font-semibold shrink-0" style={{ color: subPct===100?'#10B981':accentColor }}>
-                      {doneSubtasks}/{subtasks.length}
-                    </span>
-                    <div className="flex-1 h-1.5 bg-zinc-200 rounded-full overflow-hidden">
-                      <div className="h-full rounded-full transition-all" style={{ width: `${subPct}%`, background: subPct===100?'#10B981':accentColor }} />
-                    </div>
-                    <span className="text-[11px] font-semibold shrink-0" style={{ color: subPct===100?'#10B981':accentColor }}>{subPct}%</span>
-                  </>}
-                </div>
-
-                {/* Esforço */}
-                <div className="flex items-center gap-2 mb-1">
-                  <Clock className="w-3 h-3 text-zinc-400 shrink-0" />
-                  <span className="text-[11px] font-bold text-zinc-500 uppercase tracking-wider">Esforço</span>
-                </div>
-                <div className="flex gap-2 mb-2">
-                  <div className="flex-1">
-                    <label className="text-[9px] text-zinc-400 uppercase tracking-wide block mb-0.5">Estimado (h)</label>
-                    <input type="number" min="0" step="0.5"
-                      className="w-full text-xs border border-zinc-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-violet-400"
-                      placeholder="0" value={form.hours_estimated}
-                      onChange={e => setForm(p => ({...p, hours_estimated: e.target.value}))} />
-                  </div>
-                  <div className="flex-1">
-                    <label className="text-[9px] text-zinc-400 uppercase tracking-wide block mb-0.5">Logado (h)</label>
-                    <input type="number" min="0" step="0.5"
-                      className="w-full text-xs border border-zinc-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-violet-400"
-                      placeholder="0" value={form.hours_logged}
-                      onChange={e => setForm(p => ({...p, hours_logged: e.target.value}))} />
-                  </div>
-                </div>
-                {effortPct !== null && (
-                  <div className="flex items-center gap-2 mb-2">
-                    <div className="flex-1 h-1.5 bg-zinc-200 rounded-full overflow-hidden">
-                      <div className="h-full rounded-full transition-all"
-                        style={{ width: `${effortPct}%`, background: effortPct>100?'#EF4444':effortPct>80?'#F59E0B':'#10B981' }} />
-                    </div>
-                    <span className="text-[10px] font-bold shrink-0"
-                      style={{ color: effortPct>100?'#EF4444':effortPct>80?'#F59E0B':'#10B981' }}>{effortPct}%</span>
-                  </div>
-                )}
-              </div>
-
-              <div className="flex-1 overflow-y-auto px-7 min-h-0">
-                <div className="space-y-1 pb-1">
-                  {subtasks.map((s,i) => (
-                    <div key={i} className="flex items-center gap-2.5 group py-1 rounded-lg hover:bg-white/70 px-1 -mx-1">
-                      <button onClick={() => toggleSubtask(i)}
-                        className="w-[18px] h-[18px] rounded border-2 flex items-center justify-center shrink-0 transition-all"
-                        style={s.done ? {background:accentColor,borderColor:accentColor} : {borderColor:'#D1D5DB',background:'white'}}>
-                        {s.done && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
-                      </button>
-                      <span className={`text-sm flex-1 leading-snug select-none ${s.done?'line-through text-zinc-400':'text-zinc-700'}`}>{s.text}</span>
-                      <button onClick={() => removeSubtask(i)}
-                        className="opacity-0 group-hover:opacity-100 w-5 h-5 flex items-center justify-center text-zinc-300 hover:text-red-500 rounded text-base leading-none shrink-0">×</button>
-                    </div>
-                  ))}
-                  {subtasks.length === 0 && <p className="text-xs text-zinc-400 italic py-2">Sem itens ainda.</p>}
-                </div>
-              </div>
-
-              <div className="shrink-0 px-7 py-2.5 border-t border-zinc-100 bg-zinc-50">
-                <div className="flex gap-2">
-                  <input className="flex-1 text-sm border border-zinc-200 rounded-lg px-3 py-1.5 focus:outline-none focus:border-violet-500 placeholder:text-zinc-300 bg-white"
-                    placeholder="Novo item… (Enter)" value={newSubtask}
-                    onChange={e => setNewSubtask(e.target.value)}
-                    onKeyDown={e => { if (e.key==='Enter') { e.preventDefault(); addSubtask() }}} />
-                  <button onClick={addSubtask} disabled={!newSubtask.trim()}
-                    className="px-3 py-1.5 text-xs font-semibold text-zinc-500 bg-white border border-zinc-200 rounded-lg hover:border-violet-400 hover:text-violet-600 disabled:opacity-40">+ Item</button>
-                </div>
-              </div>
-            </div>
-
-            {/* Comentários */}
-            <div className="flex flex-col min-h-0 flex-1">
-              <div className="flex-1 overflow-y-auto px-7 py-4">
-                <div className="flex items-center gap-2 mb-3">
-                  <MessageSquare className="w-3.5 h-3.5 text-zinc-400" />
-                  <span className="text-[11px] font-bold text-zinc-500 uppercase tracking-wider">Comentários</span>
-                  {comments.length > 0 && <span className="text-[11px] text-zinc-400">{comments.length}</span>}
-                </div>
-                {loadingComments ? (
-                  <div className="text-xs text-zinc-400 py-3">Carregando…</div>
-                ) : comments.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-8 text-center">
-                    <div className="w-10 h-10 rounded-2xl bg-zinc-100 flex items-center justify-center mb-2">
-                      <MessageSquare className="w-5 h-5 text-zinc-300" />
-                    </div>
-                    <p className="text-xs text-zinc-400">Sem comentários ainda.</p>
-                    <button onClick={() => commentInputRef.current?.focus()}
-                      className="mt-2 text-xs font-semibold hover:underline" style={{color:VL}}>Iniciar discussão</button>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {comments.map((cm,i) => (
-                      <div key={i} className="flex gap-3">
-                        <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 mt-0.5"
-                          style={{background:VL}}>{(cm.user_name||'?').slice(0,2).toUpperCase()}</div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-baseline gap-2 mb-1">
-                            <span className="text-xs font-bold text-zinc-700">{cm.user_name?.split(' ')[0]}</span>
-                            <span className="text-[10px] text-zinc-400">
-                              {new Date(cm.created_at).toLocaleString('pt-BR', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}
-                            </span>
-                          </div>
-                          <div className="text-sm text-zinc-600 leading-relaxed bg-zinc-50 rounded-xl px-4 py-2.5">{cm.content}</div>
-                        </div>
-                      </div>
-                    ))}
-                    <div ref={commentsEndRef} />
-                  </div>
-                )}
-              </div>
-              {task.id !== 'new' && (
-                <div className="shrink-0 border-t border-zinc-100 px-7 py-4 bg-white">
-                  <div className="flex gap-3 items-end">
-                    <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0"
-                      style={{background: profile?.avatar_color||VL}}>
-                      {profile?.initials || profile?.full_name?.slice(0,2) || 'EU'}
-                    </div>
-                    <div className="flex-1 relative">
-                      <textarea ref={commentInputRef} rows={2}
-                        className="w-full text-sm border border-zinc-200 rounded-xl px-4 py-2.5 focus:outline-none focus:border-violet-500 resize-none placeholder:text-zinc-300 leading-relaxed pr-16"
-                        placeholder="Escrever comentário… (Enter para enviar)"
-                        value={newComment} onChange={e => setNewComment(e.target.value)}
-                        onKeyDown={e => { if (e.key==='Enter' && !e.shiftKey) { e.preventDefault(); addComment() }}} />
-                      <button onClick={addComment} disabled={!newComment.trim()}
-                        className="absolute right-2 bottom-2 px-3 py-1.5 text-xs font-bold text-white rounded-lg disabled:opacity-30"
-                        style={{background:VL}}>↵</button>
-                    </div>
-                  </div>
-                </div>
-              )}
+            {/* Botões header */}
+            <div className="flex items-center gap-1 shrink-0 pt-1">
+              {task.id !== 'new' && <>
+                <button onClick={() => onArchive?.(task.id)} title="Arquivar" className="w-7 h-7 flex items-center justify-center rounded-lg text-zinc-400 hover:text-amber-500 border border-zinc-200 hover:border-amber-200">
+                  <Archive className="w-3.5 h-3.5" />
+                </button>
+                <button onClick={() => onDelete(task.id)} title="Excluir" className="w-7 h-7 flex items-center justify-center rounded-lg text-zinc-400 hover:text-red-500 border border-zinc-200 hover:border-red-200">
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </>}
+              <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-lg text-zinc-400 hover:text-zinc-700 border border-zinc-200">
+                <X className="w-4 h-4" />
+              </button>
             </div>
           </div>
         </div>
 
-        {/* ── Coluna Direita ── */}
-        <div className="w-72 shrink-0 border-l border-zinc-100 flex flex-col overflow-hidden bg-zinc-50/30">
-          <div className="flex-1 overflow-y-auto px-5 py-5 space-y-5">
+        {/* ── CORPO: 3 colunas ───────────────────────────────────── */}
+        <div className="flex flex-1 min-h-0 overflow-hidden">
 
-            {/* Responsável */}
-            <div>
-              <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 block mb-1.5">Responsável</label>
-              <select className="w-full text-sm bg-white border border-zinc-200 rounded-xl px-3 py-2 focus:outline-none focus:border-violet-500"
-                value={form.assigned_to||''} onChange={e => setForm(p => ({...p, assigned_to: e.target.value}))}>
-                <option value="">— nenhum —</option>
-                {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
-              </select>
+          {/* COL 1: Checklist + Próxima ação */}
+          <div className="w-56 shrink-0 border-r border-zinc-100 bg-zinc-50/40 flex flex-col overflow-hidden">
+            <div className="flex-1 overflow-y-auto px-4 pt-4 pb-2">
+
+              {/* Checklist header */}
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Checklist</span>
+                {subtasks.length > 0 && <span className="text-[10px] font-semibold shrink-0" style={{ color: subPct===100?'#10B981':accentColor }}>{doneSubtasks}/{subtasks.length}</span>}
+              </div>
+              {subtasks.length > 0 && (
+                <div className="flex items-center gap-1.5 mb-3">
+                  <div className="flex-1 h-1.5 bg-zinc-200 rounded-full overflow-hidden">
+                    <div className="h-full rounded-full transition-all" style={{ width:`${subPct}%`, background: subPct===100?'#10B981':accentColor }} />
+                  </div>
+                  <span className="text-[10px] font-bold shrink-0" style={{ color: subPct===100?'#10B981':accentColor }}>{subPct}%</span>
+                </div>
+              )}
+
+              {/* Items */}
+              <div className="space-y-0.5 mb-3">
+                {subtasks.map((s,i) => (
+                  <div key={i} className="flex items-start gap-2 group py-1.5 rounded-lg hover:bg-white/70 px-1 -mx-1">
+                    <button onClick={() => toggleSubtask(i)}
+                      className="w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 mt-0.5 transition-all"
+                      style={s.done ? {background:accentColor,borderColor:accentColor} : {borderColor:'#D1D5DB',background:'white'}}>
+                      {s.done && <Check className="w-2.5 h-2.5 text-white" strokeWidth={3} />}
+                    </button>
+                    <span className={`text-xs flex-1 leading-snug select-none ${s.done?'line-through text-zinc-400':'text-zinc-700'}`}>{s.text}</span>
+                    <button onClick={() => removeSubtask(i)}
+                      className="opacity-0 group-hover:opacity-100 w-4 h-4 flex items-center justify-center text-zinc-300 hover:text-red-500 shrink-0 text-sm leading-none">×</button>
+                  </div>
+                ))}
+                {subtasks.length === 0 && <p className="text-xs text-zinc-400 italic py-1">Sem itens ainda.</p>}
+              </div>
+
+              {/* Próxima ação */}
+              <div className="border-t border-zinc-200 pt-3">
+                <div className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1.5">Próxima ação</div>
+                <textarea rows={3}
+                  className="w-full text-xs border-0 border-l-2 bg-violet-50 px-2.5 py-2 focus:outline-none resize-none placeholder:text-zinc-400 text-zinc-700 rounded-r-lg"
+                  style={{ borderLeftColor: accentColor }}
+                  placeholder="O que precisa acontecer agora…"
+                  value={form.next_action || ''} onChange={e => setForm(p => ({...p, next_action: e.target.value}))} />
+              </div>
             </div>
 
-            {/* Colaboradores */}
-            <div>
-              <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 block mb-1.5">
-                Colaboradores {(form.collaborators||[]).length > 0 && <span className="font-normal">({(form.collaborators||[]).length})</span>}
-              </label>
-              {(form.collaborators||[]).length > 0 && (
-                <div className="flex flex-wrap gap-1.5 mb-2">
-                  {(form.collaborators||[]).map(uid => {
-                    const prof = profiles.find(p => p.id === uid)
-                    if (!prof) return null
-                    return (
-                      <div key={uid} className="flex items-center gap-1 bg-white border border-violet-200 rounded-full pl-0.5 pr-2 py-0.5">
-                        <div className="w-4 h-4 rounded-full flex items-center justify-center text-[8px] font-bold text-white"
-                          style={{background: prof.avatar_color||VL}}>
-                          {prof.initials||prof.full_name?.slice(0,2)}
+            {/* Input novo item */}
+            <div className="shrink-0 px-3 py-2.5 border-t border-zinc-200 bg-white">
+              <div className="flex gap-1.5">
+                <input className="flex-1 text-xs border border-zinc-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-violet-500 placeholder:text-zinc-300 bg-white"
+                  placeholder="Novo item… (Enter)" value={newSubtask}
+                  onChange={e => setNewSubtask(e.target.value)}
+                  onKeyDown={e => { if (e.key==='Enter') { e.preventDefault(); addSubtask() }}} />
+                <button onClick={addSubtask} disabled={!newSubtask.trim()}
+                  className="px-2 py-1.5 text-xs font-semibold text-zinc-500 bg-white border border-zinc-200 rounded-lg hover:border-violet-400 hover:text-violet-600 disabled:opacity-40">+</button>
+              </div>
+            </div>
+          </div>
+
+          {/* COL 2: Comentários expandidos */}
+          <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
+
+            {/* Aba header */}
+            <div className="shrink-0 px-5 py-2 border-b border-zinc-100 bg-zinc-50/30 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Discussão</span>
+                {comments.length > 0 && (
+                  <span className="text-[10px] text-zinc-400 bg-white border border-zinc-200 rounded-full px-1.5 py-0.5">{comments.length}</span>
+                )}
+              </div>
+              <div className="flex gap-1">
+                <button onClick={() => setCommentTab('comments')}
+                  className={`text-[10px] font-semibold px-2.5 py-1 rounded-full transition-all ${commentTab==='comments' ? 'text-violet-700 bg-violet-50 border border-violet-200' : 'text-zinc-400 hover:text-zinc-600'}`}>
+                  Comentários
+                </button>
+                <button onClick={() => setCommentTab('history')}
+                  className={`text-[10px] font-semibold px-2.5 py-1 rounded-full transition-all ${commentTab==='history' ? 'text-violet-700 bg-violet-50 border border-violet-200' : 'text-zinc-400 hover:text-zinc-600'}`}>
+                  Histórico
+                </button>
+              </div>
+            </div>
+
+            {/* Feed */}
+            <div className="flex-1 overflow-y-auto px-5 py-4">
+              {commentTab === 'history' ? (
+                <div className="space-y-3">
+                  {task.id !== 'new' && (
+                    <>
+                      {task.created_at && (
+                        <div className="flex items-center gap-2">
+                          <div className="w-1.5 h-1.5 rounded-full bg-zinc-300 shrink-0" />
+                          <span className="text-xs text-zinc-500">Tarefa criada</span>
+                          <span className="text-[10px] text-zinc-400 ml-auto">{new Date(task.created_at).toLocaleDateString('pt-BR')}</span>
                         </div>
-                        <span className="text-[10px] text-zinc-600">{prof.full_name?.split(' ')[0]}</span>
-                        <button onClick={() => setForm(p => ({...p, collaborators: p.collaborators.filter(id => id!==uid)}))}
-                          className="text-zinc-300 hover:text-red-500 text-xs ml-0.5 leading-none">×</button>
+                      )}
+                      {task.updated_at && task.updated_at !== task.created_at && (
+                        <div className="flex items-center gap-2">
+                          <div className="w-1.5 h-1.5 rounded-full bg-violet-400 shrink-0" />
+                          <span className="text-xs text-zinc-500">Última atualização</span>
+                          <span className="text-[10px] text-zinc-400 ml-auto">{new Date(task.updated_at).toLocaleDateString('pt-BR')}</span>
+                        </div>
+                      )}
+                    </>
+                  )}
+                  {comments.length === 0 && <p className="text-xs text-zinc-400 italic">Nenhuma atividade ainda.</p>}
+                </div>
+              ) : loadingComments ? (
+                <div className="text-xs text-zinc-400 py-4">Carregando…</div>
+              ) : comments.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full text-center py-8">
+                  <div className="w-10 h-10 rounded-2xl bg-zinc-100 flex items-center justify-center mb-2">
+                    <MessageSquare className="w-5 h-5 text-zinc-300" />
+                  </div>
+                  <p className="text-xs text-zinc-400">Sem comentários ainda.</p>
+                  <button onClick={() => commentInputRef.current?.focus()}
+                    className="mt-2 text-xs font-semibold hover:underline" style={{color:VL}}>Iniciar discussão</button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {grouped.map((item, idx) => {
+                    if (item.type === 'divider') return (
+                      <div key={`d-${idx}`} className="flex items-center gap-3">
+                        <div className="flex-1 h-px bg-zinc-100" />
+                        <span className="text-[10px] text-zinc-400 shrink-0">{item.label}</span>
+                        <div className="flex-1 h-px bg-zinc-100" />
+                      </div>
+                    )
+                    const isMine = item.user_id === profile?.id
+                    const p = profiles.find(pr => pr.id === item.user_id)
+                    const avatarColor = p?.avatar_color || (isMine ? VL : '#10B981')
+                    const initials = (p?.initials || p?.full_name?.slice(0,2) || item.user_name?.slice(0,2) || '?').toUpperCase()
+                    const isReply = item.parent_comment_id
+                    return (
+                      <div key={item.id || idx} className={`flex gap-2.5 ${isReply ? 'pl-5' : ''}`}>
+                        <div className={`${isReply ? 'w-6 h-6' : 'w-7 h-7'} rounded-full flex items-center justify-center font-bold text-white shrink-0 mt-0.5`}
+                          style={{ background: avatarColor, fontSize: isReply ? 8 : 10 }}>
+                          {initials}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-baseline gap-2 mb-1">
+                            <span className="text-xs font-bold text-zinc-700">{item.user_name?.split(' ')[0]}</span>
+                            <span className="text-[10px] text-zinc-400">
+                              {new Date(item.created_at).toLocaleString('pt-BR',{hour:'2-digit',minute:'2-digit'})}
+                            </span>
+                          </div>
+                          <div className={`text-sm leading-relaxed px-3.5 py-2.5 rounded-2xl ${isMine ? 'text-white' : 'bg-zinc-100 text-zinc-700'}`}
+                            style={isMine ? { background: accentColor, borderRadius: '4px 16px 16px 16px' } : { borderRadius: '4px 16px 16px 16px' }}>
+                            {item.content}
+                          </div>
+                          <div className="flex items-center gap-3 mt-1 pl-1">
+                            <button className="text-[10px] text-zinc-400 hover:text-zinc-600">Responder</button>
+                            <button className="text-[10px] text-emerald-600 hover:text-emerald-700">✓ Resolução</button>
+                          </div>
+                        </div>
                       </div>
                     )
                   })}
+                  <div ref={commentsEndRef} />
                 </div>
               )}
-              <select className="w-full text-sm bg-white border border-zinc-200 rounded-xl px-3 py-2 focus:outline-none focus:border-violet-500"
-                value="" onChange={e => {
-                  const uid = e.target.value
-                  if (!uid || (form.collaborators||[]).includes(uid) || uid===form.assigned_to) return
-                  setForm(p => ({...p, collaborators: [...(p.collaborators||[]), uid]}))
-                }}>
-                <option value="">+ Adicionar colaborador…</option>
-                {profiles.filter(p => p.id!==form.assigned_to && !(form.collaborators||[]).includes(p.id))
-                  .map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
-              </select>
             </div>
 
-            {/* Projeto */}
-            <div>
-              <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 block mb-1.5">Projeto</label>
-              <select className="w-full text-sm bg-white border border-zinc-200 rounded-xl px-3 py-2 focus:outline-none focus:border-violet-500"
-                value={form.project_id||''} onChange={e => setForm(p => ({...p, project_id: e.target.value}))}>
-                <option value="">— nenhum —</option>
-                {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
-            </div>
-
-            {/* Bloqueado por */}
-            <div>
-              <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 block mb-1.5">🔒 Bloqueado por</label>
-              <select className="w-full text-sm bg-white border border-zinc-200 rounded-xl px-3 py-2 focus:outline-none focus:border-violet-500"
-                value={form.blocked_by||''} onChange={e => setForm(p => ({...p, blocked_by: e.target.value||null}))}>
-                <option value="">— não bloqueada —</option>
-                {blockCandidates.map(t => <option key={t.id} value={t.id}>{t.title?.slice(0,40)}</option>)}
-              </select>
-              {form.blocked_by && (
-                <p className="text-[10px] text-amber-600 mt-1 font-semibold">⚠ Esta tarefa está bloqueada por outra pendente</p>
-              )}
-            </div>
-
-            {/* Prazo */}
-            <div>
-              <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 block mb-1.5">Prazo</label>
-              <input type="date" className="w-full text-sm bg-white border border-zinc-200 rounded-xl px-3 py-2 focus:outline-none focus:border-violet-500"
-                value={form.due_date||''} onChange={e => setForm(p => ({...p, due_date: e.target.value}))} />
-            </div>
-
-            {/* Cor */}
-            <div>
-              <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 block mb-2">Cor do card</label>
-              <div className="flex gap-2 flex-wrap">
-                {['#5452C1','#10B981','#F59E0B','#EF4444','#3B82F6','#8B5CF6','#EC4899','#2D2E39','#6B7280'].map(col => (
-                  <button key={col} onClick={() => setForm(p => ({...p, cover_color: p.cover_color===col?'':col}))}
-                    className={`w-6 h-6 rounded-full transition-all ${form.cover_color===col?'ring-2 ring-offset-2 ring-zinc-500 scale-110':'hover:scale-110'}`}
-                    style={{background:col}} />
-                ))}
-                {form.cover_color && <button onClick={() => setForm(p => ({...p,cover_color:''}))} className="text-[10px] text-zinc-400 hover:text-zinc-600 self-center ml-1">limpar</button>}
-              </div>
-            </div>
-
-            {/* Tags */}
-            <div>
-              <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 block mb-1.5">Tags</label>
-              <div className="flex flex-wrap gap-1 mb-2">
-                {(form.tags||[]).map((tag,i) => (
-                  <span key={i} className="inline-flex items-center gap-0.5 text-[10px] font-bold px-2 py-0.5 rounded-full"
-                    style={{background:`${accentColor}18`,color:accentColor}}>
-                    {tag}
-                    <button onClick={() => setForm(p => ({...p,tags:p.tags.filter((_,j)=>j!==i)}))} className="hover:text-red-600 ml-0.5">×</button>
-                  </span>
-                ))}
-              </div>
-              <div className="flex gap-1.5">
-                <input className="flex-1 min-w-0 text-xs bg-white border border-zinc-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-violet-500 placeholder:text-zinc-300"
-                  placeholder="Nova tag… (Enter)" value={form._newTag||''}
-                  onChange={e => setForm(p => ({...p,_newTag:e.target.value}))}
-                  onKeyDown={e => { if (e.key==='Enter' && form._newTag?.trim()) setForm(p => ({...p,tags:[...(p.tags||[]),p._newTag.trim()],_newTag:''})) }} />
-                <button onClick={() => { if (form._newTag?.trim()) setForm(p => ({...p,tags:[...(p.tags||[]),p._newTag.trim()],_newTag:''})) }}
-                  className="px-2 py-1.5 bg-white border border-zinc-200 text-xs text-zinc-500 rounded-lg hover:border-violet-400 hover:text-violet-600">+</button>
-              </div>
-            </div>
-
-            {/* Emergência */}
-            <div className={`flex items-center justify-between p-3 rounded-xl border ${form.is_emergency?'bg-red-50 border-red-200':'bg-white border-zinc-200'}`}>
-              <div>
-                <div className="text-xs font-semibold text-zinc-700">🚨 Emergência</div>
-                <div className={`text-[10px] mt-0.5 ${form.is_emergency?'text-red-500 font-semibold':'text-zinc-400'}`}>
-                  {form.is_emergency?'Ativa — notifica liderança':'Desativada'}
+            {/* Input comentário */}
+            {task.id !== 'new' && (
+              <div className="shrink-0 border-t border-zinc-100 px-4 py-3 bg-white">
+                <div className="flex gap-2.5 items-end">
+                  <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0"
+                    style={{background: profile?.avatar_color||VL}}>
+                    {(profile?.initials || profile?.full_name?.slice(0,2) || 'EU').toUpperCase()}
+                  </div>
+                  <div className="flex-1 border border-zinc-200 rounded-xl overflow-hidden focus-within:border-violet-400 transition-colors">
+                    <textarea ref={commentInputRef} rows={2}
+                      className="w-full text-sm px-3.5 pt-2.5 pb-1 resize-none outline-none placeholder:text-zinc-400 leading-relaxed bg-white"
+                      placeholder="Escrever comentário… @ para mencionar · Enter para enviar"
+                      value={newComment} onChange={e => setNewComment(e.target.value)}
+                      onKeyDown={e => { if (e.key==='Enter' && !e.shiftKey) { e.preventDefault(); addComment() }}} />
+                    <div className="flex justify-end px-2 pb-2">
+                      <button onClick={addComment} disabled={!newComment.trim()}
+                        className="px-3 py-1 text-xs font-bold text-white rounded-lg disabled:opacity-30 transition-opacity"
+                        style={{background:accentColor}}>Enviar</button>
+                    </div>
+                  </div>
                 </div>
-              </div>
-              <button onClick={() => setForm(p => ({...p,is_emergency:!p.is_emergency}))}
-                className={`w-10 h-5 rounded-full transition-colors relative shrink-0 ${form.is_emergency?'bg-red-500':'bg-zinc-200'}`}>
-                <div className={`w-4 h-4 bg-white rounded-full shadow absolute top-0.5 transition-all ${form.is_emergency?'left-5':'left-0.5'}`} />
-              </button>
-            </div>
-
-            {task.id !== 'new' && task.created_at && (
-              <div className="text-[10px] text-zinc-400 border-t border-zinc-100 pt-3">
-                Criado em {new Date(task.created_at).toLocaleDateString('pt-BR', {day:'2-digit',month:'long',year:'numeric'})}
               </div>
             )}
           </div>
 
-          <div className="shrink-0 border-t border-zinc-100 p-5 bg-white">
-            <button onClick={handleSave} disabled={!form.title.trim()||saving}
-              className="w-full py-2.5 text-sm font-bold text-white rounded-xl disabled:opacity-40 hover:opacity-90 flex items-center justify-center gap-2"
-              style={{background:accentColor}}>
-              {saving ? <><span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" /> Salvando…</> : task.id==='new' ? '+ Criar tarefa' : 'Salvar alterações'}
-            </button>
-            {task.id !== 'new' && (
-              <button onClick={onClose} className="w-full mt-2 py-2 text-xs text-zinc-400 hover:text-zinc-600">Cancelar</button>
-            )}
+          {/* COL 3: Sidebar metadados */}
+          <div className="w-64 shrink-0 border-l border-zinc-100 bg-zinc-50/40 flex flex-col overflow-hidden">
+            <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+
+              {/* PRAZO — destaque */}
+              <div>
+                <label className="text-[9px] font-bold uppercase tracking-wider text-zinc-400 block mb-1.5">Prazo</label>
+                <div className={`rounded-xl p-2.5 ${isOverdue ? 'bg-red-50 border border-red-200' : isDueSoon ? 'bg-amber-50 border border-amber-200' : 'bg-white border border-zinc-200'}`}>
+                  <input type="date"
+                    className={`w-full text-sm font-semibold bg-transparent outline-none ${isOverdue ? 'text-red-700' : isDueSoon ? 'text-amber-700' : 'text-zinc-700'}`}
+                    value={form.due_date||''} onChange={e => setForm(p => ({...p, due_date: e.target.value}))} />
+                  {isOverdue && <div className="text-[10px] font-bold text-red-600 mt-1">{Math.abs(daysLeft)}d de atraso</div>}
+                  {isDueSoon && !isOverdue && <div className="text-[10px] font-bold text-amber-600 mt-1">Vence em {daysLeft}d</div>}
+                </div>
+              </div>
+
+              {/* AGUARDANDO */}
+              <div>
+                <label className="text-[9px] font-bold uppercase tracking-wider text-zinc-400 block mb-1.5">Aguardando</label>
+                <input className="w-full text-xs border border-zinc-200 rounded-lg px-2.5 py-2 focus:outline-none focus:border-violet-400 bg-white placeholder:text-zinc-400"
+                  placeholder="Ex: aprovação do sócio…"
+                  value={form.waiting_for || ''} onChange={e => setForm(p => ({...p, waiting_for: e.target.value}))} />
+                {form.waiting_for && (
+                  <div className="flex items-center gap-1.5 mt-1.5 bg-amber-50 border border-amber-100 rounded-lg px-2 py-1.5">
+                    <div className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
+                    <span className="text-[10px] text-amber-800">{form.waiting_for}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* IMPACTO NO CLIENTE */}
+              <div>
+                <label className="text-[9px] font-bold uppercase tracking-wider text-zinc-400 block mb-1.5">Impacto no cliente</label>
+                <div className="flex gap-2">
+                  <button onClick={() => setForm(p => ({...p, client_impact: true}))}
+                    className={`flex-1 py-1.5 text-xs font-semibold rounded-lg border transition-all ${form.client_impact ? 'bg-red-50 border-red-300 text-red-700' : 'bg-white border-zinc-200 text-zinc-500 hover:border-zinc-300'}`}>
+                    Sim
+                  </button>
+                  <button onClick={() => setForm(p => ({...p, client_impact: false}))}
+                    className={`flex-1 py-1.5 text-xs font-semibold rounded-lg border transition-all ${!form.client_impact ? 'bg-zinc-100 border-zinc-200 text-zinc-700' : 'bg-white border-zinc-200 text-zinc-500 hover:border-zinc-300'}`}>
+                    Não
+                  </button>
+                </div>
+              </div>
+
+              <div className="h-px bg-zinc-200" />
+
+              {/* RESPONSÁVEL */}
+              <div>
+                <label className="text-[9px] font-bold uppercase tracking-wider text-zinc-400 block mb-1.5">Responsável</label>
+                {assignedProf && (
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <div className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold text-white shrink-0"
+                      style={{background: assignedProf.avatar_color||VL}}>
+                      {(assignedProf.initials||assignedProf.full_name?.slice(0,2)||'?').toUpperCase()}
+                    </div>
+                    <span className="text-xs text-zinc-700 font-medium">{assignedProf.full_name?.split(' ').slice(0,2).join(' ')}</span>
+                  </div>
+                )}
+                <select className="w-full text-xs bg-white border border-zinc-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-violet-500"
+                  value={form.assigned_to||''} onChange={e => setForm(p => ({...p, assigned_to: e.target.value}))}>
+                  <option value="">— nenhum —</option>
+                  {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
+                </select>
+              </div>
+
+              {/* COLABORADORES */}
+              <div>
+                <label className="text-[9px] font-bold uppercase tracking-wider text-zinc-400 block mb-1.5">
+                  Colaboradores {(form.collaborators||[]).length > 0 && `(${(form.collaborators||[]).length})`}
+                </label>
+                {(form.collaborators||[]).length > 0 && (
+                  <div className="flex items-center gap-0.5 mb-2 flex-wrap">
+                    {(form.collaborators||[]).map((uid,i) => {
+                      const cp = profiles.find(p => p.id === uid); if (!cp) return null
+                      return (
+                        <div key={uid} className="flex items-center gap-1 bg-white border border-zinc-200 rounded-full pl-0.5 pr-1.5 py-0.5">
+                          <div className="w-4 h-4 rounded-full flex items-center justify-center text-[7px] font-bold text-white"
+                            style={{background: cp.avatar_color||VL}}>
+                            {(cp.initials||cp.full_name?.slice(0,2)||'?').toUpperCase()}
+                          </div>
+                          <span className="text-[10px] text-zinc-600">{cp.full_name?.split(' ')[0]}</span>
+                          <button onClick={() => setForm(p => ({...p, collaborators: p.collaborators.filter(id => id!==uid)}))}
+                            className="text-zinc-300 hover:text-red-500 text-xs">×</button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+                <select className="w-full text-xs bg-white border border-zinc-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-violet-500"
+                  value="" onChange={e => {
+                    const uid = e.target.value
+                    if (!uid || (form.collaborators||[]).includes(uid) || uid===form.assigned_to) return
+                    setForm(p => ({...p, collaborators: [...(p.collaborators||[]), uid]}))
+                  }}>
+                  <option value="">+ Adicionar colaborador…</option>
+                  {profiles.filter(p => p.id!==form.assigned_to && !(form.collaborators||[]).includes(p.id))
+                    .map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
+                </select>
+              </div>
+
+              {/* PROJETO */}
+              <div>
+                <label className="text-[9px] font-bold uppercase tracking-wider text-zinc-400 block mb-1.5">Projeto</label>
+                <select className="w-full text-xs bg-white border border-zinc-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-violet-500"
+                  value={form.project_id||''} onChange={e => setForm(p => ({...p, project_id: e.target.value}))}>
+                  <option value="">— nenhum —</option>
+                  {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+              </div>
+
+              {/* TAGS */}
+              <div>
+                <label className="text-[9px] font-bold uppercase tracking-wider text-zinc-400 block mb-1.5">Tags</label>
+                <div className="flex flex-wrap gap-1 mb-1.5">
+                  {(form.tags||[]).map((tag,i) => (
+                    <span key={i} className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-violet-50 text-violet-700 border border-violet-200">
+                      {tag}
+                      <button onClick={() => setForm(p => ({...p,tags:p.tags.filter((_,j)=>j!==i)}))} className="hover:text-red-600 ml-0.5">×</button>
+                    </span>
+                  ))}
+                </div>
+                <div className="flex gap-1.5">
+                  <input className="flex-1 min-w-0 text-xs bg-white border border-zinc-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-violet-500 placeholder:text-zinc-300"
+                    placeholder="Nova tag… (Enter)" value={form._newTag||''}
+                    onChange={e => setForm(p => ({...p,_newTag:e.target.value}))}
+                    onKeyDown={e => { if (e.key==='Enter' && form._newTag?.trim()) setForm(p => ({...p,tags:[...(p.tags||[]),p._newTag.trim()],_newTag:''})) }} />
+                  <button onClick={() => { if (form._newTag?.trim()) setForm(p => ({...p,tags:[...(p.tags||[]),p._newTag.trim()],_newTag:''})) }}
+                    className="px-2 py-1.5 bg-white border border-zinc-200 text-xs text-zinc-500 rounded-lg hover:border-violet-400 hover:text-violet-600">+</button>
+                </div>
+              </div>
+
+              <div className="h-px bg-zinc-200" />
+
+              {/* Timestamps */}
+              {task.id !== 'new' && (
+                <div className="space-y-1">
+                  {task.updated_at && task.updated_at !== task.created_at && (
+                    <div className="text-[10px] text-zinc-400">
+                      Última mov.: <span className="text-zinc-500 font-medium">{new Date(task.updated_at).toLocaleDateString('pt-BR',{day:'2-digit',month:'short'})}</span>
+                    </div>
+                  )}
+                  {task.created_at && (
+                    <div className="text-[10px] text-zinc-400">
+                      Criado: <span className="text-zinc-500">{new Date(task.created_at).toLocaleDateString('pt-BR',{day:'2-digit',month:'long',year:'numeric'})}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Footer: salvar */}
+            <div className="shrink-0 border-t border-zinc-100 p-3.5 bg-white">
+              <button onClick={handleSave} disabled={!form.title.trim()||saving}
+                className="w-full py-2.5 text-sm font-bold text-white rounded-xl disabled:opacity-40 hover:opacity-90 flex items-center justify-center gap-2"
+                style={{background:accentColor}}>
+                {saving ? <><span className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" /> Salvando…</> : task.id==='new' ? '+ Criar tarefa' : 'Salvar alterações'}
+              </button>
+              {task.id !== 'new' && (
+                <button onClick={onClose} className="w-full mt-1.5 py-1.5 text-xs text-zinc-400 hover:text-zinc-600">Cancelar</button>
+              )}
+            </div>
           </div>
         </div>
       </div>
     </div>
   )
 }
+
 
 // ─── Kanban Principal ─────────────────────────────────────────────────────────
 export default function Kanban() {
@@ -910,104 +1002,117 @@ export default function Kanban() {
                     </div>
                   )}
                   {colTasks.map(t => {
-                    const prof    = profMap[t.assigned_to]
-                    const proj    = projMap[t.project_id]
-                    const pr      = PRIORITY[t.priority] || PRIORITY.medium
-                    const subs    = Array.isArray(t.checklist) ? t.checklist : []
-                    const subDone = subs.filter(s=>s.done).length
-                    const subPct  = subs.length>0 ? Math.round(subDone/subs.length*100) : 0
-                    const collabs = Array.isArray(t.custom_field_values?.collaborators) ? t.custom_field_values.collaborators : []
-                    const overdue = t.due_date && new Date(t.due_date)<new Date() && t.column_id!=='done'
-                    const daysLeft = t.due_date ? Math.ceil((new Date(t.due_date)-new Date())/86400000) : null
-                    const hasCover = !!(t.cover_color||t.is_emergency)
-                    const accentColor = t.is_emergency?'#DC2626':(t.cover_color||pr.color)
-                    const isBlocked = !!t.blocked_by
-
+                    const prof      = profMap[t.assigned_to]
+                    const proj      = projMap[t.project_id]
+                    const pr        = PRIORITY[t.priority] || PRIORITY.medium
+                    const subs      = Array.isArray(t.checklist) ? t.checklist : []
+                    const subDone   = subs.filter(s=>s.done).length
+                    const subPct    = subs.length>0 ? Math.round(subDone/subs.length*100) : 0
+                    const collabs   = Array.isArray(t.custom_field_values?.collaborators) ? t.custom_field_values.collaborators : []
+                    const today2    = new Date(); today2.setHours(0,0,0,0)
+                    const dueDate2  = t.due_date ? new Date(t.due_date) : null
+                    const daysLeft  = dueDate2 ? Math.ceil((dueDate2 - today2)/86400000) : null
+                    const overdue   = daysLeft !== null && daysLeft < 0 && t.column_id !== 'done'
+                    const dueSoon   = daysLeft !== null && daysLeft >= 0 && daysLeft <= 3 && t.column_id !== 'done'
+                    const accentColor = t.is_emergency ? '#DC2626' : (t.cover_color || pr.color)
+                    const isDone    = t.column_id === 'done'
+                    const urgency = overdue
+                      ? { label: `Parado · ${Math.abs(daysLeft)}d atraso`, bg:'#FEF2F2', color:'#B91C1C', border:'#FECACA' }
+                      : dueSoon
+                      ? { label: `Vence em ${daysLeft}d`, bg:'#FFFBEB', color:'#D97706', border:'#FDE68A' }
+                      : { label: pr.label, bg: pr.bg, color: pr.color, border: pr.bg }
+                    const colIdx  = COLS.findIndex(c => c.id === t.column_id)
+                    const prevCol = COLS[colIdx - 1]
+                    const nextCol = COLS[colIdx + 1]
                     return (
                       <div key={t.id} draggable
                         onDragStart={e => onDragStart(e,t)} onDragEnd={onDragEnd}
                         onClick={() => setModalTask(t)}
-                        className="group relative bg-white rounded-xl cursor-pointer select-none"
+                        className="bg-white rounded-xl cursor-pointer overflow-hidden transition-all"
                         style={{
-                          opacity: dragging?.id===t.id ? 0.35 : 1,
-                          boxShadow: '0 1px 3px rgba(0,0,0,0.10), 0 0 0 1px rgba(0,0,0,0.04)',
+                          opacity: dragging?.id===t.id ? 0.3 : isDone ? 0.72 : 1,
+                          boxShadow: overdue ? '0 0 0 1.5px #FECACA' : '0 1px 3px rgba(0,0,0,0.07), 0 0 0 0.5px rgba(0,0,0,0.05)',
+                          borderLeft: `3px solid ${overdue ? '#EF4444' : accentColor}`,
                         }}
-                        onMouseEnter={e => { e.currentTarget.style.boxShadow='0 6px 20px rgba(0,0,0,0.12), 0 0 0 1px rgba(0,0,0,0.06)'; e.currentTarget.style.transform='translateY(-2px)' }}
-                        onMouseLeave={e => { e.currentTarget.style.boxShadow='0 1px 3px rgba(0,0,0,0.10), 0 0 0 1px rgba(0,0,0,0.04)'; e.currentTarget.style.transform='translateY(0)' }}>
-
-                        {hasCover && (
-                          <div className="w-full rounded-t-xl flex items-end px-3 pb-2" style={{ background: t.is_emergency?'#DC2626':t.cover_color, height:36 }}>
-                            {t.is_emergency && <span className="text-[9px] font-bold text-white/90 bg-black/20 px-1.5 py-0.5 rounded-md">🚨 EMERGÊNCIA</span>}
+                        onMouseEnter={e => { if(!isDone){e.currentTarget.style.boxShadow='0 6px 16px rgba(0,0,0,0.12)';e.currentTarget.style.transform='translateY(-2px)'}}}
+                        onMouseLeave={e => {e.currentTarget.style.boxShadow=overdue?'0 0 0 1.5px #FECACA':'0 1px 3px rgba(0,0,0,0.07)';e.currentTarget.style.transform='translateY(0)'}}>
+                        <div className="px-3 pt-3 pb-2">
+                          <div className="flex items-center gap-1.5 mb-2 flex-wrap">
+                            <span className="text-[9px] font-bold px-2 py-0.5 rounded-full border"
+                              style={{ background: urgency.bg, color: urgency.color, borderColor: urgency.border }}>
+                              {urgency.label}
+                            </span>
+                            {t.is_starred && <span className="text-amber-400 text-[11px]">★</span>}
+                            {t.is_emergency && <span className="text-[9px] font-bold text-red-700 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded-full">Emergência</span>}
+                            {t.client_impact && <span className="text-[9px] font-bold text-red-600 bg-red-50 border border-red-100 px-1.5 py-0.5 rounded-full ml-auto">⚠ Cliente</span>}
                           </div>
-                        )}
-
-                        {/* Bloqueada */}
-                        {isBlocked && (
-                          <div className="mx-3 mt-2 flex items-center gap-1 text-[9px] font-bold text-amber-600 bg-amber-50 border border-amber-200 rounded-md px-2 py-0.5">
-                            🔒 Bloqueada por outra tarefa
+                          {proj && (
+                            <div className="flex items-center gap-1.5 mb-1.5">
+                              <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: accentColor + 'CC' }} />
+                              <span className="text-[10px] text-zinc-400 font-medium truncate">{proj.name}</span>
+                            </div>
+                          )}
+                          <div className={`text-xs font-semibold leading-snug mb-2 line-clamp-3 ${isDone ? 'line-through text-zinc-400' : 'text-zinc-800'}`}>
+                            {t.title}
                           </div>
-                        )}
-
-                        {/* Tags */}
-                        {(Array.isArray(t.tags)&&t.tags.length>0) && (
-                          <div className="flex gap-1 flex-wrap px-3 pt-2">
-                            {t.tags.slice(0,3).map((tag,i) => {
-                              const palettes = [{bg:`${accentColor}22`,text:accentColor},{bg:'#BAF3DB',text:'#164B35'},{bg:'#F8E6A0',text:'#533F04'}]
-                              const pal = palettes[i%palettes.length]
-                              return <span key={i} className="text-[9px] font-bold px-1.5 py-0.5 rounded-full" style={{background:pal.bg,color:pal.text}}>{tag}</span>
-                            })}
+                          {t.next_action && (
+                            <div className="mb-2 rounded-r-lg px-2 py-1.5"
+                              style={{ background: overdue ? '#FEF2F2' : '#F5F3FF', borderLeft: `2px solid ${overdue ? '#FCA5A5' : accentColor + '88'}` }}>
+                              <div className="text-[9px] uppercase tracking-wider font-bold mb-0.5" style={{ color: overdue ? '#B91C1C' : '#9CA3AF' }}>Próxima ação</div>
+                              <div className="text-[10px] leading-snug line-clamp-2" style={{ color: overdue ? '#7F1D1D' : '#374151' }}>{t.next_action}</div>
+                            </div>
+                          )}
+                          {Array.isArray(t.tags) && t.tags.length > 0 && (
+                            <div className="flex gap-1 flex-wrap mb-2">
+                              {t.tags.slice(0,3).map((tag,i) => (
+                                <span key={i} className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-violet-50 text-violet-700 border border-violet-100">{tag}</span>
+                              ))}
+                            </div>
+                          )}
+                          {subs.length > 0 && (
+                            <div className="flex items-center gap-2 mb-2">
+                              <div className="flex-1 h-1.5 bg-zinc-100 rounded-full overflow-hidden">
+                                <div className="h-full rounded-full transition-all" style={{ width:`${subPct}%`, background: subPct===100?'#22C55E':accentColor }} />
+                              </div>
+                              <span className="text-[9px] font-semibold shrink-0" style={{ color: subPct===100?'#16A34A':'#6B7280' }}>{subDone}/{subs.length}</span>
+                              {daysLeft !== null && <><div className="w-px h-3 bg-zinc-200" /><span className="text-[9px] font-semibold" style={{ color: overdue?'#B91C1C':dueSoon?'#D97706':'#9CA3AF' }}>{overdue?`${Math.abs(daysLeft)}d`:daysLeft===0?'hoje':`${daysLeft}d`}</span></>}
+                            </div>
+                          )}
+                          {subs.length === 0 && daysLeft !== null && (
+                            <div className="mb-2">
+                              <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-md" style={{ color: overdue?'#B91C1C':dueSoon?'#D97706':'#9CA3AF', background: overdue?'#FEF2F2':dueSoon?'#FFFBEB':'#F9FAFB' }}>
+                                {isDone?'✓':overdue?`${Math.abs(daysLeft)}d atraso`:daysLeft===0?'Vence hoje':`${daysLeft}d restantes`}
+                              </span>
+                            </div>
+                          )}
+                          {t.waiting_for && (
+                            <div className="flex items-center gap-1.5 mb-2 bg-amber-50 border border-amber-100 rounded-lg px-2 py-1">
+                              <div className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
+                              <span className="text-[9px] text-amber-800 font-medium truncate">{t.waiting_for}</span>
+                            </div>
+                          )}
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center">
+                              {collabs.slice(0,2).map((uid,i) => {
+                                const cp=profMap[uid]; if(!cp) return null
+                                return <div key={uid} title={cp.full_name} className="w-5 h-5 rounded-full flex items-center justify-center text-[7px] font-bold text-white ring-[1.5px] ring-white"
+                                  style={{background:cp.avatar_color||'#8B5CF6',marginLeft:i>0?-5:0}}>{(cp.initials||cp.full_name?.slice(0,2)||'?').toUpperCase()}</div>
+                              })}
+                              {prof && <div title={prof.full_name} className="w-5 h-5 rounded-full flex items-center justify-center text-[7px] font-bold text-white ring-[1.5px] ring-white"
+                                style={{background:prof.avatar_color||VL,marginLeft:collabs.length>0?-5:0}}>{(prof.initials||prof.full_name?.slice(0,2)||'?').toUpperCase()}</div>}
+                              {!prof && !collabs.length && <span className="text-[9px] text-zinc-400 italic">Sem resp.</span>}
+                            </div>
                           </div>
-                        )}
-
-                        <div className={`px-3 ${(Array.isArray(t.tags)&&t.tags.length>0)||hasCover?'pt-1.5':'pt-3'} pb-1 relative`}>
-                          <p className={`text-xs font-semibold leading-snug line-clamp-2 pr-5 ${t.column_id==='done'?'line-through text-zinc-400':'text-zinc-800'}`}>{t.title}</p>
-                          <button onClick={e=>{e.stopPropagation();setModalTask(t)}}
-                            className="absolute top-1 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 hover:bg-violet-50 border border-zinc-200 rounded-md p-0.5">
-                            <Edit3 className="w-2.5 h-2.5 text-zinc-500" />
-                          </button>
-                          {t.is_starred && <span className="absolute top-1 right-7 text-amber-400 text-[11px]">⭐</span>}
                         </div>
-
-                        {proj && !hasCover && <div className="px-3 pb-1"><span className="text-[9px] text-zinc-400">{proj.name}</span></div>}
-
-                        <div className="flex items-center justify-between px-3 pb-2 pt-1 gap-1">
-                          <div className="flex items-center gap-1 flex-wrap min-w-0">
-                            {t.due_date && (
-                              <span className={`inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-md ${t.column_id==='done'?'bg-green-100 text-green-700':overdue?'bg-red-100 text-red-700':daysLeft===0?'bg-amber-100 text-amber-700':daysLeft!==null&&daysLeft<=3?'bg-blue-50 text-blue-700':'bg-zinc-100 text-zinc-500'}`}>
-                                <Clock className="w-2 h-2" />
-                                {t.column_id==='done'?'✓':overdue?`${Math.abs(daysLeft)}d`:daysLeft===0?'Hoje':daysLeft!==null&&daysLeft<=7?`${daysLeft}d`:new Date(t.due_date).toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})}
-                              </span>
-                            )}
-                            {subs.length>0 && (
-                              <span className={`inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-md ${subPct===100?'bg-green-100 text-green-700':'bg-zinc-100 text-zinc-500'}`}>
-                                <CheckSquare className="w-2 h-2" />{subDone}/{subs.length}
-                              </span>
-                            )}
-                            {t.priority==='urgent' && (
-                              <span className="inline-flex items-center text-[9px] font-bold px-1.5 py-0.5 rounded-md" style={{background:pr.bg,color:pr.color}}>! Urgente</span>
-                            )}
-                            {t.hours_estimated>0 && (
-                              <span className="inline-flex items-center gap-0.5 text-[9px] text-zinc-400 px-1 py-0.5 rounded-md bg-zinc-50">
-                                <Clock className="w-2 h-2" />{t.hours_logged||0}/{t.hours_estimated}h
-                              </span>
-                            )}
-                          </div>
-                          <div className="flex items-center shrink-0">
-                            {collabs.slice(0,2).map((uid,i) => {
-                              const cp = profMap[uid]; if (!cp) return null
-                              return <div key={uid} title={cp.full_name} className="w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-bold text-white ring-[1.5px] ring-white"
-                                style={{background:cp.avatar_color||'#8B5CF6',marginLeft:i>0?-4:0,zIndex:i}}>{cp.initials||cp.full_name?.slice(0,2)}</div>
-                            })}
-                            {prof && <div title={prof.full_name} className="w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-bold text-white ring-[1.5px] ring-white"
-                              style={{background:prof.avatar_color||VL,marginLeft:collabs.length>0?-4:0}}>{prof.initials||prof.full_name?.slice(0,2)}</div>}
-                          </div>
+                        <div className="border-t border-zinc-100 flex">
+                          {prevCol ? (
+                            <button onClick={e=>{e.stopPropagation()}} className="flex-1 text-[9px] py-1.5 text-zinc-400 hover:bg-zinc-50 hover:text-zinc-600 transition-colors text-center truncate px-1">← {prevCol.label}</button>
+                          ) : <div className="flex-1" />}
+                          {prevCol && nextCol && <div className="w-px bg-zinc-100" />}
+                          {nextCol ? (
+                            <button onClick={e=>{e.stopPropagation()}} className="flex-1 text-[9px] py-1.5 font-semibold transition-colors text-center truncate px-1 hover:bg-zinc-50" style={{color:accentColor}}>{nextCol.label} →</button>
+                          ) : <div className="flex-1" />}
                         </div>
-
-                        {subs.length>0 && (
-                          <div className="h-0.5 rounded-b-xl overflow-hidden bg-zinc-100">
-                            <div className="h-full transition-all" style={{width:`${subPct}%`,background:subPct===100?'#10B981':accentColor}} />
-                          </div>
-                        )}
                       </div>
                     )
                   })}
