@@ -59,161 +59,303 @@ function generateBXReport(report, items, submitter, approver, project) {
     byType[type].push(it)
   })
 
+  const EMOJI = { voo:'✈️', hotel:'🏨', transporte:'🚗', refeicao:'🍽️', consultor:'💼', outros:'💳', km:'🛣️', hospedagem:'🏨', material:'📦', transporte_km:'🛣️' }
+  const TYPE_LABEL = { voo:'Voo', hotel:'Hotel / Estadia', transporte:'Transporte', refeicao:'Refeição', consultor:'Consultor', outros:'Outros', km:'KM Rodado', hospedagem:'Hospedagem', material:'Material' }
+  const TYPE_COLOR = { voo:'#3B82F6', hotel:'#8B5CF6', transporte:'#F59E0B', refeicao:'#10B981', consultor:'#EF4444', outros:'#6B7280' }
+
+  const totalByType = Object.entries(byType).map(([t, its]) => ({
+    type: t, emoji: EMOJI[t]||'💳', label: TYPE_LABEL[t]||t,
+    color: TYPE_COLOR[t]||'#6B7280',
+    total: its.reduce((s,i)=>s+(parseFloat(i.amount)||0),0),
+    count: its.length
+  })).sort((a,b) => b.total - a.total)
+
+  const grandTotal = items.reduce((s,i) => s+(parseFloat(i.amount)||0), 0)
+  const today = new Date().toLocaleDateString('pt-BR', {day:'2-digit',month:'long',year:'numeric'})
+
   const html = `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<title>Relatório de Reembolso — ${report.title}</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Relatório BX — ${report.title}</title>
 <style>
-  @page { margin: 20mm 15mm; size: A4; }
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+  @page { margin: 0; size: A4; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Calibri', Arial, sans-serif; font-size: 10pt; color: #1a1a1a; background: white; }
-  .cover { background: #2D2E39; color: white; padding: 40px; min-height: 280px; display: flex; flex-direction: column; justify-content: space-between; page-break-after: always; }
-  .cover-top { display: flex; align-items: flex-start; justify-content: space-between; }
-  .cover-logo { font-size: 22pt; font-weight: 900; letter-spacing: -1px; color: white; }
-  .cover-logo span { color: #5452C1; }
-  .cover-tag { font-size: 8pt; color: #94A3B8; text-transform: uppercase; letter-spacing: 2px; margin-top: 4px; }
-  .cover-title { font-size: 20pt; font-weight: 700; margin-top: 32px; line-height: 1.3; }
-  .cover-sub { font-size: 11pt; color: #CBD5E1; margin-top: 8px; }
-  .cover-meta { margin-top: 24px; display: flex; gap: 32px; }
-  .cover-meta-item { font-size: 9pt; }
-  .cover-meta-label { color: #94A3B8; text-transform: uppercase; letter-spacing: 1px; font-size: 7pt; }
-  .cover-meta-value { color: white; font-weight: 600; margin-top: 2px; }
-  .confidential { background: #FFF2CC; color: #7B4F00; text-align: center; padding: 6px; font-size: 8pt; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; }
-  .section { padding: 24px 40px; }
-  .section-title { font-size: 13pt; font-weight: 700; color: #2D2E39; border-bottom: 2px solid #5452C1; padding-bottom: 6px; margin-bottom: 16px; }
-  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 24px; }
-  .kpi { background: #F8F9FC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 12px 16px; text-align: center; }
-  .kpi-value { font-size: 16pt; font-weight: 700; color: #5452C1; }
-  .kpi-label { font-size: 7pt; color: #6B7280; text-transform: uppercase; letter-spacing: 1px; margin-top: 4px; }
-  table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 9pt; }
-  thead tr { background: #2D2E39; color: white; }
-  thead th { padding: 8px 10px; text-align: left; font-size: 8pt; font-weight: 600; letter-spacing: 0.5px; }
-  tbody tr:nth-child(even) { background: #F8F9FC; }
-  tbody td { padding: 7px 10px; border-bottom: 1px solid #F1F5F9; vertical-align: top; }
-  .type-badge { display: inline-block; padding: 2px 8px; border-radius: 99px; font-size: 7pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
-  .total-row { background: #2D2E39 !important; color: white; font-weight: 700; }
-  .total-row td { color: white; padding: 10px 10px; }
-  .signature-area { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 32px; }
-  .signature-box { border-top: 1px solid #2D2E39; padding-top: 8px; }
-  .signature-name { font-weight: 700; font-size: 10pt; }
-  .signature-role { font-size: 8pt; color: #6B7280; }
-  .footer { background: #2D2E39; color: #94A3B8; padding: 10px 40px; font-size: 8pt; display: flex; justify-content: space-between; position: fixed; bottom: 0; width: 100%; }
-  .type-group-header { background: #EEF2FF; }
-  .type-group-header td { font-weight: 700; color: #4338CA; padding: 6px 10px; font-size: 8pt; text-transform: uppercase; letter-spacing: 0.5px; }
-  @media print { .footer { position: fixed; } }
+  body { font-family: 'Inter', -apple-system, sans-serif; background: #F8F9FC; color: #1a1a2e; }
+
+  /* ── Capa ── */
+  .cover {
+    background: linear-gradient(135deg, #1a1a2e 0%, #2D2E39 50%, #16213e 100%);
+    min-height: 100vh; padding: 0; display: flex; flex-direction: column;
+    page-break-after: always; position: relative; overflow: hidden;
+  }
+  .cover-bg-circles {
+    position: absolute; top: 0; left: 0; right: 0; bottom: 0; overflow: hidden; pointer-events: none;
+  }
+  .circle { position: absolute; border-radius: 50%; opacity: 0.06; background: #5452C1; }
+  .c1 { width: 600px; height: 600px; top: -200px; right: -150px; }
+  .c2 { width: 400px; height: 400px; bottom: -100px; left: -100px; }
+  .c3 { width: 200px; height: 200px; top: 40%; left: 30%; background: #10B981; }
+
+  .cover-header { padding: 40px 48px 0; display: flex; justify-content: space-between; align-items: flex-start; position: relative; }
+  .logo-text { font-size: 28px; font-weight: 900; letter-spacing: -1.5px; color: white; }
+  .logo-dot { color: #5452C1; }
+  .logo-sub { font-size: 9px; color: #94A3B8; letter-spacing: 3px; text-transform: uppercase; margin-top: 4px; }
+  .cover-badge { background: rgba(84,82,193,0.2); border: 1px solid rgba(84,82,193,0.4); border-radius: 99px; padding: 6px 16px; font-size: 11px; font-weight: 600; color: #A5B4FC; letter-spacing: 1px; }
+
+  .cover-body { flex: 1; display: flex; flex-direction: column; justify-content: center; padding: 0 48px; position: relative; }
+  .cover-tag { font-size: 11px; font-weight: 700; letter-spacing: 3px; text-transform: uppercase; color: #5452C1; margin-bottom: 16px; }
+  .cover-title { font-size: 36px; font-weight: 800; color: white; line-height: 1.2; margin-bottom: 12px; max-width: 600px; }
+  .cover-project { font-size: 16px; color: #94A3B8; margin-bottom: 40px; }
+
+  .cover-kpis { display: flex; gap: 20px; margin-bottom: 48px; flex-wrap: wrap; }
+  .kpi-card { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 20px 28px; backdrop-filter: blur(10px); }
+  .kpi-value { font-size: 28px; font-weight: 800; color: white; line-height: 1; }
+  .kpi-value.accent { color: #5452C1; }
+  .kpi-value.green { color: #10B981; }
+  .kpi-label { font-size: 10px; color: #94A3B8; text-transform: uppercase; letter-spacing: 1.5px; margin-top: 6px; }
+
+  .cover-meta { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; max-width: 520px; }
+  .meta-item { }
+  .meta-label { font-size: 9px; color: #64748B; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 4px; }
+  .meta-value { font-size: 13px; font-weight: 600; color: #CBD5E1; }
+
+  .cover-footer { padding: 0 48px 40px; display: flex; align-items: center; justify-content: space-between; position: relative; }
+  .confidential-bar { background: linear-gradient(90deg, #5452C1, #818CF8); border-radius: 99px; padding: 8px 24px; font-size: 10px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: white; }
+  .cover-date { font-size: 11px; color: #475569; }
+
+  /* ── Conteúdo ── */
+  .page { padding: 48px; page-break-inside: avoid; }
+  .section { margin-bottom: 40px; }
+  .section-header { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 2px solid #E2E8F0; }
+  .section-icon { font-size: 20px; }
+  .section-title { font-size: 18px; font-weight: 700; color: #1E293B; }
+  .section-count { font-size: 12px; font-weight: 600; color: #94A3B8; background: #F1F5F9; border-radius: 99px; padding: 2px 10px; }
+
+  /* Resumo por categoria */
+  .category-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 32px; }
+  .cat-card { border-radius: 16px; padding: 16px 20px; border: 1px solid; position: relative; overflow: hidden; }
+  .cat-emoji { font-size: 24px; margin-bottom: 8px; }
+  .cat-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; opacity: 0.7; }
+  .cat-value { font-size: 20px; font-weight: 800; }
+  .cat-count { font-size: 10px; margin-top: 2px; opacity: 0.6; }
+
+  /* Tabela */
+  .expense-table { width: 100%; border-collapse: separate; border-spacing: 0; border-radius: 16px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+  .expense-table thead tr { background: #2D2E39; }
+  .expense-table thead th { padding: 14px 16px; text-align: left; font-size: 10px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: #94A3B8; }
+  .expense-table tbody tr { background: white; border-bottom: 1px solid #F1F5F9; transition: background 0.2s; }
+  .expense-table tbody tr:last-child { border-bottom: none; }
+  .expense-table tbody tr:nth-child(even) { background: #FAFBFC; }
+  .expense-table tbody td { padding: 14px 16px; font-size: 13px; vertical-align: top; }
+  .type-pill { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 99px; font-size: 11px; font-weight: 600; }
+  .detail-text { font-size: 11px; color: #94A3B8; margin-top: 3px; }
+  .amount-cell { font-weight: 700; font-size: 14px; text-align: right; white-space: nowrap; }
+  .group-header td { background: #F8F9FC; padding: 10px 16px; font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: #64748B; border-top: 2px solid #E2E8F0; }
+  .total-row td { background: #2D2E39 !important; color: white; padding: 16px; font-weight: 700; font-size: 15px; }
+  .total-row td:last-child { font-size: 18px; color: #5452C1; }
+
+  /* Aprovação */
+  .approval-section { background: white; border-radius: 24px; padding: 40px; box-shadow: 0 4px 24px rgba(0,0,0,0.06); margin-top: 40px; }
+  .approval-title { font-size: 20px; font-weight: 700; color: #1E293B; margin-bottom: 8px; }
+  .approval-sub { font-size: 13px; color: #94A3B8; margin-bottom: 32px; }
+  .approval-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; }
+  .signer-box { }
+  .signer-role { font-size: 10px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: #94A3B8; margin-bottom: 12px; }
+  .signer-line { height: 1px; background: #2D2E39; margin-bottom: 12px; }
+  .signer-name { font-size: 15px; font-weight: 700; color: #1E293B; }
+  .signer-title { font-size: 11px; color: #94A3B8; margin-top: 4px; }
+  .signer-date { font-size: 11px; color: #5452C1; margin-top: 4px; font-weight: 600; }
+  .approved-stamp { display: inline-flex; align-items: center; gap: 8px; background: #ECFDF5; border: 2px solid #10B981; border-radius: 12px; padding: 8px 16px; margin-top: 12px; }
+  .approved-stamp span { font-size: 12px; font-weight: 700; color: #065F46; letter-spacing: 1px; }
+
+  /* Footer */
+  .report-footer { background: #2D2E39; padding: 20px 48px; display: flex; justify-content: space-between; align-items: center; }
+  .footer-logo { font-size: 14px; font-weight: 800; letter-spacing: -0.5px; color: white; }
+  .footer-logo span { color: #5452C1; }
+  .footer-text { font-size: 10px; color: #64748B; }
+
+  @media print {
+    body { background: white; }
+    .cover { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .expense-table { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .approval-section { break-inside: avoid; }
+  }
 </style>
 </head>
 <body>
 
+<!-- CAPA -->
 <div class="cover">
-  <div class="cover-top">
+  <div class="cover-bg-circles">
+    <div class="circle c1"></div>
+    <div class="circle c2"></div>
+    <div class="circle c3"></div>
+  </div>
+
+  <div class="cover-header">
     <div>
-      <div class="cover-logo">BX<span>.</span>Finance</div>
-      <div class="cover-tag">Advisory · Restructuring · M&amp;A</div>
+      <div class="logo-text">BX<span class="logo-dot">.</span>Finance</div>
+      <div class="logo-sub">Advisory · Restructuring · M&amp;A</div>
     </div>
-    <div style="font-size:8pt;color:#94A3B8;text-align:right;">
-      Confidencial<br>${new Date().toLocaleDateString('pt-BR')}
-    </div>
+    <div class="cover-badge">Relatório de Despesas</div>
   </div>
-  <div>
-    <div style="font-size:9pt;color:#5452C1;font-weight:700;text-transform:uppercase;letter-spacing:2px;margin-bottom:8px;">Relatório de Reembolso de Despesas</div>
+
+  <div class="cover-body">
+    <div class="cover-tag">📋 Reembolso de Despesas</div>
     <div class="cover-title">${report.title}</div>
-    <div class="cover-sub">${project?.name || 'BX Finance'}</div>
+    <div class="cover-project">🏢 ${project?.name || 'BX Finance'}</div>
+
+    <div class="cover-kpis">
+      <div class="kpi-card">
+        <div class="kpi-value accent">${fmtBRL(grandTotal)}</div>
+        <div class="kpi-label">💰 Total Solicitado</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-value">${items.length}</div>
+        <div class="kpi-label">🧾 Despesas</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-value green">${totalByType.length}</div>
+        <div class="kpi-label">📂 Categorias</div>
+      </div>
+    </div>
+
     <div class="cover-meta">
-      <div class="cover-meta-item">
-        <div class="cover-meta-label">Submetido por</div>
-        <div class="cover-meta-value">${submitter?.full_name || '—'}</div>
+      <div class="meta-item">
+        <div class="meta-label">👤 Solicitante</div>
+        <div class="meta-value">${submitter?.full_name || '—'}</div>
       </div>
-      ${report.period_start ? `<div class="cover-meta-item">
-        <div class="cover-meta-label">Período</div>
-        <div class="cover-meta-value">${fmtDate(report.period_start)} a ${fmtDate(report.period_end)}</div>
+      ${report.period_start ? `<div class="meta-item">
+        <div class="meta-label">📅 Período</div>
+        <div class="meta-value">${fmtDate(report.period_start)} → ${fmtDate(report.period_end)}</div>
       </div>` : ''}
-      <div class="cover-meta-item">
-        <div class="cover-meta-label">Total</div>
-        <div class="cover-meta-value" style="color:#5452C1;font-size:14pt;">${fmtBRL(report.total_amount)}</div>
-      </div>
-      <div class="cover-meta-item">
-        <div class="cover-meta-label">Status</div>
-        <div class="cover-meta-value">${STAGE_MAP[report.status]?.label || report.status}</div>
+      <div class="meta-item">
+        <div class="meta-label">✅ Status</div>
+        <div class="meta-value" style="color:#10B981">Aprovado</div>
       </div>
     </div>
   </div>
-</div>
 
-<div class="confidential">DOCUMENTO CONFIDENCIAL — BX FINANCE — USO INTERNO</div>
-
-<div class="section">
-  <div class="section-title">Resumo Executivo</div>
-  <div class="kpis">
-    <div class="kpi"><div class="kpi-value">${fmtBRL(report.total_amount)}</div><div class="kpi-label">Total Solicitado</div></div>
-    <div class="kpi"><div class="kpi-value">${items.length}</div><div class="kpi-label">Itens</div></div>
-    <div class="kpi"><div class="kpi-value">${Object.keys(byType).length}</div><div class="kpi-label">Categorias</div></div>
-    <div class="kpi"><div class="kpi-value">${STAGE_MAP[report.status]?.label || '—'}</div><div class="kpi-label">Status</div></div>
-  </div>
-
-  <div class="section-title">Detalhamento por Categoria</div>
-  <table>
-    <thead><tr>
-      <th style="width:18%">Categoria</th>
-      <th style="width:30%">Descrição</th>
-      <th style="width:12%">Data</th>
-      <th style="width:15%">Detalhes</th>
-      <th style="width:12%;text-align:right">Valor</th>
-      <th style="width:13%">Comprovante</th>
-    </tr></thead>
-    <tbody>
-      ${Object.entries(byType).map(([type, typeItems]) => {
-        const typeInfo = EXPENSE_TYPES[type] || EXPENSE_TYPES.outros
-        const typeTotal = typeItems.reduce((s, i) => s + (parseFloat(i.amount) || 0), 0)
-        return `
-          <tr class="type-group-header"><td colspan="5">${typeInfo.label} — ${typeItems.length} item${typeItems.length>1?'s':''} · ${fmtBRL(typeTotal)}</td><td></td></tr>
-          ${typeItems.map(it => `
-            <tr>
-              <td><span class="type-badge" style="background:${typeInfo.bg};color:${typeInfo.color}">${typeInfo.label}</span></td>
-              <td>${it.description || it.consultant_name || it.airline || '—'}</td>
-              <td>${fmtDate(it.date || it.checkin_date)}</td>
-              <td style="font-size:8pt;color:#6B7280">${
-                type === 'voo' ? `${it.origin || ''}→${it.destination || ''} ${it.airline ? '· '+it.airline : ''}` :
-                type === 'hotel' ? `${it.num_nights || '?'} diárias · ${fmtBRL(it.daily_rate)}/noite` :
-                type === 'transporte' ? `${it.transport_type || ''} ${it.origin ? it.origin+'→'+it.destination : ''}` :
-                type === 'refeicao' ? (it.num_people ? `${it.num_people} pessoas` : '') :
-                type === 'consultor' ? (it.consultant_scope || '') : (it.notes || '')
-              }</td>
-              <td style="text-align:right;font-weight:600">${fmtBRL(it.amount)}</td>
-              <td style="font-size:8pt">${it.receipt_url ? '<span style="color:#5452C1">Ver anexo</span>' : '<span style="color:#94A3B8">—</span>'}</td>
-            </tr>
-          `).join('')}
-        `
-      }).join('')}
-      <tr class="total-row">
-        <td colspan="4">TOTAL GERAL</td>
-        <td style="text-align:right;font-size:12pt">${fmtBRL(report.total_amount)}</td>
-        <td></td>
-      </tr>
-    </tbody>
-  </table>
-
-  ${report.notes ? `<div style="background:#F8F9FC;border-left:3px solid #5452C1;padding:12px 16px;margin-bottom:24px;border-radius:0 8px 8px 0;font-size:9pt;color:#374151"><strong>Observações:</strong> ${report.notes}</div>` : ''}
-
-  <div class="section-title">Aprovação</div>
-  <div class="signature-area">
-    <div class="signature-box">
-      <div class="signature-name">${submitter?.full_name || '—'}</div>
-      <div class="signature-role">Solicitante</div>
-      ${report.submitted_at ? `<div style="font-size:8pt;color:#94A3B8;margin-top:4px">${fmtDate(report.submitted_at?.split('T')[0])}</div>` : ''}
-    </div>
-    <div class="signature-box">
-      <div class="signature-name">${approver?.full_name || '________________________________________'}</div>
-      <div class="signature-role">Aprovador</div>
-      ${report.approved_at ? `<div style="font-size:8pt;color:#94A3B8;margin-top:4px">${fmtDate(report.approved_at?.split('T')[0])}</div>` : ''}
-    </div>
+  <div class="cover-footer">
+    <div class="confidential-bar">🔒 Documento Confidencial</div>
+    <div class="cover-date">Gerado em ${today}</div>
   </div>
 </div>
 
-<div class="footer">
-  <span>BX Finance — Advisory · Restructuring · M&amp;A</span>
-  <span>${report.title} · Gerado em ${new Date().toLocaleDateString('pt-BR')}</span>
+<!-- CONTEÚDO -->
+<div class="page">
+
+  <!-- Resumo por categoria -->
+  <div class="section">
+    <div class="section-header">
+      <span class="section-icon">📊</span>
+      <span class="section-title">Resumo por Categoria</span>
+    </div>
+    <div class="category-grid">
+      ${totalByType.map(t => `
+        <div class="cat-card" style="background:${t.color}10;border-color:${t.color}30;">
+          <div class="cat-emoji">${t.emoji}</div>
+          <div class="cat-label" style="color:${t.color}">${t.label}</div>
+          <div class="cat-value" style="color:${t.color}">${fmtBRL(t.total)}</div>
+          <div class="cat-count">${t.count} item${t.count>1?'s':''}</div>
+        </div>
+      `).join('')}
+    </div>
+  </div>
+
+  <!-- Tabela detalhada -->
+  <div class="section">
+    <div class="section-header">
+      <span class="section-icon">🧾</span>
+      <span class="section-title">Detalhamento das Despesas</span>
+      <span class="section-count">${items.length} itens</span>
+    </div>
+    <table class="expense-table">
+      <thead>
+        <tr>
+          <th>Categoria</th>
+          <th>Descrição</th>
+          <th>Data</th>
+          <th>Detalhes</th>
+          <th style="text-align:right">Valor</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${Object.entries(byType).map(([type, typeItems]) => {
+          const emoji = EMOJI[type]||'💳'
+          const label = TYPE_LABEL[type]||type
+          const color = TYPE_COLOR[type]||'#6B7280'
+          const typeTotal = typeItems.reduce((s,i)=>s+(parseFloat(i.amount)||0),0)
+          return `
+            <tr class="group-header"><td colspan="5">${emoji} ${label} &nbsp;·&nbsp; ${fmtBRL(typeTotal)}</td></tr>
+            ${typeItems.map(it => `<tr>
+              <td>
+                <span class="type-pill" style="background:${color}15;color:${color}">${emoji} ${label}</span>
+              </td>
+              <td>
+                <div style="font-weight:600;color:#1E293B">${it.description||it.consultant_name||it.airline||label}</div>
+                ${it.consultant_scope ? `<div class="detail-text">📋 ${it.consultant_scope}</div>` : ''}
+                ${it.receipt_url ? `<div class="detail-text">📎 <a href="${it.receipt_url}" style="color:#5452C1">Comprovante</a></div>` : ''}
+              </td>
+              <td style="color:#64748B;white-space:nowrap">${fmtDate(it.date||it.checkin_date)}</td>
+              <td>
+                ${type==='voo' ? `<div class="detail-text">✈️ ${it.origin||''}→${it.destination||''} ${it.flight_class?'· '+it.flight_class:''} ${it.airline?'· '+it.airline:''}</div>` : ''}
+                ${type==='hotel' ? `<div class="detail-text">🌙 ${it.num_nights||'?'} noite${it.num_nights>1?'s':''} · ${fmtBRL(it.daily_rate)}/noite ${it.checkin_date?'<br>📅 '+fmtDate(it.checkin_date)+' → '+fmtDate(it.checkout_date):''}</div>` : ''}
+                ${type==='transporte' ? `<div class="detail-text">🚗 ${it.transport_type||''} ${it.origin&&it.destination?it.origin+'→'+it.destination:''}</div>` : ''}
+                ${type==='refeicao' ? `<div class="detail-text">👥 ${it.num_people?it.num_people+' pessoas':''}</div>` : ''}
+                ${type==='consultor' && it.checkin_date ? `<div class="detail-text">📅 ${fmtDate(it.checkin_date)} → ${fmtDate(it.checkout_date)}</div>` : ''}
+              </td>
+              <td class="amount-cell" style="color:${color}">${fmtBRL(it.amount)}</td>
+            </tr>`).join('')}
+          `
+        }).join('')}
+        <tr class="total-row">
+          <td colspan="4">💰 TOTAL GERAL</td>
+          <td style="text-align:right">${fmtBRL(grandTotal)}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Aprovação -->
+  <div class="approval-section">
+    <div class="approval-title">✅ Aprovação e Autorização</div>
+    <div class="approval-sub">Este relatório foi revisado e aprovado conforme política de reembolso da BX Finance.</div>
+    <div class="approval-grid">
+      <div class="signer-box">
+        <div class="signer-role">👤 Solicitante</div>
+        <div class="signer-line"></div>
+        <div class="signer-name">${submitter?.full_name || '—'}</div>
+        <div class="signer-title">BX Finance</div>
+        ${report.submitted_at ? `<div class="signer-date">📅 ${fmtDate(report.submitted_at.split('T')[0])}</div>` : ''}
+      </div>
+      <div class="signer-box">
+        <div class="signer-role">✍️ Aprovador — Sócio</div>
+        <div class="signer-line" style="background:#5452C1"></div>
+        <div class="signer-name">Gabriel Molina</div>
+        <div class="signer-title">Sócio · BX Finance</div>
+        ${report.approved_at ? `<div class="signer-date">📅 ${fmtDate(report.approved_at.split('T')[0])}</div>` : ''}
+        <div class="approved-stamp">
+          <span>✅ APROVADO</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  ${report.notes ? `
+  <div style="background:#EEF2FF;border-left:4px solid #5452C1;border-radius:0 12px 12px 0;padding:16px 20px;margin-top:24px;">
+    <div style="font-size:11px;font-weight:700;color:#4338CA;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">📝 Observações</div>
+    <div style="font-size:13px;color:#374151">${report.notes}</div>
+  </div>` : ''}
+</div>
+
+<div class="report-footer">
+  <div class="footer-logo">BX<span>.</span>Finance</div>
+  <div class="footer-text">Advisory · Restructuring · M&amp;A · Documento Confidencial</div>
+  <div class="footer-text">Gerado em ${today}</div>
 </div>
 
 </body>
@@ -222,8 +364,9 @@ function generateBXReport(report, items, submitter, approver, project) {
   const win = window.open('', '_blank')
   win.document.write(html)
   win.document.close()
-  setTimeout(() => win.print(), 800)
+  setTimeout(() => win.print(), 1200)
 }
+
 
 // ── ExpenseModal ──────────────────────────────────────────────────────────────
 function ExpenseModal({ report, profiles, projects, onClose, onSave, onDelete, onAdvance, onReject }) {
@@ -933,13 +1076,15 @@ export default function Reembolsos() {
 
   async function advanceStatus(report, nextStatus) {
     const updates = { status: nextStatus }
-    if (nextStatus === 'aprovado') { updates.approved_by = profile.id; updates.approved_at = new Date().toISOString() }
-    if (nextStatus === 'pago') { updates.paid_at = new Date().toISOString() }
-    if (nextStatus === 'submetido') { updates.submitted_at = new Date().toISOString() }
-    await supabase.from('expense_reports').update(updates).eq('id', report.id).eq('org_id', profile.org_id)
+    if (nextStatus === 'aprovado')   { updates.approved_by = profile.id; updates.approved_at = new Date().toISOString() }
+    if (nextStatus === 'pago')       { updates.paid_at = new Date().toISOString() }
+    if (nextStatus === 'submetido')  { updates.submitted_at = new Date().toISOString() }
+    const { error } = await supabase.from('expense_reports')
+      .update(updates).eq('id', report.id).eq('org_id', profile.org_id)
+    if (error) { toast.error('Erro ao avançar: ' + error.message); return }
     toast.success(`Movido para ${STAGE_MAP[nextStatus]?.label}`)
     await load()
-    if (modalReport?.id === report.id) setModalReport(p => ({...p, ...updates}))
+    if (modalReport?.id === report.id) setModalReport(p => ({...p, ...updates, status: nextStatus}))
   }
 
   async function rejectReport() {
@@ -1185,6 +1330,28 @@ export default function Reembolsos() {
                             </span>
                           </div>
                         </div>
+
+                        {/* Botão Relatório BX — só no Aprovado */}
+                        {report.status === 'aprovado' && (
+                          <div className="border-t border-emerald-100 px-3 py-2"
+                            style={{ background: '#F0FDF4' }}>
+                            <button
+                              onClick={async e => {
+                                e.stopPropagation()
+                                // Load items then generate
+                                const { data: its } = await supabase.from('expense_items').select('*').eq('report_id', report.id)
+                                const sub = profiles.find(p => p.id === report.submitted_by)
+                                const apr = profiles.find(p => p.id === report.approved_by)
+                                const proj = projects.find(p => p.id === report.project_id)
+                                generateBXReport(report, its || [], sub, apr, proj)
+                              }}
+                              className="w-full flex items-center justify-center gap-1.5 py-2 text-xs font-bold rounded-lg text-white transition-all hover:opacity-90"
+                              style={{ background: 'linear-gradient(135deg, #2D2E39 0%, #5452C1 100%)' }}>
+                              <FileText className="w-3.5 h-3.5" />
+                              Gerar Relatório BX
+                            </button>
+                          </div>
+                        )}
 
                         {/* Navegação de estágio */}
                         {report.status !== 'rejeitado' && (() => {
