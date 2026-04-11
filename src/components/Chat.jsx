@@ -727,7 +727,7 @@ export default function Chat() {
     setMessages([])
     const { data } = await supabase.from('chat_messages').select('*')
       .eq('org_id', profile.org_id).eq('channel_id', ch.id)
-      .eq('is_scheduled', false)
+      .or('is_scheduled.eq.false,is_scheduled.is.null')
       .order('created_at', { ascending:true }).limit(200)
     // Count thread replies
     const msgs = data||[]
