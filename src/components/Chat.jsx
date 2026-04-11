@@ -651,7 +651,7 @@ export default function Chat() {
     const m = {}; profiles.forEach(p => { m[p.id] = p }); return m
   }, [profiles])
 
-  const isLeader = ['socio','lider','admin','partner','managing_partner'].includes(profile?.role?.toLowerCase())
+  const isLeader = ['socio','lider','admin','partner','managing_partner','owner'].includes(profile?.role?.toLowerCase())
 
   // ── Load ──
   useEffect(() => {
