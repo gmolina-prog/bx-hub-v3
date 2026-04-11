@@ -28,6 +28,7 @@ import {
   Layers,
   Tag,
   Target,
+  Trash2,
 } from 'lucide-react'
 
 // ============================================================================
@@ -207,6 +208,74 @@ export default function Intakes() {
       toast.success('Status atualizado')
     } catch (err) {
       toast.error(`Erro ao atualizar: ` + err.message)
+    }
+  }
+
+  async function deleteIntake(intakeId) {
+    const confirmed = await confirm('Excluir este intake? Esta ação não pode ser desfeita.')
+    if (!confirmed) return
+    try {
+      const { error: dErr } = await supabase
+        .from('intakes')
+        .delete()
+        .eq('id', intakeId)
+        .eq('org_id', profile.org_id)
+      if (dErr) throw dErr
+      setSelectedIntake(null)
+      await loadAll()
+      toast.success('Intake excluído')
+    } catch (err) {
+      toast.error('Erro ao excluir: ' + err.message)
+    }
+  }
+
+  function openEditIntake(intake) {
+    setEditForm({
+      company_name: intake.company_name || '',
+      cnpj: intake.cnpj || '',
+      contact_name: intake.contact_name || '',
+      phone: intake.phone || '',
+      email: intake.email || '',
+      estimated_value: intake.estimated_value || '',
+      next_contact_date: intake.next_contact_date || '',
+      next_step: intake.next_step || '',
+      notes: intake.notes || '',
+    })
+    setEditingIntake(true)
+  }
+
+  async function saveEditIntake() {
+    if (!editForm.company_name?.trim()) {
+      toast.warning('Preencha o nome da empresa')
+      return
+    }
+    setSavingEdit(true)
+    try {
+      const payload = {
+        company_name: editForm.company_name.trim(),
+        cnpj: editForm.cnpj?.trim() || null,
+        contact_name: editForm.contact_name?.trim() || null,
+        phone: editForm.phone?.trim() || null,
+        email: editForm.email?.trim() || null,
+        estimated_value: parseFloat(editForm.estimated_value) || null,
+        next_contact_date: editForm.next_contact_date || null,
+        next_step: editForm.next_step?.trim() || null,
+        notes: editForm.notes?.trim() || null,
+      }
+      const { error: uErr } = await supabase
+        .from('intakes')
+        .update(payload)
+        .eq('id', selectedIntake.id)
+        .eq('org_id', profile.org_id)
+      if (uErr) throw uErr
+      setEditingIntake(false)
+      setSelectedIntake(prev => ({ ...prev, ...payload }))
+      await loadAll()
+      toast.success('Intake atualizado')
+    } catch (err) {
+      toast.error('Erro ao salvar: ' + err.message)
+    } finally {
+      setSavingEdit(false)
     }
   }
 
@@ -596,6 +665,13 @@ export default function Intakes() {
                   }`}
                 >
                   {editingIntake ? 'Cancelar' : '✏️ Editar'}
+                </button>
+                <button
+                  onClick={() => deleteIntake(selectedIntake.id)}
+                  className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-rose-200 text-rose-600 bg-rose-50 hover:bg-rose-100 transition-colors flex items-center gap-1"
+                >
+                  <Trash2 className="w-3 h-3" />
+                  Excluir
                 </button>
                 <button onClick={() => setSelectedIntake(null)} className="p-1 hover:bg-zinc-100 rounded">
                   <X className="w-5 h-5 text-zinc-500" />
