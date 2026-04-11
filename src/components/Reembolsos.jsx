@@ -358,27 +358,30 @@ function ExpenseModal({ report, profiles, projects, onClose, onSave, onDelete, o
         style={{ width: 'min(98vw, 1240px)', height: '88vh', borderTop: `3px solid ${stage.dot}` }}>
 
         {/* HEADER */}
-        <div className="shrink-0 px-7 pt-5 pb-5 border-b border-zinc-100">
+        <div className="shrink-0 px-7 pt-5 pb-4 border-b border-zinc-100">
           <div className="flex items-start justify-between gap-4">
             <div className="flex-1 min-w-0">
+              {/* Linha 1: breadcrumb projeto */}
               {project && (
                 <div className="flex items-center gap-2 mb-3">
-                  <div className="w-2.5 h-2.5 rounded-full" style={{ background: stage.dot }} />
+                  <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: stage.dot }} />
                   <span className="text-xs text-zinc-400 font-medium">{project.name}</span>
                 </div>
               )}
-              <input className="w-full text-2xl font-bold text-zinc-800 border-0 outline-none placeholder:text-zinc-300 bg-transparent mb-2"
+              {/* Linha 2: título grande */}
+              <input className="w-full text-2xl font-bold text-zinc-800 border-0 outline-none placeholder:text-zinc-300 bg-transparent mb-3 leading-snug"
                 placeholder="Título do relatório…"
                 value={form.title} onChange={e => setForm(p => ({...p, title: e.target.value}))}
                 disabled={!canEdit} />
+              {/* Linha 3: pills de status + solicitante + valor */}
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-xs font-bold px-3 py-1 rounded-full border"
+                <span className="text-xs font-bold px-3 py-1.5 rounded-full border"
                   style={{ background: stage.header, color: stage.text, borderColor: stage.border }}>
                   {stage.label}
                 </span>
                 {submitter && (
                   <div className="flex items-center gap-1.5">
-                    <div className="w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-bold text-white"
+                    <div className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold text-white shrink-0"
                       style={{ background: submitter.avatar_color || VL }}>
                       {initials(submitter.full_name)}
                     </div>
@@ -386,36 +389,42 @@ function ExpenseModal({ report, profiles, projects, onClose, onSave, onDelete, o
                   </div>
                 )}
                 {form.period_start && (
-                  <span className="text-xs text-zinc-400">
+                  <span className="text-xs text-zinc-400 bg-zinc-100 px-2 py-1 rounded-full">
                     {fmtDateShort(form.period_start)} → {fmtDateShort(form.period_end)}
                   </span>
                 )}
-                <span className="text-sm font-bold ml-2" style={{ color: stage.dot }}>{fmtBRL(total)}</span>
+                <span className="text-base font-bold" style={{ color: stage.dot }}>{fmtBRL(total)}</span>
               </div>
             </div>
-            <div className="flex items-center gap-1.5 shrink-0">
+
+            {/* Botões topo direito */}
+            <div className="flex items-center gap-2 shrink-0">
+              {/* Avançar estágio */}
+              {isLeader && stage.next && (
+                <button onClick={() => onAdvance(report, stage.next)}
+                  className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-xl border transition-all hover:shadow-sm"
+                  style={{ color: stage.text, borderColor: stage.border, background: stage.header }}>
+                  <Check className="w-3.5 h-3.5" />
+                  {STAGE_MAP[stage.next]?.label} →
+                </button>
+              )}
+              {/* Gerar relatório */}
               {report.status === 'aprovado' && (
                 <button onClick={() => generateBXReport(report, items, submitter, approver, project)}
-                  className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-white rounded-lg"
-                  style={{ background: VL }}>
+                  className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white rounded-xl"
+                  style={{ background: CH }}>
                   <FileText className="w-3.5 h-3.5" /> Relatório BX
                 </button>
               )}
-              {isLeader && stage.next && (
-                <button onClick={() => onAdvance(report, stage.next)}
-                  className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-lg border"
-                  style={{ color: stage.dot, borderColor: stage.dot + '44', background: stage.header }}>
-                  <Check className="w-3.5 h-3.5" /> {STAGE_MAP[stage.next]?.label} →
-                </button>
-              )}
-              {isLeader && report.status !== 'rejeitado' && report.status !== 'pago' && (
-                <button onClick={() => onReject(report)}
-                  className="w-9 h-9 flex items-center justify-center rounded-lg text-zinc-400 hover:text-red-500 border border-zinc-200 hover:border-red-200">
+              {/* Rejeitar */}
+              {isLeader && !['rejeitado','pago'].includes(report.status) && (
+                <button onClick={() => onReject(report)} title="Rejeitar"
+                  className="w-9 h-9 flex items-center justify-center rounded-xl text-zinc-400 hover:text-red-500 border border-zinc-200 hover:border-red-200 transition-colors">
                   <X className="w-4 h-4" />
                 </button>
               )}
               <button onClick={onClose}
-                className="w-9 h-9 flex items-center justify-center rounded-lg text-zinc-400 hover:text-zinc-700 border border-zinc-200">
+                className="w-9 h-9 flex items-center justify-center rounded-xl text-zinc-400 hover:text-zinc-700 border border-zinc-200 transition-colors">
                 <X className="w-5 h-5" />
               </button>
             </div>
