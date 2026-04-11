@@ -42,7 +42,18 @@ function SemaforoCarga({ tasks, profiles, filterAssignee, onFilter }) {
     byMember[t.assigned_to] = (byMember[t.assigned_to] || 0) + 1
   })
 
-  const members = profiles.filter(p => byMember[p.id] !== undefined || true)
+  // Apoio: tasks where member is collaborator
+  const apoioByMember = {}
+  active.forEach(t => {
+    const collabs = Array.isArray(t.custom_field_values?.collaborators) ? t.custom_field_values.collaborators : []
+    collabs.forEach(uid => {
+      if (!apoioByMember[uid]) apoioByMember[uid] = []
+      apoioByMember[uid].push(t)
+    })
+  })
+
+  const [expandedMembers, setExpandedMembers] = React.useState({})
+
   if (!profiles.length) return null
 
   return (
@@ -57,32 +68,67 @@ function SemaforoCarga({ tasks, profiles, filterAssignee, onFilter }) {
       <div className="flex flex-wrap gap-2">
         {profiles.map(p => {
           const count = byMember[p.id] || 0
+          const apoioTasks = apoioByMember[p.id] || []
           const sem = getSemaforo(count)
           const isFiltered = filterAssignee === p.id
+          const isExpanded = expandedMembers[p.id]
+          const hasApoio = apoioTasks.length > 0
+
           return (
-            <button key={p.id}
-              onClick={() => onFilter(isFiltered ? 'all' : p.id)}
-              title={`${p.full_name} — ${count} tarefa${count !== 1 ? 's' : ''} ativas — ${sem.label}`}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all text-left ${
-                isFiltered
-                  ? 'ring-2 ring-violet-500 ring-offset-1'
-                  : 'hover:border-zinc-300'
-              }`}
+            <div key={p.id} className={`rounded-xl border transition-all ${isFiltered ? 'ring-2 ring-violet-500 ring-offset-1' : ''}`}
               style={{ background: sem.bg, borderColor: sem.color + '44' }}>
-              <div className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold text-white shrink-0"
-                style={{ background: p.avatar_color || VL }}>
-                {(p.initials || p.full_name?.slice(0,2) || '??').toUpperCase()}
-              </div>
-              <div className="min-w-0">
-                <div className="text-[10px] font-bold text-zinc-700 truncate max-w-[80px]">
-                  {p.full_name?.split(' ')[0]}
+              {/* Card principal do membro */}
+              <button
+                onClick={() => onFilter(isFiltered ? 'all' : p.id)}
+                className="flex items-center gap-2 px-3 py-1.5 text-left w-full">
+                <div className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold text-white shrink-0"
+                  style={{ background: p.avatar_color || VL }}>
+                  {(p.initials || p.full_name?.slice(0,2) || '??').toUpperCase()}
                 </div>
-                <div className="text-[9px] font-semibold" style={{ color: sem.color }}>
-                  {count} tarefa{count !== 1 ? 's' : ''} · {sem.label}
+                <div className="min-w-0">
+                  <div className="text-[10px] font-bold text-zinc-700 truncate max-w-[80px]">
+                    {p.full_name?.split(' ')[0]}
+                  </div>
+                  <div className="text-[9px] font-semibold" style={{ color: sem.color }}>
+                    {count} tarefa{count !== 1 ? 's' : ''} · {sem.label}
+                  </div>
                 </div>
-              </div>
-              <div className="text-sm shrink-0">{sem.dot}</div>
-            </button>
+                <div className="text-sm shrink-0">{sem.dot}</div>
+                {/* Badge apoio + toggle */}
+                {hasApoio && (
+                  <button
+                    onClick={e => { e.stopPropagation(); setExpandedMembers(prev => ({...prev, [p.id]: !prev[p.id]})) }}
+                    className="flex items-center gap-1 ml-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full border transition-all hover:opacity-80"
+                    style={{ background: 'white', color: VL, borderColor: VL + '44' }}
+                    title={`${apoioTasks.length} tarefa${apoioTasks.length>1?'s':''} de apoio`}>
+                    <span>apoio {apoioTasks.length}</span>
+                    <span style={{ fontSize: 8 }}>{isExpanded ? '▲' : '▼'}</span>
+                  </button>
+                )}
+              </button>
+
+              {/* Apoio tasks expandido */}
+              {hasApoio && isExpanded && (
+                <div className="border-t px-3 py-2 space-y-1.5" style={{ borderColor: sem.color + '33', background: 'rgba(255,255,255,0.6)' }}>
+                  <div className="text-[9px] font-bold uppercase tracking-wider mb-1" style={{ color: sem.color }}>
+                    Apoio / Colaborador
+                  </div>
+                  {apoioTasks.map(t => {
+                    const pr = PRIORITY[t.priority] || PRIORITY.medium
+                    const colLabel = COLS.find(c => c.id === t.column_id)?.label || t.column_id
+                    return (
+                      <div key={t.id} className="flex items-start gap-1.5 bg-white rounded-lg px-2 py-1.5 border border-zinc-100">
+                        <div className="w-1.5 h-1.5 rounded-full mt-1 shrink-0" style={{ background: pr.color }} />
+                        <div className="flex-1 min-w-0">
+                          <div className="text-[10px] font-semibold text-zinc-700 truncate">{t.title}</div>
+                          <div className="text-[9px] text-zinc-400">{colLabel}</div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
           )
         })}
       </div>
@@ -974,36 +1020,70 @@ export default function Kanban() {
                 onDrop={e => onDrop(e, col.id)}
                 onDragLeave={() => setDragOver(null)}>
 
-                {/* Header da coluna */}
-                <div className="px-3 py-3" style={{ background: col.bg }}>
-                  <div className="flex items-center justify-between mb-1">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-sm">{col.emoji}</span>
-                      <span className="text-xs font-bold text-zinc-700">{col.label}</span>
-                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-zinc-200 text-zinc-600">{colTasks.length}</span>
-                    </div>
-                    <button onClick={() => setModalTask({ id:'new', column_id:col.id, title:'', priority:'medium' })}
-                      className="text-zinc-400 hover:text-violet-600">
-                      <Plus className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-
-                  {/* % por projeto */}
-                  {projStats.length > 0 && (
-                    <div className="mt-2 space-y-1.5">
-                      {projStats.slice(0,3).map(s => (
-                        <div key={s.pid} className="flex items-center gap-1.5">
-                          <span className="text-[9px] text-zinc-500 truncate w-16 shrink-0">{s.name?.slice(0,12)}</span>
-                          <div className="flex-1 h-1 bg-zinc-200 rounded-full overflow-hidden">
-                            <div className="h-full rounded-full transition-all"
-                              style={{ width:`${s.pct}%`, background: s.pct===100?'#10B981':col.color }} />
-                          </div>
-                          <span className="text-[9px] font-bold shrink-0" style={{color: s.pct===100?'#10B981':col.color}}>{s.pct}%</span>
+                {/* Header da coluna — estilo Captação */}
+                {(() => {
+                  const colTheme = {
+                    backlog: { header: '#F8FAFC', border: '#E2E8F0', dot: '#94A3B8', text: '#475569', badge: '#64748B' },
+                    todo:    { header: '#F9FAFB', border: '#E5E7EB', dot: '#9CA3AF', text: '#4B5563', badge: '#6B7280' },
+                    doing:   { header: '#EEF2FF', border: '#DDD6FE', dot: '#818CF8', text: '#4338CA', badge: '#6366F1' },
+                    review:  { header: '#FFFBEB', border: '#FDE68A', dot: '#EAB308', text: '#713F12', badge: '#CA8A04' },
+                    done:    { header: '#F0FDF4', border: '#BBF7D0', dot: '#22C55E', text: '#14532D', badge: '#16A34A' },
+                  }
+                  const th = colTheme[col.id] || colTheme.todo
+                  const urgentCount = colTasks.filter(t => t.priority === 'urgent').length
+                  const overdueCount = colTasks.filter(t => t.due_date && new Date(t.due_date) < new Date() && col.id !== 'done').length
+                  return (
+                    <div className="px-3 py-3 rounded-t-xl border-b" style={{ background: th.header, borderColor: th.border }}>
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: th.dot }} />
+                          <span className="text-xs font-bold text-zinc-700">{col.label}</span>
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-white border"
+                            style={{ color: th.text, borderColor: th.border }}>{colTasks.length}</span>
                         </div>
-                      ))}
+                        <button onClick={() => setModalTask({ id:'new', column_id:col.id, title:'', priority:'medium' })}
+                          className="w-5 h-5 flex items-center justify-center rounded text-zinc-400 hover:text-violet-600 hover:bg-white/80 transition-colors">
+                          <Plus className="w-3 h-3" />
+                        </button>
+                      </div>
+
+                      {/* Info row: urgentes + vencidas */}
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] text-zinc-400">
+                          {colTasks.length === 0 ? 'Vazio' : `${colTasks.length} tarefa${colTasks.length > 1 ? 's' : ''}`}
+                        </span>
+                        <div className="flex items-center gap-1.5">
+                          {urgentCount > 0 && (
+                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-red-100 text-red-700 border border-red-200">
+                              {urgentCount} urgente{urgentCount > 1 ? 's' : ''}
+                            </span>
+                          )}
+                          {overdueCount > 0 && (
+                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200">
+                              {overdueCount} vencida{overdueCount > 1 ? 's' : ''}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* % por projeto */}
+                      {projStats.length > 0 && (
+                        <div className="mt-2.5 space-y-1.5 border-t pt-2" style={{ borderColor: th.border }}>
+                          {projStats.slice(0,3).map(s => (
+                            <div key={s.pid} className="flex items-center gap-1.5">
+                              <span className="text-[9px] text-zinc-500 truncate w-16 shrink-0">{s.name?.slice(0,12)}</span>
+                              <div className="flex-1 h-1 bg-white/70 rounded-full overflow-hidden">
+                                <div className="h-full rounded-full transition-all"
+                                  style={{ width:`${s.pct}%`, background: s.pct===100?'#10B981':th.dot }} />
+                              </div>
+                              <span className="text-[9px] font-bold shrink-0" style={{ color: s.pct===100?'#16A34A':th.text }}>{s.pct}%</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
+                  )
+                })()}
 
                 {/* Cards */}
                 <div className="flex-1 p-2 space-y-2 min-h-[180px]" style={{ background:'#F8F9FC' }}>
