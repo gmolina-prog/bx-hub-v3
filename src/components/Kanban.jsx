@@ -313,8 +313,8 @@ function TaskModal({ task, projects, profiles, allTasks, onClose, onSave, onDele
         <div className="flex flex-1 min-h-0 overflow-hidden">
 
           {/* COL 1: Checklist + Próxima ação */}
-          <div className="shrink-0 border-r border-zinc-100 bg-zinc-50/40 flex flex-col overflow-hidden" style={{width: 240}}>
-            <div className="flex-1 overflow-y-auto px-4 pt-4 pb-2">
+          <div className="shrink-0 border-r border-zinc-100 bg-zinc-50/40 flex flex-col overflow-hidden" style={{width: 276}}>
+            <div className="flex-1 overflow-y-auto px-5 pt-5 pb-2">
 
               {/* Checklist header */}
               <div className="flex items-center gap-2 mb-2">
@@ -359,7 +359,7 @@ function TaskModal({ task, projects, profiles, allTasks, onClose, onSave, onDele
             </div>
 
             {/* Input novo item */}
-            <div className="shrink-0 px-3 py-2.5 border-t border-zinc-200 bg-white">
+            <div className="shrink-0 px-5 py-3 border-t border-zinc-200 bg-white">
               <div className="flex gap-1.5">
                 <input className="flex-1 text-xs border border-zinc-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-violet-500 placeholder:text-zinc-300 bg-white"
                   placeholder="Novo item… (Enter)" value={newSubtask}
