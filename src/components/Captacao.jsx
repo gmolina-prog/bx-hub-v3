@@ -548,109 +548,204 @@ export default function Captacao() {
 
       {/* ============== KANBAN ============== */}
       {!loading && viewMode === 'kanban' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
           {STAGES.map(stage => {
             const list = byStage[stage.id] || []
             const stageValue = list.reduce((s, it) => s + (parseFloat(it.value) || 0), 0)
+            const weightedValue = list.reduce((s, it) => s + (parseFloat(it.value) || 0) * ((parseFloat(it.probability) || STAGE_PROBABILITIES[it.stage]) / 100), 0)
+            const stageColors = {
+              sky:     { header: '#F0F9FF', border: '#BAE6FD', text: '#0369A1', dot: '#0EA5E9' },
+              violet:  { header: '#F5F3FF', border: '#DDD6FE', text: '#6D28D9', dot: '#7C3AED' },
+              amber:   { header: '#FFFBEB', border: '#FDE68A', text: '#92400E', dot: '#F59E0B' },
+              emerald: { header: '#ECFDF5', border: '#A7F3D0', text: '#065F46', dot: '#10B981' },
+            }
+            const sc = stageColors[stage.color] || stageColors.violet
             return (
               <div key={stage.id}
-                className={`bg-zinc-50 rounded-xl border transition-all ${
+                className={`flex flex-col rounded-2xl border-2 transition-all ${
                   dragOverStage === stage.id
-                    ? 'border-violet-400 ring-2 ring-violet-300 ring-offset-1'
+                    ? 'border-violet-400 ring-2 ring-violet-300 ring-offset-2 shadow-lg'
                     : 'border-zinc-200'
                 }`}
+                style={{ background: '#F8F9FC' }}
                 onDragOver={e => onDragOver(e, stage.id)}
                 onDragLeave={onDragLeave}
                 onDrop={e => onDrop(e, stage.id)}
               >
-                <div className="px-3 py-3 border-b border-zinc-200">
-                  <div className="flex items-center justify-between mb-1">
+                {/* Column header */}
+                <div className="px-4 py-3 rounded-t-2xl border-b border-zinc-200" style={{ background: sc.header }}>
+                  <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
-                      <div className={`w-2 h-2 rounded-full ${stage.dot}`} />
-                      <h3 className="text-xs font-bold text-zinc-700 truncate">{stage.label}</h3>
+                      <div className="w-2.5 h-2.5 rounded-full" style={{ background: sc.dot }} />
+                      <h3 className="text-xs font-bold text-zinc-700">{stage.label.replace(/^\d+ - /, '')}</h3>
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-white border" style={{ color: sc.text, borderColor: sc.border }}>{list.length}</span>
                     </div>
-                    <span className="text-[10px] font-bold text-zinc-500 bg-white px-1.5 py-0.5 rounded">{list.length}</span>
                   </div>
-                  <div className="text-xs text-zinc-500 font-semibold">{formatCurrency(stageValue)}</div>
+                  <div className="flex items-center justify-between text-[10px]">
+                    <span className="font-bold text-zinc-600">{formatCurrency(stageValue)}</span>
+                    <span className="text-zinc-400">pond. {formatCurrency(weightedValue)}</span>
+                  </div>
                 </div>
-                <div className="p-2 space-y-2 min-h-[100px]">
+
+                {/* Cards */}
+                <div className="p-3 space-y-3 min-h-[160px] flex-1">
                   {list.length === 0 ? (
-                    <div className="text-center py-6 text-[10px] text-zinc-400 italic">Vazio</div>
+                    <div className="text-center py-10 text-xs text-zinc-400 border-2 border-dashed border-zinc-200 rounded-xl">
+                      {dragOverStage === stage.id ? '↓ Soltar aqui' : 'Vazio'}
+                    </div>
                   ) : (
                     list.map(item => {
                       const aging = getAging(item)
                       const assigned = profiles.find(p => p.id === item.assigned_to)
-                      const initials = assigned?.initials || (assigned?.full_name || '?').substring(0, 2).toUpperCase()
-                      const avatarStyle = assigned?.avatar_color ? { background: assigned.avatar_color } : {}
-                      const avatarClass = assigned?.avatar_color
-                        ? 'w-6 h-6 rounded-full text-white flex items-center justify-center font-bold text-[9px] flex-shrink-0'
-                        : 'w-6 h-6 rounded-full bg-gradient-to-br from-violet-500 to-violet-700 text-white flex items-center justify-center font-bold text-[9px] flex-shrink-0'
+                      const prob = item.probability || STAGE_PROBABILITIES[item.stage] || 0
+                      const weighted = (parseFloat(item.value) || 0) * (prob / 100)
+                      const isStale = aging.level === 'stale'
+                      const isWarning = aging.level === 'warning'
+                      const accentColor = item.cover_color || '#5452C1'
+
+                      // Urgency badge
+                      let urgencyBadge = null
+                      if (isStale) urgencyBadge = { label: '⚠ Parado', bg: '#FEF2F2', color: '#DC2626', border: '#FECACA' }
+                      else if (isWarning) urgencyBadge = { label: '⏳ Atenção', bg: '#FFFBEB', color: '#D97706', border: '#FDE68A' }
+                      else urgencyBadge = { label: '✓ Ativo', bg: '#F0FDF4', color: '#16A34A', border: '#BBF7D0' }
+
+                      const checklistDone = Array.isArray(item.checklist) ? item.checklist.filter(i => i.done).length : 0
+                      const checklistTotal = Array.isArray(item.checklist) ? item.checklist.length : 0
+
+                      // Next stage shortcut
+                      const currentIdx = STAGES.findIndex(s => s.id === item.stage)
+                      const nextStage = STAGES[currentIdx + 1]
+                      const prevStage = STAGES[currentIdx - 1]
+
                       return (
                         <div
                           key={item.id}
                           draggable
                           onDragStart={() => onDragStart(item.id)}
                           onClick={() => setSelectedItem(item)}
-                          className={`bg-white border rounded-lg p-3 cursor-pointer hover:shadow-md hover:border-violet-300 transition-all ${
-                            draggingId === item.id ? 'opacity-40 scale-95' : ''
+                          className={`bg-white rounded-xl cursor-pointer transition-all group ${
+                            draggingId === item.id ? 'opacity-30 scale-95' : 'hover:shadow-lg hover:-translate-y-0.5'
                           }`}
-                          style={item.cover_color ? { borderLeftWidth: '3px', borderLeftColor: item.cover_color } : { borderColor: '#e4e4e7' }}
+                          style={{
+                            boxShadow: '0 1px 4px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.04)',
+                            borderLeft: `4px solid ${accentColor}`,
+                          }}
                         >
-                          <div className="text-xs font-bold text-zinc-800 line-clamp-2 mb-1">{item.name || '—'}</div>
-                          {item.entity_name && (
-                            <div className="text-[10px] text-zinc-500 truncate">{item.entity_name}</div>
-                          )}
-                          <div className="flex items-center justify-between mt-2 mb-2">
-                            <div className="text-xs font-bold text-violet-700">{formatCurrency(item.value)}</div>
-                            <div className="text-[10px] font-bold text-amber-600">{item.probability || STAGE_PROBABILITIES[item.stage]}%</div>
-                          </div>
-                          <div className="h-1 bg-zinc-100 rounded-full overflow-hidden mb-2">
-                            <div className="h-full bg-violet-500" style={{ width: `${item.probability || STAGE_PROBABILITIES[item.stage]}%` }} />
-                          </div>
-                          {/* B-167: checklist progress */}
-                          {Array.isArray(item.checklist) && item.checklist.length > 0 && (() => {
-                            const done = item.checklist.filter(i => i.done).length
-                            const total = item.checklist.length
-                            return (
-                              <div className="mb-2">
-                                <div className="flex items-center gap-1 mb-1">
-                                  <span className="text-[9px] text-zinc-400">☑ {done}/{total}</span>
-                                </div>
-                                <div className="h-1 bg-zinc-100 rounded-full overflow-hidden">
-                                  <div className="h-full bg-emerald-500" style={{ width: `${total > 0 ? done/total*100 : 0}%` }} />
-                                </div>
-                              </div>
-                            )
-                          })()}
-                          {/* B-168: tags */}
-                          {Array.isArray(item.tags) && item.tags.length > 0 && (
-                            <div className="flex gap-1 flex-wrap mb-2">
-                              {item.tags.slice(0,3).map((tag,i) => (
-                                <span key={i} className="text-[9px] font-bold bg-violet-100 text-violet-600 px-1.5 py-0.5 rounded-full">{tag}</span>
+                          {/* Card body */}
+                          <div className="p-4">
+                            {/* Urgency + tags row */}
+                            <div className="flex items-center gap-1.5 mb-2.5 flex-wrap">
+                              <span className="text-[9px] font-bold px-2 py-0.5 rounded-full border"
+                                style={{ background: urgencyBadge.bg, color: urgencyBadge.color, borderColor: urgencyBadge.border }}>
+                                {urgencyBadge.label}
+                              </span>
+                              {Array.isArray(item.tags) && item.tags.slice(0,2).map((tag,i) => (
+                                <span key={i} className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-violet-50 text-violet-600 border border-violet-100">{tag}</span>
                               ))}
                             </div>
-                          )}
-                          <div className="flex items-center justify-between">
-                            <div className={avatarClass} style={avatarStyle}>{initials}</div>
-                            <div className={`text-[9px] font-bold ${
-                              aging.level === 'stale' ? 'text-rose-600' :
-                              aging.level === 'warning' ? 'text-amber-600' :
-                              'text-zinc-400'
-                            }`}>
-                              {aging.level === 'stale' && '⚠ '}
-                              {aging.label}
+
+                            {/* Title — full, no truncate, 3 lines max */}
+                            <h4 className="text-sm font-bold text-zinc-800 leading-snug line-clamp-3 mb-1.5">{item.name || '—'}</h4>
+
+                            {/* Cliente + Instituição */}
+                            <div className="space-y-0.5 mb-3">
+                              {item.entity_name && (
+                                <div className="flex items-center gap-1.5 text-[11px] text-zinc-500">
+                                  <div className="w-1 h-1 rounded-full bg-zinc-300 shrink-0" />
+                                  <span className="truncate font-medium">{item.entity_name}</span>
+                                </div>
+                              )}
+                              {item.institution_name && (
+                                <div className="flex items-center gap-1.5 text-[11px] text-zinc-500">
+                                  <div className="w-1 h-1 rounded-full bg-violet-300 shrink-0" />
+                                  <span className="truncate">{item.institution_name}</span>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Valor + Ponderado */}
+                            <div className="flex items-end justify-between mb-2">
+                              <div>
+                                <div className="text-[9px] text-zinc-400 uppercase tracking-wider font-bold mb-0.5">Valor</div>
+                                <div className="text-base font-bold" style={{ color: accentColor }}>{formatCurrency(item.value)}</div>
+                              </div>
+                              <div className="text-right">
+                                <div className="text-[9px] text-zinc-400 uppercase tracking-wider font-bold mb-0.5">Ponderado</div>
+                                <div className="text-sm font-bold text-zinc-600">{formatCurrency(weighted)}</div>
+                              </div>
+                            </div>
+
+                            {/* Prob barra */}
+                            <div className="flex items-center gap-2 mb-3">
+                              <div className="flex-1 h-1.5 bg-zinc-100 rounded-full overflow-hidden">
+                                <div className="h-full rounded-full transition-all"
+                                  style={{ width: `${prob}%`, background: prob >= 80 ? '#10B981' : prob >= 50 ? '#5452C1' : '#F59E0B' }} />
+                              </div>
+                              <span className="text-[10px] font-bold w-8 text-right shrink-0"
+                                style={{ color: prob >= 80 ? '#10B981' : prob >= 50 ? '#5452C1' : '#F59E0B' }}>
+                                {prob}%
+                              </span>
+                            </div>
+
+                            {/* Checklist */}
+                            {checklistTotal > 0 && (
+                              <div className="flex items-center gap-2 mb-3">
+                                <div className="flex-1 h-1 bg-zinc-100 rounded-full overflow-hidden">
+                                  <div className="h-full rounded-full bg-emerald-500 transition-all"
+                                    style={{ width: `${checklistTotal > 0 ? checklistDone/checklistTotal*100 : 0}%` }} />
+                                </div>
+                                <span className="text-[9px] text-zinc-400 font-semibold shrink-0">☑ {checklistDone}/{checklistTotal}</span>
+                              </div>
+                            )}
+
+                            {/* Próxima ação */}
+                            {item.next_action && (
+                              <div className="flex items-start gap-1.5 mb-3 bg-violet-50 border border-violet-100 rounded-lg px-2.5 py-2">
+                                <span className="text-violet-400 text-[10px] mt-0.5 shrink-0">→</span>
+                                <span className="text-[11px] text-violet-700 font-semibold leading-snug line-clamp-2">{item.next_action}</span>
+                              </div>
+                            )}
+
+                            {/* Footer: responsável + aging */}
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                {assigned ? (
+                                  <>
+                                    <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0"
+                                      style={{ background: assigned.avatar_color || '#5452C1' }}>
+                                      {(assigned.initials || assigned.full_name?.slice(0,2) || '?').toUpperCase()}
+                                    </div>
+                                    <span className="text-[10px] text-zinc-500 font-medium">{assigned.full_name?.split(' ')[0]}</span>
+                                  </>
+                                ) : (
+                                  <span className="text-[10px] text-zinc-400 italic">Sem responsável</span>
+                                )}
+                              </div>
+                              <span className={`text-[10px] font-bold ${isStale ? 'text-rose-600' : isWarning ? 'text-amber-600' : 'text-zinc-400'}`}>
+                                {aging.label}
+                              </span>
                             </div>
                           </div>
-                          {/* B-74: botões de mover de stage */}
-                          <div className="flex gap-1 mt-2 pt-2 border-t border-zinc-100">
-                            {STAGES.filter(s => s.id !== item.stage).map(s => (
-                              <button key={s.id}
-                                onClick={e => { e.stopPropagation(); moveItem(item.id, s.id) }}
-                                className="flex-1 text-[9px] font-bold py-1 rounded border border-zinc-200 hover:border-violet-400 hover:text-violet-600 hover:bg-violet-50 text-zinc-500 transition-all truncate"
-                                title={`Mover para ${s.label}`}>
-                                → {s.label}
+
+                          {/* Stage nav footer */}
+                          <div className="flex border-t border-zinc-100 rounded-b-xl overflow-hidden">
+                            {prevStage && (
+                              <button
+                                onClick={e => { e.stopPropagation(); moveItem(item.id, prevStage.id) }}
+                                className="flex-1 py-2 text-[10px] font-bold text-zinc-400 hover:bg-zinc-50 hover:text-zinc-600 transition-colors text-center"
+                                title={`← ${prevStage.label}`}>
+                                ← {prevStage.label.replace(/^\d+ - /, '').slice(0,10)}
                               </button>
-                            ))}
+                            )}
+                            {prevStage && nextStage && <div className="w-px bg-zinc-100" />}
+                            {nextStage && (
+                              <button
+                                onClick={e => { e.stopPropagation(); moveItem(item.id, nextStage.id) }}
+                                className="flex-1 py-2 text-[10px] font-bold text-violet-500 hover:bg-violet-50 hover:text-violet-700 transition-colors text-center"
+                                title={`→ ${nextStage.label}`}>
+                                {nextStage.label.replace(/^\d+ - /, '').slice(0,12)} →
+                              </button>
+                            )}
                           </div>
                         </div>
                       )
