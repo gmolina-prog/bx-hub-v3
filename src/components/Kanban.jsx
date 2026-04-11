@@ -1047,10 +1047,10 @@ export default function Kanban() {
                         </button>
                       </div>
 
-                      {/* Info row: urgentes + vencidas */}
-                      <div className="flex items-center justify-between">
-                        <span className="text-[10px] text-zinc-400">
-                          {colTasks.length === 0 ? 'Vazio' : `${colTasks.length} tarefa${colTasks.length > 1 ? 's' : ''}`}
+                      {/* Info row — totais como no Reembolso */}
+                      <div className="flex items-center justify-between mt-1">
+                        <span className="text-sm font-bold" style={{ color: th.text }}>
+                          {colTasks.length === 0 ? '—' : colTasks.length}
                         </span>
                         <div className="flex items-center gap-1.5">
                           {urgentCount > 0 && (
@@ -1061,6 +1061,11 @@ export default function Kanban() {
                           {overdueCount > 0 && (
                             <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200">
                               {overdueCount} vencida{overdueCount > 1 ? 's' : ''}
+                            </span>
+                          )}
+                          {!urgentCount && !overdueCount && (
+                            <span className="text-[10px] text-zinc-400">
+                              {colTasks.length === 0 ? 'Vazio' : `tarefa${colTasks.length > 1 ? 's' : ''}`}
                             </span>
                           )}
                         </div>
