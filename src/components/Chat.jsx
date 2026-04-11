@@ -727,13 +727,12 @@ export default function Chat() {
     setMessages([])
     const { data } = await supabase.from('chat_messages').select('*')
       .eq('org_id', profile.org_id).eq('channel_id', ch.id)
-      .or('is_scheduled.eq.false,is_scheduled.is.null')
       .order('created_at', { ascending:true }).limit(200)
-    // Count thread replies
-    const msgs = data||[]
+    // Filter out pending scheduled messages client-side
+    const visible = (data || []).filter(m => !m.is_scheduled)
     const threadCounts = {}
-    msgs.forEach(m => { if(m.reply_to) threadCounts[m.reply_to]=(threadCounts[m.reply_to]||0)+1 })
-    const enriched = msgs.map(m=>({...m, _threadCount: threadCounts[m.id]||0}))
+    visible.forEach(m => { if(m.reply_to) threadCounts[m.reply_to]=(threadCounts[m.reply_to]||0)+1 })
+    const enriched = visible.map(m=>({...m, _threadCount: threadCounts[m.id]||0}))
     setMessages(enriched)
     setLoadingMsgs(false)
     markChannelRead(ch.id)
