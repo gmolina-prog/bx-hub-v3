@@ -373,12 +373,31 @@ function ExpenseModal({ report, profiles, projects, onClose, onSave, onDelete, o
                 placeholder="Título do relatório…"
                 value={form.title} onChange={e => setForm(p => ({...p, title: e.target.value}))}
                 disabled={!canEdit} />
-              {/* Linha 3: pills de status + solicitante + valor */}
+              {/* Linha 3: período editável em destaque + status + solicitante */}
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-xs font-bold px-3 py-1.5 rounded-full border"
                   style={{ background: stage.header, color: stage.text, borderColor: stage.border }}>
                   {stage.label}
                 </span>
+                {/* Período — sempre visível e editável */}
+                <div className="flex items-center gap-1.5 bg-zinc-50 border border-zinc-200 rounded-lg px-2.5 py-1">
+                  <Clock className="w-3 h-3 text-zinc-400 shrink-0" />
+                  {canEdit ? (
+                    <>
+                      <input type="date" className="text-xs border-0 bg-transparent outline-none text-zinc-600 w-32"
+                        title="Início do período"
+                        value={form.period_start} onChange={e => setForm(p => ({...p, period_start: e.target.value}))} />
+                      <span className="text-zinc-300 text-xs">→</span>
+                      <input type="date" className="text-xs border-0 bg-transparent outline-none text-zinc-600 w-32"
+                        title="Fim do período"
+                        value={form.period_end} onChange={e => setForm(p => ({...p, period_end: e.target.value}))} />
+                    </>
+                  ) : (
+                    <span className="text-xs text-zinc-600">
+                      {form.period_start ? `${fmtDateShort(form.period_start)} → ${fmtDateShort(form.period_end)}` : 'Período não definido'}
+                    </span>
+                  )}
+                </div>
                 {submitter && (
                   <div className="flex items-center gap-1.5">
                     <div className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold text-white shrink-0"
@@ -387,11 +406,6 @@ function ExpenseModal({ report, profiles, projects, onClose, onSave, onDelete, o
                     </div>
                     <span className="text-xs text-zinc-500">{submitter.full_name?.split(' ')[0]}</span>
                   </div>
-                )}
-                {form.period_start && (
-                  <span className="text-xs text-zinc-400 bg-zinc-100 px-2 py-1 rounded-full">
-                    {fmtDateShort(form.period_start)} → {fmtDateShort(form.period_end)}
-                  </span>
                 )}
                 <span className="text-base font-bold" style={{ color: stage.dot }}>{fmtBRL(total)}</span>
               </div>
@@ -538,9 +552,36 @@ function ExpenseModal({ report, profiles, projects, onClose, onSave, onDelete, o
                   <div className="space-y-2">
                     <input className="w-full text-xs border border-zinc-200 rounded-lg px-2.5 py-2 focus:outline-none focus:border-violet-500 bg-white" placeholder="Nome do Consultor *" value={newItem.consultant_name} onChange={e => setNewItem(p => ({...p, consultant_name: e.target.value}))} />
                     <input className="w-full text-xs border border-zinc-200 rounded-lg px-2.5 py-2 focus:outline-none focus:border-violet-500 bg-white" placeholder="Escopo / Serviço prestado" value={newItem.consultant_scope} onChange={e => setNewItem(p => ({...p, consultant_scope: e.target.value}))} />
-                    <div className="grid grid-cols-3 gap-2">
-                      <input type="date" className="text-xs border border-zinc-200 rounded-lg px-2.5 py-2 bg-white" value={newItem.date} onChange={e => setNewItem(p => ({...p, date: e.target.value}))} />
-                      <input type="number" className="col-span-2 text-xs border border-zinc-200 rounded-lg px-2.5 py-2 focus:outline-none focus:border-violet-500 bg-white" placeholder="Valor total (R$) *" value={newItem.amount} onChange={e => setNewItem(p => ({...p, amount: e.target.value}))} />
+                    {/* Período de serviço — controle de sobreposição */}
+                    <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                      <div className="text-[9px] font-bold text-amber-700 uppercase tracking-wider mb-1.5">Período de serviço</div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <div className="text-[9px] text-amber-600 mb-1">Início *</div>
+                          <input type="date" className="w-full text-xs border border-amber-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:border-amber-400"
+                            value={newItem.checkin_date} onChange={e => setNewItem(p => ({...p, checkin_date: e.target.value}))} />
+                        </div>
+                        <div>
+                          <div className="text-[9px] text-amber-600 mb-1">Fim *</div>
+                          <input type="date" className="w-full text-xs border border-amber-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:border-amber-400"
+                            value={newItem.checkout_date} onChange={e => setNewItem(p => ({...p, checkout_date: e.target.value}))} />
+                        </div>
+                      </div>
+                      {newItem.checkin_date && newItem.checkout_date && (
+                        <div className="text-[9px] text-amber-700 mt-1.5 font-medium">
+                          {Math.ceil((new Date(newItem.checkout_date) - new Date(newItem.checkin_date)) / 86400000)} dias de serviço
+                        </div>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <div className="text-[9px] text-zinc-400 mb-1">Data pgto.</div>
+                        <input type="date" className="w-full text-xs border border-zinc-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none" value={newItem.date} onChange={e => setNewItem(p => ({...p, date: e.target.value}))} />
+                      </div>
+                      <div>
+                        <div className="text-[9px] text-zinc-400 mb-1">Valor total (R$) *</div>
+                        <input type="number" className="w-full text-xs border border-zinc-200 rounded-lg px-2.5 py-2 focus:outline-none focus:border-violet-500 bg-white" placeholder="0,00" value={newItem.amount} onChange={e => setNewItem(p => ({...p, amount: e.target.value}))} />
+                      </div>
                     </div>
                   </div>
                 )}
@@ -601,7 +642,9 @@ function ExpenseModal({ report, profiles, projects, onClose, onSave, onDelete, o
                             {it.expense_type === 'hotel' && `${it.num_nights}n × ${fmtBRL(it.daily_rate)}/noite · ${fmtDateShort(it.checkin_date)}→${fmtDateShort(it.checkout_date)}`}
                             {it.expense_type === 'transporte' && `${it.transport_type || ''} ${it.origin && it.destination ? it.origin+'→'+it.destination : ''}`}
                             {it.expense_type === 'refeicao' && `${it.num_people ? it.num_people+' pessoas' : ''} · ${fmtDate(it.date)}`}
-                            {it.expense_type === 'consultor' && `${it.consultant_scope || ''} · ${fmtDate(it.date)}`}
+                            {it.expense_type === 'consultor' && (
+                              <span>{it.consultant_scope || ''} {it.checkin_date ? `· ${fmtDateShort(it.checkin_date)}→${fmtDateShort(it.checkout_date)}` : `· ${fmtDate(it.date)}`}</span>
+                            )}
                             {(!it.expense_type || it.expense_type === 'outros') && fmtDate(it.date)}
                           </div>
                           {it.receipt_url && (
@@ -1109,10 +1152,20 @@ export default function Reembolsos() {
                             <div className="text-lg font-bold" style={{ color: stage.dot }}>{fmtBRL(report.total_amount)}</div>
                           </div>
 
-                          {/* Período */}
-                          {report.period_start && (
-                            <div className="text-[10px] text-zinc-400 mb-2">
-                              {fmtDateShort(report.period_start)} → {fmtDateShort(report.period_end)}
+                          {/* Período — destaque visual */}
+                          {report.period_start ? (
+                            <div className="flex items-center gap-1.5 mb-3">
+                              <div className="flex items-center gap-1 bg-white border rounded-lg px-2.5 py-1.5 text-[10px] font-semibold"
+                                style={{ borderColor: stage.border, color: stage.text }}>
+                                <Clock className="w-3 h-3 shrink-0" />
+                                {fmtDateShort(report.period_start)} → {fmtDateShort(report.period_end)}
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1.5 mb-3">
+                              <span className="text-[9px] text-amber-600 bg-amber-50 border border-amber-200 px-2 py-1 rounded-lg font-medium">
+                                ⚠ Período não definido
+                              </span>
                             </div>
                           )}
 
