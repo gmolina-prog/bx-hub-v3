@@ -630,7 +630,10 @@ export default function Rotinas() {
     const firstDow = new Date(year, month, 1).getDay()
     const blanks = firstDow === 0 ? 6 : firstDow - 1
     const daysInMonth = new Date(year, month + 1, 0).getDate()
-    const assigned = routines.find(r => r.id === routineId)?.assigned_to
+    const routine  = routines.find(r => r.id === routineId)
+    const assigned = routine?.assigned_to
+    // Don't flag as miss any day before the routine was created
+    const createdDate = routine?.created_at ? routine.created_at.slice(0, 10) : todayStr
     const cells = []
     for (let i = 0; i < blanks; i++) cells.push({ type: 'sp' })
     for (let d = 1; d <= daysInMonth; d++) {
@@ -639,6 +642,8 @@ export default function Rotinas() {
       const we   = dow === 0 || dow === 6
       const dStr = date.toISOString().split('T')[0]
       const future = dStr > todayStr
+      // Before routine creation → neutral gray (not a miss)
+      if (dStr < createdDate) { cells.push({ type: 'before', d, dStr, we }); continue }
       if (future) { cells.push({ type: 'fu', d, dStr, we }); continue }
       if (we)     { cells.push({ type: 'we', d, dStr }); continue }
       const comp = completions.filter(c => c.routine_id === routineId && (c.reference_date === dStr || c.completed_at?.startsWith(dStr)))
@@ -836,13 +841,14 @@ export default function Rotinas() {
 
   // ── Helpers de cor/status ────────────────────────────────────────────────
   const statusColors = {
-    ok:   { bg: '#D1FAE5', border: '#A7F3D0', text: '#065F46', icon: '✓' },
-    late: { bg: '#FEF3C7', border: '#FDE68A', text: '#92400E', icon: '⏰' },
-    miss: { bg: '#FEE2E2', border: '#FECACA', text: '#991B1B', icon: '✗' },
-    pend: { bg: '#EEF2FF', border: '#DDD6FE', text: VL,        icon: '●' },
-    fu:   { bg: '#F9FAFB', border: '#F3F4F6', text: '#E5E7EB', icon: '' },
-    we:   { bg: '#F4F5F8', border: '#F4F5F8', text: '#D1D5DB', icon: '—' },
-    sp:   { bg: 'transparent', border: 'transparent', text: '', icon: '' },
+    ok:     { bg: '#D1FAE5', border: '#A7F3D0', text: '#065F46', icon: '✓' },
+    late:   { bg: '#FEF3C7', border: '#FDE68A', text: '#92400E', icon: '⏰' },
+    miss:   { bg: '#FEE2E2', border: '#FECACA', text: '#991B1B', icon: '✗' },
+    pend:   { bg: '#EEF2FF', border: '#DDD6FE', text: VL,        icon: '●' },
+    before: { bg: '#F9FAFB', border: '#E5E7EB', text: '#D1D5DB', icon: '·' }, // before routine creation
+    fu:     { bg: '#F9FAFB', border: '#F3F4F6', text: '#E5E7EB', icon: '' },
+    we:     { bg: '#F4F5F8', border: '#F4F5F8', text: '#D1D5DB', icon: '—' },
+    sp:     { bg: 'transparent', border: 'transparent', text: '', icon: '' },
   }
 
   // ─── RENDER ─────────────────────────────────────────────────────────────────
@@ -1006,6 +1012,12 @@ export default function Rotinas() {
                               <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#F59E0B', flexShrink: 0 }} />
                               <span style={{ fontSize: 10, fontWeight: 600, color: '#6B7280', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{proj?.name || 'Sem projeto'}</span>
                               <span style={{ fontSize: 9, color: '#9CA3AF' }}>{pdone}/{prs.length}</span>
+                              <button
+                                onClick={e => { e.stopPropagation(); archivePhase(pid, proj?.name || pid) }}
+                                title="Arquivar todas as rotinas deste projeto"
+                                style={{ fontSize: 9, color: '#9CA3AF', padding: '1px 6px', borderRadius: 5, border: '1px solid #E5E7EB', background: '#fff', cursor: 'pointer', whiteSpace: 'nowrap', lineHeight: 1.6 }}>
+                                📦 Arquivar projeto
+                              </button>
                             </div>
                           )}
                           {prs.map(r => {
@@ -1151,6 +1163,15 @@ export default function Rotinas() {
                     <span style={{ fontSize: 11, color: '#9CA3AF' }}>· {rs.length} rotinas · {cfg.cycle}</span>
                     <span style={{ marginLeft: 'auto', fontSize: 13, fontWeight: 800, color: pc }}>{pct}% compliance</span>
                     <span style={{ fontSize: 11, color: '#9CA3AF' }}>{done}/{rs.length} feitas</span>
+                    {/* Bulk actions — só quando projeto selecionado */}
+                    {histProj && (
+                      <button
+                        onClick={() => archivePhase(histProj, projectsWithRoutines.find(p => p.id === histProj)?.name || histProj)}
+                        title="Arquivar todas as rotinas deste projeto"
+                        style={{ fontSize: 10, color: '#9CA3AF', padding: '3px 8px', borderRadius: 6, border: '1px solid #E5E7EB', background: '#fff', cursor: 'pointer', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 4 }}>
+                        📦 Arquivar projeto
+                      </button>
+                    )}
                   </div>
 
                   {/* Grid of calendar cards */}
