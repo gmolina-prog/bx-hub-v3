@@ -148,22 +148,33 @@ export default function Dashboard() {
     const recentActivity = actLog.length > 0 ? actLog : [...tasks]
       .sort((a, b) => new Date(b.updated_at || 0) - new Date(a.updated_at || 0)).slice(0, 5)
 
-    // Saúde do hub: base 100, descontos por problemas, bônus por resultados
-    let health = 100
-    health -= overdue * 8                            // cada tarefa vencida -8
-    health -= Math.max(0, (doing + todo) - 10) * 2  // excesso de WIP -2 por item
-    health += Math.min(20, doneWeek * 3)             // tarefas entregues esta semana (máx +20)
-    if (pipeTotal > 1000000) health += 10
-    else if (pipeTotal > 500000) health += 5
+    // Saúde do hub: base 100, descontos reais por problemas operacionais
     const ciPct = profiles.length > 0 ? checkins.length / profiles.length : 0
-    if (ciPct >= 0.8) health += 5                    // +5 se 80%+ da equipe fez check-in
-    else if (ciPct < 0.3 && profiles.length > 2) health -= 5  // equipe sem check-in
+    let health = 100
+    health -= overdue * 8                                                    // cada tarefa vencida -8
+    health -= Math.max(0, (doing + todo) - 10) * 2                           // excesso de WIP -2 por item
+    health += Math.min(15, doneWeek * 3)                                     // entregas da semana (máx +15)
+    // Check-in da equipe — penalidade proporcional
+    if (ciPct === 0 && profiles.length > 0) health -= 20                    // zero check-ins: -20
+    else if (ciPct < 0.3 && profiles.length > 2) health -= 10               // menos de 30%: -10
+    else if (ciPct >= 0.8) health += 5                                       // 80%+ presente: +5
+    // Rotinas — sem rotinas configuradas é sinal de processo ausente
+    const activeRoutines = routines.filter(r => r.is_active).length
+    if (activeRoutines === 0 && profiles.length > 0) health -= 10            // sem rotinas: -10
     health = Math.max(0, Math.min(100, Math.round(health)))
 
-    // Usar thresholds do estado (passados via closure — recarregar ao mudar)
+    // Alertas — considera múltiplos fatores, não só overdue
     const th = (() => { try { const s = localStorage.getItem('bx_dashboard_thresholds'); return s ? {...DEFAULT_THRESHOLDS, ...JSON.parse(s)} : DEFAULT_THRESHOLDS } catch { return DEFAULT_THRESHOLDS } })()
-    const statusIcon = overdue >= th.overdueRed ? '🔴' : overdue >= th.overdueYellow ? '🟡' : '🟢'
-    const statusText = overdue >= th.overdueRed ? `${overdue} alertas críticos` : overdue >= th.overdueYellow ? `${overdue} tarefa(s) vencida(s)` : 'Operação estável — 0 alertas'
+    const alertList = []
+    if (overdue >= th.overdueRed)                                alertList.push(`${overdue} tarefas vencidas`)
+    else if (overdue >= th.overdueYellow)                        alertList.push(`${overdue} tarefa(s) atrasada(s)`)
+    if (ciPct === 0 && profiles.length > 0)                     alertList.push('equipe sem check-in')
+    else if (ciPct < 0.3 && profiles.length > 2)               alertList.push('check-in baixo')
+    if (activeRoutines === 0 && profiles.length > 0)            alertList.push('sem rotinas ativas')
+    const statusIcon = alertList.length === 0 ? '🟢' : overdue >= th.overdueRed ? '🔴' : '🟡'
+    const statusText = alertList.length === 0
+      ? 'Operação estável — 0 alertas'
+      : `${alertList.length} alerta${alertList.length > 1 ? 's' : ''}: ${alertList.join(' · ')}`
 
     const pipeStages = [
       { label: 'Indicação', id: 'indicacao', color: '#9CA3AF' },
