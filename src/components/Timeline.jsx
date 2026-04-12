@@ -285,25 +285,34 @@ export default function Timeline() {
     return matchStatus && matchComp
   })
 
-  // Gantt date range
+  // Gantt date range — dynamic based on actual project dates
   const now = new Date()
-  const minDate = new Date(now.getFullYear(), now.getMonth() - 1, 1)
-  const maxDate = new Date(now.getFullYear(), now.getMonth() + 5, 1)
-  const totalDays = Math.ceil((maxDate - minDate) / 86400000)
+
+  // Find earliest start and latest end across all projects
+  const projectStarts  = filtered.map(p => p.created_at ? new Date(p.created_at) : now)
+  const projectEnds    = filtered.map(p => p.deadline   ? new Date(p.deadline)   : now)
+  const earliestStart  = projectStarts.length ? new Date(Math.min(...projectStarts)) : now
+  const latestEnd      = projectEnds.length   ? new Date(Math.max(...projectEnds))   : now
+
+  // Pad by 1 month on each side, align to month boundaries
+  const minDate = new Date(earliestStart.getFullYear(), earliestStart.getMonth() - 1, 1)
+  const maxDate = new Date(latestEnd.getFullYear(),     latestEnd.getMonth()   + 2, 1)
+  const totalDays = Math.max(30, Math.ceil((maxDate - minDate) / 86400000))
 
   const months = []
   const md = new Date(minDate)
   while (md < maxDate) {
-    months.push({ label: md.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }), pct: Math.round((md - minDate) / 86400000 / totalDays * 100) })
+    months.push({ label: md.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }).toUpperCase(), pct: Math.round((md - minDate) / 86400000 / totalDays * 100) })
     md.setMonth(md.getMonth() + 1)
   }
 
   function ganttBar(project) {
-    const deadline = project.deadline ? new Date(project.deadline) : null
-    const start = deadline ? new Date(deadline.getTime() - 90 * 86400000) : new Date()
-    const end = deadline || new Date(start.getTime() + 90 * 86400000)
-    const left = Math.max(0, Math.round((start - minDate) / 86400000 / totalDays * 100))
-    const width = Math.max(2, Math.min(100 - left, Math.round((end - start) / 86400000 / totalDays * 100)))
+    // Use created_at as start, deadline as end
+    const start = project.created_at ? new Date(project.created_at) : now
+    const end   = project.deadline   ? new Date(project.deadline)   : new Date(start.getTime() + 180 * 86400000)
+    const left  = Math.max(0, Math.min(98, Math.round((start - minDate) / 86400000 / totalDays * 100)))
+    const right = Math.min(100, Math.round((end   - minDate) / 86400000 / totalDays * 100))
+    const width = Math.max(2, right - left)
     return { left, width }
   }
 
@@ -435,7 +444,7 @@ export default function Timeline() {
             <div className="w-64 shrink-0 border-r border-zinc-200">
               <div className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-white" style={{ background: CH }}>Projeto</div>
               {filtered.map(p => (
-                <div key={p.id} className="px-4 py-3 border-b border-zinc-100 h-14 flex flex-col justify-center">
+                <div key={p.id} className="px-4 py-2.5 border-b border-zinc-100 h-14 flex flex-col justify-center">
                   <div className="flex items-center gap-1 group">
                     <div className="text-xs font-bold text-zinc-800 truncate flex-1">{p.name}</div>
                     <button onClick={e => { e.stopPropagation(); setHistProject(p); loadProjectLog(p.id) }}
@@ -449,10 +458,9 @@ export default function Timeline() {
                       ✏️
                     </button>
                   </div>
-                  {compMap[p.company_id] && <div className="text-[10px] text-zinc-500 flex items-center gap-1 mt-0.5"><Building2 className="w-2.5 h-2.5" />{compMap[p.company_id].name}</div>}
                   <div className="flex items-center gap-2 mt-0.5">
-                    {p.budget && <span className="text-[9px] font-bold text-emerald-600">R$ {(p.budget/1000).toFixed(0)}k</span>}
-                    {p.associate_id && profMap[p.associate_id] && <span className="text-[9px] text-zinc-400">{profMap[p.associate_id].full_name?.split(' ')[0]}</span>}
+                    {compMap[p.company_id] && <span className="text-[10px] text-zinc-400 truncate max-w-[120px]">{compMap[p.company_id].name}</span>}
+                    {p.associate_id && profMap[p.associate_id] && <span className="text-[9px] font-semibold text-violet-500 shrink-0">{profMap[p.associate_id].full_name?.split(' ')[0]}</span>}
                   </div>
                 </div>
               ))}
@@ -478,14 +486,18 @@ export default function Timeline() {
                 const doneTasks = projTasks.filter(t => t.column_id === 'done').length
                 const taskPct = projTasks.length > 0 ? Math.round(doneTasks / projTasks.length * 100) : (progress > 0 ? progress : -1)
                 return (
-                  <div key={p.id} className="relative h-14 border-b border-zinc-100 flex items-center px-2">
+                  <div key={p.id} className="relative h-14 border-b border-zinc-100 flex items-center">
                     {months.map((m, i) => <div key={i} className="absolute top-0 bottom-0 border-l border-zinc-100" style={{ left: `${m.pct}%` }} />)}
                     <div className="absolute top-0 bottom-0 border-l border-violet-300 border-dashed z-10" style={{ left: `${Math.round((now - minDate) / 86400000 / totalDays * 100)}%` }} />
-                    <div className="absolute h-7 rounded-lg overflow-hidden z-20 min-w-[60px]" style={{ left: `${left}%`, width: `${width}%` }}>
-                      <div className="absolute inset-0 rounded-lg" style={{ background: ganttColor(p.id), opacity: .85 }} />
-                      <div className="absolute inset-y-0 left-0 rounded-lg" style={{ width: `${taskPct >= 0 ? taskPct : 0}%`, background: 'rgba(255,255,255,.35)' }} />
+                    <div className="absolute h-8 rounded-lg overflow-hidden z-20"
+                      style={{ left: `${left}%`, width: `${Math.max(width, 3)}%`, minWidth: 48 }}
+                      title={`${p.name} · Início: ${p.created_at ? new Date(p.created_at).toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'2-digit'}) : '?'} → Prazo: ${p.deadline ? new Date(p.deadline).toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'2-digit'}) : '—'}`}
+                    >
+                      <div className="absolute inset-0 rounded-lg" style={{ background: ganttColor(p.id), opacity: .88 }} />
+                      <div className="absolute inset-y-0 left-0 rounded-lg transition-all" style={{ width: `${taskPct >= 0 ? taskPct : 0}%`, background: 'rgba(255,255,255,.28)' }} />
                       <div className="absolute inset-0 flex items-center px-2 gap-1.5">
-                        <span className="text-white text-[10px] font-bold">{taskPct >= 0 ? taskPct + '%' : '—'}</span>
+                        <span className="text-white text-[10px] font-bold drop-shadow-sm shrink-0">{taskPct >= 0 ? taskPct + '%' : '—'}</span>
+                        <span className="text-white/80 text-[9px] truncate">{p.name}</span>
                       </div>
                     </div>
                   </div>
