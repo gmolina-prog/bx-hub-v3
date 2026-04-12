@@ -300,6 +300,9 @@ export default function Rotinas() {
   // Formulários
   const [showForm,      setShowForm]      = useState(false)
   const [showTemplates, setShowTemplates] = useState(false)
+  const [showArchived,  setShowArchived]  = useState(false)
+  const [archived,      setArchived]      = useState([])
+  const [loadingArchived, setLoadingArchived] = useState(false)
   const [form, setForm] = useState({ title: '', frequency: 'semanal', assigned_to: '', company_id: '', project_id: '', description: '' })
   const [tplState, setTplState] = useState({ selectedId: null, company_id: '', project_id: '', assigned_to: '', step: 'choose' })
 
@@ -503,6 +506,44 @@ export default function Rotinas() {
     const { error } = await supabase.from('routines').update({ is_active: false }).eq('id', id).eq('org_id', profile.org_id)
     if (error) { toast.error('Erro ao arquivar: ' + error.message); return }
     await load(); toast.success('Rotina arquivada — histórico preservado')
+  }
+
+  // ── Carregar arquivadas ───────────────────────────────────────────────────
+  async function loadArchived() {
+    setLoadingArchived(true)
+    const { data, error } = await supabase
+      .from('routines').select('*')
+      .eq('org_id', profile.org_id).eq('is_active', false)
+      .is('deleted_at', null).order('title')
+    if (!error) setArchived(data || [])
+    setLoadingArchived(false)
+  }
+
+  function openArchived() {
+    setShowArchived(true)
+    loadArchived()
+  }
+
+  // ── Restaurar rotina arquivada ────────────────────────────────────────────
+  async function restoreRoutine(id) {
+    const { error } = await supabase.from('routines').update({ is_active: true }).eq('id', id).eq('org_id', profile.org_id)
+    if (error) { toast.error('Erro ao restaurar: ' + error.message); return }
+    toast.success('✅ Rotina restaurada — aparecerá nas views ativas')
+    await Promise.all([load(), loadArchived()])
+  }
+
+  // ── Excluir permanentemente da lista arquivada ────────────────────────────
+  async function deleteArchivedRoutine(r) {
+    const ok = await confirm(
+      `Excluir permanentemente "${r.title}"?\n\nTodo o histórico de execuções será perdido. Esta ação não pode ser desfeita.`,
+      { danger: true, confirmLabel: 'Excluir permanentemente', cancelLabel: 'Cancelar' }
+    )
+    if (!ok) return
+    await supabase.from('routine_completions').delete().eq('routine_id', r.id).eq('org_id', profile.org_id)
+    const { error } = await supabase.from('routines').delete().eq('id', r.id).eq('org_id', profile.org_id)
+    if (error) { toast.error('Erro: ' + error.message); return }
+    toast.success('Rotina excluída permanentemente')
+    loadArchived()
   }
 
   // ── Excluir rotina (hard delete) ─────────────────────────────────────────
@@ -910,6 +951,9 @@ export default function Rotinas() {
             {/* Actions */}
             <button onClick={() => setShowTemplates(true)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 9, border: '1px solid rgba(255,255,255,.15)', background: 'transparent', color: 'rgba(255,255,255,.8)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
               <BookOpen style={{ width: 14, height: 14 }} /> Templates
+            </button>
+            <button onClick={openArchived} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 9, border: '1px solid rgba(255,255,255,.15)', background: 'transparent', color: 'rgba(255,255,255,.6)', fontSize: 12, fontWeight: 500, cursor: 'pointer' }}>
+              📦 Arquivadas
             </button>
             <button onClick={() => setShowForm(true)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 9, border: 'none', background: VL, color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
               <Plus style={{ width: 14, height: 14 }} /> Nova rotina
@@ -1590,6 +1634,108 @@ export default function Rotinas() {
                 style={{ background: AMBER }}>
                 {lateSaving ? 'Salvando…' : '⏰ Registrar atraso'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Painel de Rotinas Arquivadas ── */}
+      {showArchived && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end justify-end p-4" onClick={e => { if (e.target === e.currentTarget) setShowArchived(false) }}>
+          <div className="bg-white rounded-2xl w-full max-w-xl h-full max-h-[90vh] flex flex-col shadow-2xl">
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-100">
+              <div>
+                <h2 className="text-sm font-bold text-zinc-800 flex items-center gap-2">
+                  📦 Rotinas Arquivadas
+                </h2>
+                <p className="text-xs text-zinc-400 mt-0.5">
+                  {archived.length} rotina{archived.length !== 1 ? 's' : ''} arquivada{archived.length !== 1 ? 's' : ''} · histórico preservado
+                </p>
+              </div>
+              <button onClick={() => setShowArchived(false)} className="p-1.5 rounded-lg hover:bg-zinc-100 text-zinc-400">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Info banner */}
+            <div className="mx-5 mt-4 mb-2 p-3 rounded-lg text-xs" style={{ background: '#EEF2FF', border: '1px solid #DDD6FE', color: VL }}>
+              <strong>↩️ Restaurar</strong> devolve a rotina para as views ativas com todo o histórico preservado.<br/>
+              <strong>🗑️ Excluir</strong> apaga permanentemente — use só se tiver certeza.
+            </div>
+
+            {/* List */}
+            <div className="flex-1 overflow-y-auto px-5 pb-4">
+              {loadingArchived ? (
+                <div className="flex items-center justify-center py-12 text-zinc-400 text-sm">
+                  <RefreshCw className="w-4 h-4 animate-spin mr-2" /> Carregando…
+                </div>
+              ) : archived.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-16 text-zinc-400">
+                  <div className="text-4xl mb-3 opacity-30">📦</div>
+                  <div className="text-sm font-medium">Nenhuma rotina arquivada</div>
+                  <div className="text-xs mt-1 text-zinc-400">Rotinas arquivadas aparecerão aqui</div>
+                </div>
+              ) : (
+                <div className="space-y-2 pt-2">
+                  {/* Group by project */}
+                  {Object.entries(
+                    archived.reduce((acc, r) => {
+                      const pid = r.project_id || '__sem_projeto__'
+                      if (!acc[pid]) acc[pid] = []
+                      acc[pid].push(r)
+                      return acc
+                    }, {})
+                  ).map(([pid, rs]) => {
+                    const proj = projMap[pid]
+                    return (
+                      <div key={pid}>
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 mt-3 mb-1.5 flex items-center gap-1.5">
+                          <div className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                          {proj?.name || 'Sem projeto'} · {rs.length} rotina{rs.length !== 1 ? 's' : ''}
+                        </div>
+                        {rs.map(r => {
+                          const prof = profMap[r.assigned_to]
+                          const freqLabel = { diaria: 'Diária', semanal: 'Semanal', mensal: 'Mensal' }[r.frequency] || r.frequency
+                          const freqColor = { diaria: { bg: '#EEF2FF', clr: '#4338CA' }, semanal: { bg: '#FEF3C7', clr: '#92400E' }, mensal: { bg: '#D1FAE5', clr: '#065F46' } }[r.frequency] || { bg: '#F3F4F6', clr: '#6B7280' }
+                          return (
+                            <div key={r.id} className="flex items-center gap-3 p-3 rounded-xl border border-zinc-100 bg-zinc-50 hover:bg-white hover:border-zinc-200 transition-all">
+                              <span className="text-[9px] font-bold px-2 py-0.5 rounded-full shrink-0" style={{ background: freqColor.bg, color: freqColor.clr }}>{freqLabel}</span>
+                              <div className="flex-1 min-w-0">
+                                <div className="text-xs font-semibold text-zinc-700 truncate">{r.title}</div>
+                                <div className="flex items-center gap-2 mt-0.5">
+                                  {prof && <span className="text-[10px] text-zinc-400">{prof.full_name}</span>}
+                                  {r.created_at && (
+                                    <span className="text-[10px] text-zinc-300">
+                                      arquivada em {new Date(r.updated_at || r.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' })}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="flex gap-1.5 shrink-0">
+                                <button
+                                  onClick={() => restoreRoutine(r.id)}
+                                  className="flex items-center gap-1 text-[11px] font-semibold px-3 py-1.5 rounded-lg transition-all hover:scale-105"
+                                  style={{ background: '#EEF2FF', color: VL, border: '1px solid #DDD6FE' }}
+                                  title="Restaurar rotina">
+                                  ↩️ Restaurar
+                                </button>
+                                <button
+                                  onClick={() => deleteArchivedRoutine(r)}
+                                  className="flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1.5 rounded-lg transition-all hover:scale-105"
+                                  style={{ background: '#FEF2F2', color: '#EF4444', border: '1px solid #FECACA' }}
+                                  title="Excluir permanentemente">
+                                  🗑️
+                                </button>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
             </div>
           </div>
         </div>
