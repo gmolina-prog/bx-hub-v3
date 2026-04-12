@@ -352,14 +352,15 @@ export default function CRM() {
   return (
     <div className="p-6 max-w-[1600px] mx-auto">
       {/* Hero */}
-      <div className="bg-gradient-to-br from-zinc-800 to-zinc-900 rounded-2xl p-6 mb-6 text-white">
-        <div className="flex items-start justify-between mb-4 flex-wrap gap-4">
+      <div className="rounded-2xl mb-6 text-white" style={{ background: '#2D2E39', padding: 0 }}>
+        <div style={{ padding: '20px 24px 0' }}>
+        <div className="flex items-start justify-between mb-3 flex-wrap gap-4">
           <div>
-            <div className="text-xs font-bold uppercase tracking-wider text-violet-300 mb-1">
+            <div className="text-[9.5px] font-bold uppercase tracking-widest mb-1" style={{ color: '#818CF8', letterSpacing: '.12em' }}>
               Comercial
             </div>
-            <h1 className="text-2xl font-bold mb-1">CRM · Propostas, forecast e cross-sell</h1>
-            <p className="text-sm text-zinc-300">
+            <h1 className="text-[21px] font-bold mb-0.5">CRM · Propostas, forecast e cross-sell</h1>
+            <p className="text-[11.5px]" style={{ color: '#6B7280' }}>
               {companies.length} clientes · {proposals.length} propostas · {interactions.length} interações registradas
             </p>
           </div>
@@ -382,7 +383,7 @@ export default function CRM() {
         </div>
 
         {/* KPIs */}
-        <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-6 gap-2 mb-4">
           <Kpi label="Receita ganha" value={formatCurrency(kpis.won.value)} accent="emerald" />
           <Kpi label="Pipeline ativo" value={formatCurrency(kpis.active.value)} sub={`${kpis.active.count} propostas`} accent="violet" />
           <Kpi label="Win rate" value={`${kpis.winRate}%`} accent="amber" />
@@ -391,26 +392,42 @@ export default function CRM() {
           <Kpi label="Forecast ponderado" value={formatCurrency(kpis.forecastWeighted)} accent="violet" />
         </div>
 
-        {/* Tabs */}
-        <div className="flex gap-1 mt-5 border-b border-white/10 -mb-2 overflow-x-auto">
+        {/* Tabs with counters */}
+        <div className="flex gap-1 mt-4 overflow-x-auto">
           {TABS.map(tab => {
             const Icon = tab.icon
+            const on = activeTab === tab.id
+            const cnt = tab.id === 'clients' ? companies.length
+              : tab.id === 'proposals' ? proposals.length
+              : tab.id === 'crosssell' ? proposals.filter(p => p.is_crosssell).length
+              : null
             return (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`px-4 py-2.5 text-sm font-semibold flex items-center gap-2 border-b-2 transition-colors whitespace-nowrap ${
-                  activeTab === tab.id
-                    ? 'border-violet-400 text-white'
-                    : 'border-transparent text-zinc-400 hover:text-white'
-                }`}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 5,
+                  padding: '9px 14px', fontSize: 12, fontWeight: on ? 600 : 500,
+                  borderRadius: '8px 8px 0 0', cursor: 'pointer', whiteSpace: 'nowrap',
+                  border: '1px solid transparent', borderBottom: 'none', outline: 'none',
+                  background: on ? 'white' : 'transparent',
+                  color: on ? '#5452C1' : '#6B7280',
+                  borderColor: on ? 'rgba(255,255,255,.12)' : 'transparent',
+                  transition: 'all .12s',
+                }}
               >
-                <Icon className="w-4 h-4" />
+                <Icon style={{ width: 13, height: 13 }} />
                 {tab.label}
+                {cnt !== null && (
+                  <span style={{ fontSize: 9.5, fontWeight: 600, padding: '1px 5px', borderRadius: 99, background: on ? '#EEF2FF' : 'rgba(255,255,255,.1)', color: on ? '#5452C1' : '#9CA3AF' }}>
+                    {cnt}
+                  </span>
+                )}
               </button>
             )
           })}
         </div>
+        </div>{/* /inner padding */}
       </div>
 
       {/* Toasts */}
@@ -596,28 +613,65 @@ export default function CRM() {
       {/* TAB: Visão Geral */}
       {!loading && activeTab === 'overview' && (
         <div className="space-y-6">
-          {/* Funil */}
-          <div className="bg-white border border-zinc-200 rounded-xl p-5">
-            <h2 className="text-sm font-bold text-zinc-800 mb-4 flex items-center gap-2">
-              <div className="w-1.5 h-1.5 rounded-full bg-violet-600" />
-              Funil de propostas
-            </h2>
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          {/* Funil Kanban */}
+          <div className="bg-white border border-zinc-200 rounded-xl p-4">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-bold text-zinc-800 flex items-center gap-2">
+                <div className="w-1.5 h-1.5 rounded-full bg-violet-600" />
+                Funil de propostas
+              </h2>
+              <span className="text-xs text-zinc-400">{proposals.length} proposta{proposals.length !== 1 ? 's' : ''} · {formatCurrency(proposals.reduce((s,p)=>s+(parseFloat(p.value)||0),0))}</span>
+            </div>
+            <div className="flex gap-3 overflow-x-auto pb-1">
               {STAGES.map(stage => {
                 const list = byStage[stage.id] || []
                 const value = list.reduce((s, p) => s + (parseFloat(p.value) || 0), 0)
-                const Icon = stage.icon
-                const c = STAGE_COLORS[stage.color]
+                const stageColors = {
+                  zinc:    { header: '#F9FAFB', hborder: '#E5E7EB', dot: '#9CA3AF', text: '#374151', bodyBg: '#FAFAFA', border: '#E5E7EB', cardBorder: '#9CA3AF' },
+                  violet:  { header: '#EEF2FF', hborder: '#DDD6FE', dot: '#818CF8', text: '#4338CA', bodyBg: '#F5F3FF', border: '#DDD6FE', cardBorder: '#6366F1' },
+                  amber:   { header: '#FFFBEB', hborder: '#FDE68A', dot: '#EAB308', text: '#92400E', bodyBg: '#FEFCE8', border: '#FDE68A', cardBorder: '#F59E0B' },
+                  emerald: { header: '#F0FDF4', hborder: '#BBF7D0', dot: '#22C55E', text: '#065F46', bodyBg: '#F0FDF4', border: '#BBF7D0', cardBorder: '#10B981' },
+                  rose:    { header: '#FEF2F2', hborder: '#FECACA', dot: '#EF4444', text: '#991B1B', bodyBg: '#FEF9F9', border: '#FECACA', cardBorder: '#EF4444' },
+                }
+                const sc = stageColors[stage.color] || stageColors.zinc
                 return (
-                  <div
-                    key={stage.id}
-                    className={`${c.bg} ${c.border} border-2 rounded-xl p-4 text-center cursor-pointer hover:shadow-md transition-shadow`}
-                    onClick={() => setActiveTab('proposals')}
-                  >
-                    <Icon className={`w-5 h-5 ${c.text} mx-auto mb-2`} />
-                    <div className={`text-[10px] font-bold uppercase tracking-wide ${c.text}`}>{stage.label}</div>
-                    <div className={`text-3xl font-bold ${c.text} mt-1`}>{list.length}</div>
-                    <div className={`text-xs ${c.text} font-semibold mt-1`}>{formatCurrency(value)}</div>
+                  <div key={stage.id} style={{ flex: '0 0 180px', minWidth: 0 }}>
+                    {/* Column header */}
+                    <div style={{ background: sc.header, border: `0.5px solid ${sc.hborder}`, borderRadius: '8px 8px 0 0', padding: '8px 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                        <div style={{ width: 7, height: 7, borderRadius: '50%', background: sc.dot }} />
+                        <span style={{ fontSize: 11, fontWeight: 500, color: sc.text }}>{stage.label}</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <span style={{ fontSize: 9.5, color: sc.dot, fontWeight: 600 }}>{formatCurrency(value)}</span>
+                        <span style={{ fontSize: 9, background: 'white', border: `0.5px solid ${sc.hborder}`, borderRadius: 99, padding: '1px 5px', color: sc.text, fontWeight: 600 }}>{list.length}</span>
+                      </div>
+                    </div>
+                    {/* Column body */}
+                    <div style={{ border: `0.5px solid ${sc.border}`, borderTop: 'none', borderRadius: '0 0 8px 8px', padding: 6, minHeight: 80, background: sc.bodyBg }}>
+                      {list.length === 0 ? (
+                        <div style={{ textAlign: 'center', padding: '16px 0', fontSize: 11, color: '#9CA3AF' }}>Vazio</div>
+                      ) : list.slice(0,3).map(p => {
+                        const sla = getSLAStatus(p)
+                        return (
+                          <div key={p.id} onClick={() => setActiveTab('proposals')}
+                            style={{ background: 'white', borderRadius: 6, padding: '8px 9px', marginBottom: 5, cursor: 'pointer', borderLeft: `2px solid ${sc.cardBorder}`, fontSize: 10 }}
+                            onMouseEnter={e => e.currentTarget.style.boxShadow='0 2px 8px rgba(0,0,0,.08)'}
+                            onMouseLeave={e => e.currentTarget.style.boxShadow='none'}>
+                            <div style={{ fontWeight: 600, color: '#111827', marginBottom: 3, fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {p.title || p.name || 'Sem título'}
+                            </div>
+                            <div style={{ color: sc.dot, fontWeight: 600, fontSize: 10.5 }}>{formatCurrency(p.value)}</div>
+                            {sla && <div style={{ marginTop: 3, fontSize: 9, fontWeight: 600, color: sla.color, background: sla.bg, padding: '1px 5px', borderRadius: 99, display: 'inline-block' }}>{sla.label}</div>}
+                          </div>
+                        )
+                      })}
+                      {list.length > 3 && (
+                        <button onClick={() => setActiveTab('proposals')} style={{ width: '100%', fontSize: 10, color: sc.dot, padding: '4px', textAlign: 'center', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
+                          +{list.length - 3} mais →
+                        </button>
+                      )}
+                    </div>
                   </div>
                 )
               })}
@@ -631,23 +685,24 @@ export default function CRM() {
                 <div className="w-1.5 h-1.5 rounded-full bg-violet-600" />
                 Saúde dos clientes
               </h2>
-              <div className="space-y-3">
-                {HEALTH_BUCKETS.map(b => {
-                  // Use health field if exists, else default all to "good"
+              <div className="space-y-2">
+                {[
+                  { id: 'critico', label: 'Crítico',    color: '#EF4444', bg: '#FEF2F2', border: '#FECACA' },
+                  { id: 'alto',    label: 'Alto risco', color: '#F59E0B', bg: '#FFFBEB', border: '#FDE68A' },
+                  { id: 'medio',   label: 'Médio risco',color: '#6366F1', bg: '#EEF2FF', border: '#DDD6FE' },
+                  { id: 'baixo',   label: 'Baixo risco',color: '#10B981', bg: '#F0FDF4', border: '#BBF7D0' },
+                ].map(b => {
                   const count = companies.filter(c => (c.criticality || 'medio') === b.id).length
-                  const pct = companies.length > 0 ? (count / companies.length) * 100 : 0
+                  if (count === 0) return null
+                  const names = companies.filter(c => (c.criticality || 'medio') === b.id).map(c => c.name || c.full_name).join(', ')
                   return (
-                    <div key={b.id}>
-                      <div className="flex items-center justify-between text-xs mb-1">
-                        <span className="font-semibold text-zinc-700">{b.icon} {b.label}</span>
-                        <span className="font-bold text-zinc-900">{count}</span>
-                      </div>
-                      <div className="h-1.5 bg-zinc-100 rounded-full overflow-hidden">
-                        <div className={`h-full bg-${b.color}-500`} style={{ width: `${pct}%` }} />
-                      </div>
+                    <div key={b.id} style={{ background: b.bg, border: `0.5px solid ${b.border}`, borderLeft: `3px solid ${b.color}`, borderRadius: 8, padding: '9px 12px' }}>
+                      <div style={{ fontSize: 9.5, fontWeight: 700, color: b.color, textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 4 }}>{b.label} · {count}</div>
+                      <div style={{ fontSize: 11, color: b.color, opacity: .75, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{names}</div>
                     </div>
                   )
                 })}
+                {companies.length === 0 && <div className="text-xs text-zinc-400 text-center py-4">Nenhum cliente cadastrado</div>}
               </div>
 
             </div>
