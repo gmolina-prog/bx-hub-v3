@@ -464,74 +464,83 @@ export default function Produtividade() {
       {/* ============== TAB: EQUIPE ============== */}
       {!loading && activeTab === 'team' && (
         <div className="space-y-6">
-          {/* Ranking enriquecido */}
+          {/* Ranking — cards por pessoa */}
           <div className="bg-white border border-zinc-200 rounded-xl overflow-hidden">
-            <div className="px-5 py-4 border-b border-zinc-200 bg-zinc-50">
-              <h2 className="text-sm font-bold text-zinc-800 flex items-center gap-2">
-                <Award className="w-4 h-4 text-violet-600" />
+            <div className="px-5 py-4 border-b border-zinc-200" style={{ background: '#2D2E39' }}>
+              <h2 className="text-sm font-bold text-white flex items-center gap-2">
+                <Award className="w-4 h-4 text-violet-400" />
                 Ranking da Equipe — Score BX
-                <span className="ml-auto text-xs text-zinc-500 font-semibold">
+                <span className="ml-auto text-xs font-semibold" style={{ color: '#6B7280' }}>
                   {userScores.length} colaboradores
                 </span>
               </h2>
             </div>
-            <table className="w-full text-sm">
-              <thead className="bg-zinc-800 text-white">
-                <tr>
-                  <th className="text-left px-4 py-3 text-[10px] font-bold uppercase tracking-wider w-16">#</th>
-                  <th className="text-left px-4 py-3 text-[10px] font-bold uppercase tracking-wider">Colaborador</th>
-                  <th className="text-center px-4 py-3 text-[10px] font-bold uppercase tracking-wider">Score BX</th>
-                  <th className="text-center px-4 py-3 text-[10px] font-bold uppercase tracking-wider">Tarefas</th>
-                  <th className="text-center px-4 py-3 text-[10px] font-bold uppercase tracking-wider">Concluídas</th>
-                  <th className="text-center px-4 py-3 text-[10px] font-bold uppercase tracking-wider">Atrasadas</th>
-                  <th className="text-center px-4 py-3 text-[10px] font-bold uppercase tracking-wider">Check-in</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-zinc-100">
-                {userScores.map((u, idx) => {
-                  const p = u.profile
-                  const initials = p.initials || (p.full_name || '?').split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase()
-                  const avatarStyle = p.avatar_color ? { background: p.avatar_color } : {}
-                  const avatarClass = p.avatar_color
-                    ? 'w-9 h-9 rounded-full text-white flex items-center justify-center font-bold text-xs flex-shrink-0'
-                    : 'w-9 h-9 rounded-full bg-gradient-to-br from-violet-500 to-violet-700 text-white flex items-center justify-center font-bold text-xs flex-shrink-0'
-                  const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : null
-                  return (
-                    <tr key={p.id} className="hover:bg-zinc-50">
-                      <td className="px-4 py-3 font-bold text-zinc-700">
-                        {medal || idx + 1}
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-3">
-                          <div className={avatarClass} style={avatarStyle}>{initials}</div>
-                          <div>
-                            <div className="font-bold text-zinc-800">{p.full_name || '—'}</div>
-                            <div className="text-xs text-zinc-500">{p.cargo || p.role || ''}</div>
-                          </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12, padding: 16 }}>
+              {userScores.map((u, idx) => {
+                const p = u.profile
+                const initials = p.initials || (p.full_name || '?').split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase()
+                const avatarBg = p.avatar_color || '#5452C1'
+                const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : null
+                const scoreColor = u.score >= 100 ? '#10B981' : u.score >= 50 ? '#5452C1' : u.score > 0 ? '#6B7280' : '#EF4444'
+                const scoreBg   = u.score >= 100 ? '#ECFDF5' : u.score >= 50 ? '#EEF2FF' : u.score > 0 ? '#F4F5F8' : '#FEF2F2'
+                const maxScore = Math.max(...userScores.map(x => x.score), 1)
+                const barPct = Math.max(0, Math.min(100, (u.score / maxScore) * 100))
+                return (
+                  <div key={p.id} style={{
+                    background: 'white', border: '1px solid #EAECF0', borderRadius: 10,
+                    padding: 14, position: 'relative', overflow: 'hidden',
+                    borderTop: idx < 3 ? `3px solid ${idx===0?'#F59E0B':idx===1?'#94A3B8':'#B45309'}` : '1px solid #EAECF0',
+                  }}>
+                    {/* Position badge */}
+                    <div style={{ position: 'absolute', top: 8, right: 10, fontSize: medal ? 16 : 10, fontWeight: 700, color: '#9CA3AF' }}>
+                      {medal || `#${idx+1}`}
+                    </div>
+                    {/* Avatar + name */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                      <div style={{ width: 36, height: 36, borderRadius: '50%', background: avatarBg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: 'white', flexShrink: 0 }}>
+                        {initials}
+                      </div>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: 12.5, fontWeight: 700, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {p.full_name?.split(' ')[0] || '—'}
                         </div>
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <div className={`inline-block px-3 py-1 rounded-full text-sm font-bold ${
-                          u.score >= 100 ? 'bg-emerald-100 text-emerald-700' :
-                          u.score >= 50 ? 'bg-violet-100 text-violet-700' :
-                          u.score >= 0 ? 'bg-zinc-100 text-zinc-700' :
-                          'bg-rose-100 text-rose-700'
-                        }`}>
-                          {u.score}
+                        <div style={{ fontSize: 10, color: '#9CA3AF', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {p.cargo || p.role || '—'}
                         </div>
-                      </td>
-                      <td className="px-4 py-3 text-center text-zinc-700 font-semibold">{u.tasksTotal}</td>
-                      <td className="px-4 py-3 text-center font-bold text-emerald-700">{u.tasksDone}</td>
-                      <td className="px-4 py-3 text-center font-bold text-rose-700">{u.tasksLate || '0'}</td>
-                      <td className="px-4 py-3 text-center text-violet-700 font-semibold">{u.checkIns}</td>
-                      <td className="px-4 py-3 text-center">
-                        {u.streak >= 3 ? <span className="text-sm font-bold text-amber-600">🔥 {u.streak}d</span> : <span className="text-xs text-zinc-400">{u.streak || 0}d</span>}
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+                      </div>
+                    </div>
+                    {/* Score in big */}
+                    <div style={{ background: scoreBg, borderRadius: 8, padding: '8px 10px', textAlign: 'center', marginBottom: 10 }}>
+                      <div style={{ fontSize: 22, fontWeight: 800, color: scoreColor, lineHeight: 1 }}>{u.score}</div>
+                      <div style={{ fontSize: 9, color: scoreColor, opacity: .7, textTransform: 'uppercase', letterSpacing: '.08em', marginTop: 2 }}>Score BX</div>
+                    </div>
+                    {/* Score bar */}
+                    <div style={{ height: 3, background: '#F3F4F6', borderRadius: 99, marginBottom: 10, overflow: 'hidden' }}>
+                      <div style={{ height: '100%', width: barPct + '%', background: scoreColor, borderRadius: 99, transition: 'width .5s' }} />
+                    </div>
+                    {/* Stats row */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 4 }}>
+                      {[
+                        { label: 'Tarefas', value: u.tasksTotal, color: '#374151' },
+                        { label: 'Concl.', value: u.tasksDone, color: '#10B981' },
+                        { label: 'Atr.', value: u.tasksLate || 0, color: u.tasksLate > 0 ? '#EF4444' : '#10B981' },
+                      ].map(s => (
+                        <div key={s.label} style={{ background: '#F9FAFB', borderRadius: 6, padding: '5px 4px', textAlign: 'center' }}>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: s.color }}>{s.value}</div>
+                          <div style={{ fontSize: 8.5, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.05em' }}>{s.label}</div>
+                        </div>
+                      ))}
+                    </div>
+                    {/* Streak */}
+                    {u.streak >= 3 && (
+                      <div style={{ marginTop: 8, textAlign: 'center', fontSize: 11, fontWeight: 700, color: '#F59E0B' }}>
+                        🔥 {u.streak} dias seguidos
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
           </div>
           {/* B-75: Total de horas registradas */}
           <div className="bg-white border border-zinc-200 rounded-xl p-5 md:col-span-2">
