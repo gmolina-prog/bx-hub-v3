@@ -664,7 +664,9 @@ export default function Rotinas() {
   function buildWeeklyCells(routineId) {
     const weeks = []
     const today = new Date()
-    const assigned = routines.find(r => r.id === routineId)?.assigned_to
+    const routine  = routines.find(r => r.id === routineId)
+    const assigned = routine?.assigned_to
+    const createdDate = routine?.created_at ? routine.created_at.slice(0, 10) : todayStr
     for (let w = 5; w >= 0; w--) {
       const monday = new Date(today)
       monday.setDate(today.getDate() - (today.getDay() === 0 ? 6 : today.getDay() - 1) - w * 7)
@@ -673,6 +675,11 @@ export default function Rotinas() {
       const sundayStr = sunday.toISOString().split('T')[0]
       const isCurrent = w === 0
       if (isCurrent) { weeks.push({ wStr: mondayStr, label: 'Esta semana', status: 'pend', cur: true }); continue }
+      // Semana inteiramente antes da criação → neutro
+      if (sundayStr < createdDate) {
+        weeks.push({ wStr: mondayStr, label: monday.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }), status: 'before' })
+        continue
+      }
       const comp = completions.filter(c => c.routine_id === routineId && (c.reference_date || '') >= mondayStr && (c.reference_date || '') <= sundayStr)
       const status = comp.length === 0 ? 'miss' : comp.some(c => c.execution_status === 'late') ? 'late' : 'ok'
       const covComp = comp.find(c => c.completed_by !== assigned)
@@ -689,13 +696,21 @@ export default function Rotinas() {
   function buildMonthlyCells(routineId) {
     const cells = []
     const today = new Date()
-    const assigned = routines.find(r => r.id === routineId)?.assigned_to
+    const routine  = routines.find(r => r.id === routineId)
+    const assigned = routine?.assigned_to
+    const createdDate = routine?.created_at ? routine.created_at.slice(0, 10) : todayStr
+    const createdMonth = createdDate.slice(0, 7) // YYYY-MM
     for (let m = 5; m >= 0; m--) {
       const d = new Date(today.getFullYear(), today.getMonth() - m, 1)
       const mk = d.toISOString().slice(0,7)
       const label = d.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' })
       const isCurrent = m === 0
       if (isCurrent) { cells.push({ mk, label, status: 'pend', cur: true }); continue }
+      // Mês inteiramente antes do mês de criação → neutro
+      if (mk < createdMonth) {
+        cells.push({ mk, label, status: 'before' })
+        continue
+      }
       const comp = completions.filter(c => c.routine_id === routineId && (c.reference_date || '').startsWith(mk))
       const status = comp.length === 0 ? 'miss' : comp.some(c => c.execution_status === 'late') ? 'late' : 'ok'
       const covComp = comp.find(c => c.completed_by !== assigned)
@@ -1253,15 +1268,16 @@ export default function Rotinas() {
                                 <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
                                   {weeks.map((w, i) => {
                                     const sc = statusColors[w.status]
-                                    const icon = w.status === 'ok' ? '✅' : w.status === 'late' ? '⏰' : w.status === 'miss' ? '❌' : '🔄'
-                                    const tip = w.status === 'miss' ? `${w.label} — Clique para registrar atraso`
+                                    const icon = w.status === 'ok' ? '✅' : w.status === 'late' ? '⏰' : w.status === 'miss' ? '❌' : w.status === 'before' ? '·' : '🔄'
+                                    const tip = w.status === 'before' ? `${w.label} — antes da criação da rotina`
+                                      : w.status === 'miss' ? `${w.label} — Clique para registrar atraso`
                                       : w.status === 'late' ? `${w.label} — ⏰ por ${w.lateBy?.full_name || '?'} · +${w.daysLate || 1}d de atraso`
                                       : w.status === 'ok' && w.cov ? `${w.label} — Feito por ${w.cov.full_name} (cobertura)`
                                       : w.label
                                     return (
                                       <div key={i} title={tip}
                                         onClick={() => w.status === 'miss' && setLateModal({ routine: r, refDate: w.wStr, freq: 'semanal' })}
-                                        style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '6px 8px', borderRadius: 7, minWidth: 58, cursor: w.status === 'miss' ? 'pointer' : 'default', border: `1.5px solid ${w.cur ? VL : sc.border}`, background: sc.bg, transition: 'transform .1s' }}
+                                        style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '6px 8px', borderRadius: 7, minWidth: 58, cursor: w.status === 'miss' ? 'pointer' : 'default', opacity: w.status === 'before' ? 0.45 : 1, border: `1.5px solid ${w.cur ? VL : sc.border}`, background: sc.bg, transition: 'transform .1s' }}
                                         onMouseEnter={e => { if (w.status === 'miss') e.currentTarget.style.transform = 'scale(1.05)' }}
                                         onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)' }}
                                       >
@@ -1282,14 +1298,15 @@ export default function Rotinas() {
                                 <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
                                   {months.map((m, i) => {
                                     const sc = statusColors[m.status]
-                                    const icon = m.status === 'ok' ? '✅' : m.status === 'late' ? '⏰' : m.status === 'miss' ? '❌' : '🔄'
-                                    const tip = m.status === 'miss' ? `${m.label} — Clique para registrar atraso`
+                                    const icon = m.status === 'ok' ? '✅' : m.status === 'late' ? '⏰' : m.status === 'miss' ? '❌' : m.status === 'before' ? '·' : '🔄'
+                                    const tip = m.status === 'before' ? `${m.label} — antes da criação da rotina`
+                                      : m.status === 'miss' ? `${m.label} — Clique para registrar atraso`
                                       : m.status === 'late' ? `${m.label} — ⏰ por ${m.lateBy?.full_name || '?'} · +${m.daysLate || 1}d de atraso`
                                       : m.label
                                     return (
                                       <div key={i} title={tip}
                                         onClick={() => m.status === 'miss' && setLateModal({ routine: r, refDate: m.mk + '-01', freq: 'mensal' })}
-                                        style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '8px 10px', borderRadius: 7, minWidth: 62, cursor: m.status === 'miss' ? 'pointer' : 'default', border: `1.5px solid ${m.cur ? VL : sc.border}`, background: sc.bg, transition: 'transform .1s' }}
+                                        style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '8px 10px', borderRadius: 7, minWidth: 62, cursor: m.status === 'miss' ? 'pointer' : 'default', opacity: m.status === 'before' ? 0.45 : 1, border: `1.5px solid ${m.cur ? VL : sc.border}`, background: sc.bg, transition: 'transform .1s' }}
                                         onMouseEnter={e => { if (m.status === 'miss') e.currentTarget.style.transform = 'scale(1.05)' }}
                                         onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)' }}
                                       >
