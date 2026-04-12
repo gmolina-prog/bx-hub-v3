@@ -39,15 +39,26 @@ async function fetchCNPJ(cnpj) {
 
 // ─── AI via Claude API ─────────────────────────────────────────────────────────
 async function callClaude(prompt) {
+  const apiKey = import.meta.env.VITE_ANTHROPIC_KEY || ''
+  if (!apiKey) throw new Error('Chave da API não configurada. Adicione VITE_ANTHROPIC_KEY nas variáveis de ambiente do Vercel.')
   const r = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true',
+    },
     body: JSON.stringify({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 1000,
       messages: [{ role: 'user', content: prompt }],
     }),
   })
+  if (!r.ok) {
+    const err = await r.json().catch(() => ({}))
+    throw new Error(err?.error?.message || `Erro ${r.status} na API`)
+  }
   const d = await r.json()
   return d.content?.[0]?.text || ''
 }
@@ -955,13 +966,38 @@ Escreva em terceira pessoa, tom profissional e objetivo, adequado para apresenta
 // ══════════════════════════════════════════════════════════════════════════════
 // MODAL NOVO PROJETO
 // ══════════════════════════════════════════════════════════════════════════════
-export function NovoProjetoModal({ onClose, onSave, companies, profiles }) {
+export function NovoProjetoModal({ onClose, onSave, companies, profiles, initialData }) {
   const { profile } = useData()
-  const [form, setForm] = useState({
-    name: '', type: 'Diagnóstico', status: 'Planejamento',
-    deadline: '', budget: '', company_id: '', analyst_id: '',
-    associate_id: '', priority: 'medium', observacoes: '',
-    ai_scope: '',
+  const isEdit = !!initialData
+
+  // Pre-fill form when editing an existing project
+  const [form, setForm] = useState(() => {
+    if (initialData) {
+      // Extract ai_scope from observacoes if it was embedded there
+      const obs = initialData.observacoes || ''
+      const scopeIdx = obs.indexOf('\n\n---\n🤖 ESCOPO IA:\n')
+      const cleanObs = scopeIdx > -1 ? obs.slice(0, scopeIdx).trim() : obs
+      const aiScope  = scopeIdx > -1 ? obs.slice(scopeIdx + '\n\n---\n🤖 ESCOPO IA:\n'.length).trim() : ''
+      return {
+        name:        initialData.name        || '',
+        type:        initialData.type        || 'Diagnóstico',
+        status:      initialData.status      || 'Planejamento',
+        deadline:    initialData.deadline    ? initialData.deadline.slice(0, 10) : '',
+        budget:      initialData.budget      ? String(initialData.budget) : '',
+        company_id:  initialData.company_id  || '',
+        analyst_id:  initialData.analyst_id  || '',
+        associate_id:initialData.associate_id|| '',
+        priority:    initialData.priority    || 'medium',
+        observacoes: cleanObs,
+        ai_scope:    aiScope,
+      }
+    }
+    return {
+      name: '', type: 'Diagnóstico', status: 'Planejamento',
+      deadline: '', budget: '', company_id: '', analyst_id: '',
+      associate_id: '', priority: 'medium', observacoes: '',
+      ai_scope: '',
+    }
   })
   const [loadingAI, setLoadingAI] = useState(false)
   const [saving,    setSaving]    = useState(false)
@@ -1013,8 +1049,7 @@ Responda APENAS com o escopo estruturado:
     if (!form.name.trim()) { toast.warning('Nome do projeto é obrigatório'); return }
     setSaving(true)
     try {
-      const { data, error } = await supabase.from('projects').insert({
-        org_id:      profile.org_id,
+      const payload = {
         name:        form.name.trim(),
         type:        form.type,
         status:      form.status,
@@ -1025,11 +1060,22 @@ Responda APENAS com o escopo estruturado:
         associate_id:form.associate_id || null,
         priority:    form.priority,
         observacoes: form.ai_scope
-                       ? `${form.observacoes || ''}\n\n---\n🤖 ESCOPO IA:\n${form.ai_scope}`.trim()
-                       : (form.observacoes?.trim() || null),
-      }).select().single()
-      if (error) throw error
-      toast.success(`Projeto "${form.name}" criado ✓`)
+          ? `${form.observacoes || ''}\n\n---\n🤖 ESCOPO IA:\n${form.ai_scope}`.trim()
+          : (form.observacoes?.trim() || null),
+      }
+      let data
+      if (isEdit) {
+        const { data: upd, error } = await supabase.from('projects').update(payload)
+          .eq('id', initialData.id).eq('org_id', profile.org_id).select().single()
+        if (error) throw error
+        data = upd
+        toast.success(`Projeto "${form.name}" atualizado ✓`)
+      } else {
+        const { data: ins, error } = await supabase.from('projects').insert({ org_id: profile.org_id, ...payload }).select().single()
+        if (error) throw error
+        data = ins
+        toast.success(`Projeto "${form.name}" criado ✓`)
+      }
       onSave(data)
     } catch (err) {
       toast.error('Erro: ' + err.message)
@@ -1054,8 +1100,8 @@ Responda APENAS com o escopo estruturado:
               <FolderOpen className="w-4 h-4 text-amber-600" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-zinc-800">Novo Projeto</h3>
-              <p className="text-[10px] text-zinc-400">Estruturação + Escopo BX gerado por IA</p>
+              <h3 className="text-base font-bold text-zinc-800">{isEdit ? 'Editar Projeto' : 'Novo Projeto'}</h3>
+              <p className="text-[10px] text-zinc-400">{isEdit ? 'Edite todos os campos do projeto' : 'Estruturação + Escopo BX gerado por IA'}</p>
             </div>
           </div>
           <button onClick={onClose} className="p-1.5 text-zinc-400 hover:text-zinc-700 rounded-lg"><X className="w-5 h-5" /></button>
@@ -1148,7 +1194,7 @@ Responda APENAS com o escopo estruturado:
           <button onClick={handleSave} disabled={saving || !form.name.trim()}
             className="flex-1 py-2.5 text-sm font-bold text-white rounded-xl disabled:opacity-50 hover:opacity-90 flex items-center justify-center gap-2"
             style={{ background: '#F59E0B' }}>
-            {saving ? <><Loader2 className="w-4 h-4 animate-spin" />Salvando…</> : '+ Criar Projeto'}
+            {saving ? <><Loader2 className="w-4 h-4 animate-spin" />Salvando…</> : isEdit ? '💾 Salvar Alterações' : '+ Criar Projeto'}
           </button>
         </div>
       </div>
