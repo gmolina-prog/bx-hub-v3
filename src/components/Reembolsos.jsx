@@ -1225,7 +1225,7 @@ export default function Reembolsos() {
       {loading ? (
         <div className="text-center py-12 text-sm text-zinc-400">Carregando…</div>
       ) : (
-        <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(5, 1fr)' }}>
+        <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${STAGES.length}, minmax(0, 1fr))` }}>
           {STAGES.map(stage => {
             const stageCols = filtered.filter(r => r.status === stage.id)
             const stageTotal = stageCols.reduce((s, r) => s + (parseFloat(r.total_amount) || 0), 0)
