@@ -66,25 +66,56 @@ async function callClaude(prompt) {
 // ══════════════════════════════════════════════════════════════════════════════
 // MODAL NOVA EMPRESA
 // ══════════════════════════════════════════════════════════════════════════════
-export function NovaEmpresaModal({ onClose, onSave, companies }) {
+export function NovaEmpresaModal({ onClose, onSave, companies, initialData }) {
   const { profile } = useData()
-  const [form, setForm] = useState({
-    // Identificação
-    name: '', trading_name: '', cnpj: '', status: 'ativo',
-    // Classificação BX
-    segment: '', criticality: 'medio',
-    // Localização (da Receita + manual)
-    zip_code: '', address: '', address_number: '', address_complement: '',
-    neighborhood: '', city: '', state: '',
-    // Contato principal
-    contact_name: '', contact_role: '', contact_email: '', contact_phone: '',
-    contact_phone2: '', website: '',
-    // Dados da Receita (preenchidos automaticamente)
-    cnae: '', porte: '', socios: '', data_abertura: '',
-    situacao: '', regime_tributario: '', natureza_juridica: '',
-    capital_social: '',
-    // Conteúdo
-    ai_summary: '', notes: '', observations: '',
+  const isEdit = !!initialData
+
+  const [form, setForm] = useState(() => {
+    if (initialData) {
+      // Extract ai_summary from observations if embedded
+      const obs = initialData.observations || ''
+      const aiIdx = obs.indexOf('🤖 PERFIL BX (IA):\n')
+      const cleanObs = aiIdx > -1 ? obs.slice(obs.indexOf('\n\n', aiIdx) + 2).trim() : obs
+      const aiSummary = aiIdx > -1 ? obs.slice(aiIdx + '🤖 PERFIL BX (IA):\n'.length, obs.indexOf('\n\n', aiIdx) > -1 ? obs.indexOf('\n\n', aiIdx) : undefined).trim() : ''
+      return {
+        name:               initialData.name            || '',
+        trading_name:       initialData.trading_name    || '',
+        cnpj:               initialData.cnpj            || '',
+        status:             initialData.status          || 'ativo',
+        segment:            initialData.segment         || '',
+        criticality:        initialData.criticality     || 'medio',
+        zip_code:           initialData.zip_code        || '',
+        address:            initialData.address         || '',
+        address_number:     '',
+        address_complement: '',
+        neighborhood:       '',
+        city:               initialData.city            || '',
+        state:              initialData.state           || '',
+        contact_name:       initialData.contact_name    || '',
+        contact_role:       '',
+        contact_email:      initialData.contact_email   || '',
+        contact_phone:      initialData.contact_phone   || '',
+        contact_phone2:     '',
+        website:            initialData.website         || '',
+        cnae: '', porte: '', socios: '', data_abertura: '',
+        situacao: '', regime_tributario: '', natureza_juridica: '', capital_social: '',
+        ai_summary: aiSummary,
+        notes:       initialData.notes        || '',
+        observations: cleanObs,
+      }
+    }
+    return {
+      name: '', trading_name: '', cnpj: '', status: 'ativo',
+      segment: '', criticality: 'medio',
+      zip_code: '', address: '', address_number: '', address_complement: '',
+      neighborhood: '', city: '', state: '',
+      contact_name: '', contact_role: '', contact_email: '', contact_phone: '',
+      contact_phone2: '', website: '',
+      cnae: '', porte: '', socios: '', data_abertura: '',
+      situacao: '', regime_tributario: '', natureza_juridica: '',
+      capital_social: '',
+      ai_summary: '', notes: '', observations: '',
+    }
   })
   const [loadingCNPJ, setLoadingCNPJ] = useState(false)
   const [loadingAI,   setLoadingAI]   = useState(false)
@@ -258,7 +289,6 @@ Responda APENAS com o perfil estruturado, sem introdução:
     if (!form.name.trim()) { toast.warning('Razão Social é obrigatória'); return }
     setSaving(true)
     try {
-      // Construir notes com dados técnicos da Receita
       const techNotes = []
       if (form.cnae)              techNotes.push(`CNAE: ${form.cnae}`)
       if (form.porte)             techNotes.push(`Porte: ${form.porte}`)
@@ -274,24 +304,20 @@ Responda APENAS com o perfil estruturado, sem introdução:
       ].filter(Boolean).join('\n')
 
       const payload = {
-        org_id:         profile.org_id,
         name:           form.name.trim(),
         trading_name:   form.trading_name.trim()   || null,
         cnpj:           form.cnpj.replace(/\D/g,'') || null,
         segment:        form.segment               || null,
         criticality:    form.criticality,
         status:         form.status,
-        // Endereço
         address:        [form.address, form.address_number, form.address_complement].filter(Boolean).join(', ') || null,
         city:           form.city                  || null,
         state:          form.state                 || null,
         zip_code:       form.zip_code.replace(/\D/g,'') || null,
-        // Contato
         contact_name:   form.contact_name.trim()   || null,
         contact_email:  form.contact_email.trim()  || null,
         contact_phone:  form.contact_phone         || null,
         website:        form.website.trim()        || null,
-        // Conteúdo
         notes:          notesAll                   || null,
         observations:   form.ai_summary
                           ? `🤖 PERFIL BX (IA):\n${form.ai_summary}${form.observations?.trim() ? '\n\n' + form.observations.trim() : ''}`
@@ -299,9 +325,19 @@ Responda APENAS com o perfil estruturado, sem introdução:
         powerbi_link:   null,
       }
 
-      const { data, error } = await supabase.from('companies').insert(payload).select().single()
-      if (error) throw error
-      toast.success(`"${form.name}" cadastrada ✓`)
+      let data
+      if (isEdit) {
+        const { data: upd, error } = await supabase.from('companies').update(payload)
+          .eq('id', initialData.id).eq('org_id', profile.org_id).select().single()
+        if (error) throw error
+        data = upd
+        toast.success(`"${form.name}" atualizada ✓`)
+      } else {
+        const { data: ins, error } = await supabase.from('companies').insert({ org_id: profile.org_id, ...payload }).select().single()
+        if (error) throw error
+        data = ins
+        toast.success(`"${form.name}" cadastrada ✓`)
+      }
       onSave(data)
     } catch (err) {
       toast.error('Erro ao salvar: ' + err.message)
@@ -334,7 +370,7 @@ Responda APENAS com o perfil estruturado, sem introdução:
             </div>
             <div>
               <h3 className="text-base font-bold text-zinc-800">
-                {form.name ? form.name : 'Nova Empresa'}
+                {isEdit ? (initialData.name || 'Editar Empresa') : (form.name ? form.name : 'Nova Empresa')}
               </h3>
               <p className="text-[10px] text-zinc-400">
                 Busca automática Receita Federal · Perfil BX com IA
@@ -744,7 +780,7 @@ Responda APENAS com o perfil estruturado, sem introdução:
                 <button onClick={handleSave} disabled={saving || !form.name.trim()}
                   className="flex items-center gap-2 px-5 py-2.5 text-sm font-bold text-white rounded-xl disabled:opacity-50 hover:opacity-90"
                   style={{ background: VL }}>
-                  {saving ? <><Loader2 className="w-4 h-4 animate-spin" />Salvando…</> : '+ Cadastrar Empresa'}
+                  {saving ? <><Loader2 className="w-4 h-4 animate-spin" />Salvando…</> : isEdit ? '💾 Salvar Alterações' : '+ Cadastrar Empresa'}
                 </button>
               )}
             </div>
