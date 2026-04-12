@@ -258,6 +258,62 @@ function ProgressBar({ done, total, height = 'h-1.5' }) {
         <div className={`${height} rounded-full transition-all duration-500`} style={{ width: `${pct}%`, background: color }} />
       </div>
       <span className="text-[10px] font-bold tabular-nums" style={{ color }}>{done}/{total}</span>
+      {/* ── Edit Routine Modal ── */}
+      {editRoutine && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={e => { if (e.target === e.currentTarget) setEditRoutine(null) }}>
+          <div className="bg-white rounded-2xl w-full max-w-lg p-6 shadow-2xl">
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-base font-bold text-zinc-800">✏️ Editar Rotina</h2>
+              <button onClick={() => setEditRoutine(null)} className="p-1.5 rounded-lg hover:bg-zinc-100 text-zinc-400"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1.5 block">Título *</label>
+                <input type="text" value={editForm.title} onChange={e => setEditForm(p => ({...p, title: e.target.value}))} className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1.5 block">Frequência</label>
+                  <select value={editForm.frequency} onChange={e => setEditForm(p => ({...p, frequency: e.target.value}))} className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:border-violet-500">
+                    <option value="diaria">Diária</option>
+                    <option value="semanal">Semanal</option>
+                    <option value="mensal">Mensal</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1.5 block">Responsável</label>
+                  <select value={editForm.assigned_to} onChange={e => setEditForm(p => ({...p, assigned_to: e.target.value}))} className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:border-violet-500">
+                    <option value="">— nenhum —</option>
+                    {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1.5 block">Projeto</label>
+                <select value={editForm.project_id} onChange={e => setEditForm(p => ({...p, project_id: e.target.value}))} className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:border-violet-500">
+                  <option value="">— sem projeto —</option>
+                  {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1.5 block">Descrição / Prazo</label>
+                <input type="text" value={editForm.description} onChange={e => setEditForm(p => ({...p, description: e.target.value}))} placeholder="Ex: ATÉ DIA 05." className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500" />
+              </div>
+            </div>
+            <div className="flex items-center justify-between mt-5">
+              <div className="flex gap-2">
+                <button onClick={() => { archive(editRoutine.id); setEditRoutine(null) }} className="text-xs text-zinc-400 hover:text-zinc-600 px-3 py-2 rounded-lg hover:bg-zinc-100">📦 Arquivar</button>
+                <button onClick={() => { const r = editRoutine; setEditRoutine(null); deleteRoutine(r) }} className="text-xs text-red-400 hover:text-red-600 px-3 py-2 rounded-lg hover:bg-red-50">🗑️ Excluir</button>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => setEditRoutine(null)} className="text-sm text-zinc-500 px-4 py-2 rounded-xl hover:bg-zinc-100">Cancelar</button>
+                <button onClick={saveEdit} className="text-sm font-bold text-white px-5 py-2 rounded-xl" style={{ background: VL }}>Salvar</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   )
 }
@@ -349,6 +405,10 @@ export default function Rotinas() {
   const [showTemplates, setShowTemplates] = useState(false)
   const [form, setForm] = useState({ title: '', frequency: 'semanal', assigned_to: '', company_id: '', project_id: '', description: '' })
   const [tplState, setTplState] = useState({ selectedId: null, company_id: '', project_id: '', assigned_to: '', step: 'choose' })
+
+  // Edit state
+  const [editRoutine, setEditRoutine] = useState(null)  // routine being edited
+  const [editForm, setEditForm]       = useState({ title: '', frequency: 'semanal', assigned_to: '', project_id: '', description: '' })
 
   // ── Load ────────────────────────────────────────────────────────────────
   const load = useCallback(async () => {
@@ -548,6 +608,40 @@ export default function Rotinas() {
     await load(); toast.success('Rotina arquivada — histórico preservado')
   }
 
+  // ── Excluir rotina (hard delete) ─────────────────────────────────────────
+  async function deleteRoutine(r) {
+    const ok = await confirm(
+      `Excluir a rotina "${r.title}"?\n\nTodo o histórico de execuções será perdido permanentemente. Para preservar o histórico, use "Arquivar" em vez de excluir.`,
+      { danger: true, confirmLabel: 'Excluir permanentemente', cancelLabel: 'Cancelar' }
+    )
+    if (!ok) return
+    // Delete completions first, then routine
+    await supabase.from('routine_completions').delete().eq('routine_id', r.id).eq('org_id', profile.org_id)
+    const { error } = await supabase.from('routines').delete().eq('id', r.id).eq('org_id', profile.org_id)
+    if (error) { toast.error('Erro ao excluir: ' + error.message); return }
+    await load(); toast.success('Rotina excluída')
+  }
+
+  // ── Editar rotina ─────────────────────────────────────────────────────────
+  function openEdit(r) {
+    setEditRoutine(r)
+    setEditForm({ title: r.title || '', frequency: r.frequency || 'semanal', assigned_to: r.assigned_to || '', project_id: r.project_id || '', description: r.description || '' })
+  }
+
+  async function saveEdit() {
+    if (!editRoutine || !editForm.title.trim()) return
+    const { error } = await supabase.from('routines').update({
+      title: editForm.title.trim(),
+      frequency: editForm.frequency,
+      assigned_to: editForm.assigned_to || null,
+      project_id: editForm.project_id || null,
+      description: editForm.description.trim() || null,
+    }).eq('id', editRoutine.id).eq('org_id', profile.org_id)
+    if (error) { toast.error('Erro ao salvar: ' + error.message); return }
+    setEditRoutine(null)
+    await load(); toast.success('Rotina atualizada')
+  }
+
   async function archivePhase(projectId, projectName) {
     const ok = await confirm(`Encerrar fase "${projectName}"?\n\nTodas as ${routines.filter(r => r.project_id === projectId).length} rotinas serão arquivadas. O histórico fica preservado.`, { danger: true, confirmLabel: 'Encerrar fase', cancelLabel: 'Cancelar' })
     if (!ok) return
@@ -626,6 +720,12 @@ export default function Rotinas() {
   }, [routines, completions])
 
   // ── Calendar builders ────────────────────────────────────────────────────
+  // Helper: calcular dias de atraso entre reference_date e completed_at
+  function calcDaysLate(comp) {
+    if (!comp?.completed_at || !comp?.reference_date) return 1
+    return Math.max(1, Math.floor((new Date(comp.completed_at) - new Date(comp.reference_date + 'T00:00:00')) / 86400000))
+  }
+
   function buildDailyCells(routineId) {
     const today = new Date()
     const year = today.getFullYear()
@@ -633,6 +733,7 @@ export default function Rotinas() {
     const firstDow = new Date(year, month, 1).getDay()
     const blanks = firstDow === 0 ? 6 : firstDow - 1
     const daysInMonth = new Date(year, month + 1, 0).getDate()
+    const assigned = routines.find(r => r.id === routineId)?.assigned_to
     const cells = []
     for (let i = 0; i < blanks; i++) cells.push({ type: 'sp' })
     for (let d = 1; d <= daysInMonth; d++) {
@@ -645,9 +746,15 @@ export default function Rotinas() {
       if (we)     { cells.push({ type: 'we', d, dStr }); continue }
       const comp = completions.filter(c => c.routine_id === routineId && (c.reference_date === dStr || c.completed_at?.startsWith(dStr)))
       const status = comp.length === 0 ? 'miss' : comp.some(c => c.execution_status === 'late') ? 'late' : 'ok'
-      const covComp = comp.find(c => c.completed_by !== routines.find(r=>r.id===routineId)?.assigned_to && c.execution_status !== 'late')
+      // Cobertura: alguém diferente do responsável fez no prazo
+      const covComp = comp.find(c => c.completed_by !== assigned && c.execution_status !== 'late')
       const covProf = covComp ? profMap[covComp.completed_by] : null
-      cells.push({ type: status, d, dStr, today: dStr === todayStr, cov: covProf })
+      // Atraso: quem registrou com atraso
+      const lateComp = comp.find(c => c.execution_status === 'late')
+      const lateBy   = lateComp ? profMap[lateComp.completed_by] : null
+      const daysLate = lateComp ? calcDaysLate(lateComp) : 0
+      const lateDate = lateComp?.completed_at ? new Date(lateComp.completed_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) : null
+      cells.push({ type: status, d, dStr, today: dStr === todayStr, cov: covProf, lateBy, daysLate, lateDate })
     }
     return cells
   }
@@ -655,6 +762,7 @@ export default function Rotinas() {
   function buildWeeklyCells(routineId) {
     const weeks = []
     const today = new Date()
+    const assigned = routines.find(r => r.id === routineId)?.assigned_to
     for (let w = 5; w >= 0; w--) {
       const monday = new Date(today)
       monday.setDate(today.getDate() - (today.getDay() === 0 ? 6 : today.getDay() - 1) - w * 7)
@@ -665,10 +773,13 @@ export default function Rotinas() {
       if (isCurrent) { weeks.push({ wStr: mondayStr, label: 'Esta semana', status: 'pend', cur: true }); continue }
       const comp = completions.filter(c => c.routine_id === routineId && (c.reference_date || '') >= mondayStr && (c.reference_date || '') <= sundayStr)
       const status = comp.length === 0 ? 'miss' : comp.some(c => c.execution_status === 'late') ? 'late' : 'ok'
-      const covComp = comp.find(c => c.completed_by !== routines.find(r=>r.id===routineId)?.assigned_to)
+      const covComp = comp.find(c => c.completed_by !== assigned)
       const covProf = covComp ? profMap[covComp.completed_by] : null
+      const lateComp = comp.find(c => c.execution_status === 'late')
+      const lateBy   = lateComp ? profMap[lateComp.completed_by] : null
+      const daysLate = lateComp ? calcDaysLate(lateComp) : 0
       const wLabel = monday.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
-      weeks.push({ wStr: mondayStr, label: wLabel, status, cov: covProf })
+      weeks.push({ wStr: mondayStr, label: wLabel, status, cov: covProf, lateBy, daysLate })
     }
     return weeks.reverse()
   }
@@ -676,6 +787,7 @@ export default function Rotinas() {
   function buildMonthlyCells(routineId) {
     const cells = []
     const today = new Date()
+    const assigned = routines.find(r => r.id === routineId)?.assigned_to
     for (let m = 5; m >= 0; m--) {
       const d = new Date(today.getFullYear(), today.getMonth() - m, 1)
       const mk = d.toISOString().slice(0,7)
@@ -684,9 +796,12 @@ export default function Rotinas() {
       if (isCurrent) { cells.push({ mk, label, status: 'pend', cur: true }); continue }
       const comp = completions.filter(c => c.routine_id === routineId && (c.reference_date || '').startsWith(mk))
       const status = comp.length === 0 ? 'miss' : comp.some(c => c.execution_status === 'late') ? 'late' : 'ok'
-      const covComp = comp.find(c => c.completed_by !== routines.find(r=>r.id===routineId)?.assigned_to)
+      const covComp = comp.find(c => c.completed_by !== assigned)
       const covProf = covComp ? profMap[covComp.completed_by] : null
-      cells.push({ mk, label, status, cov: covProf })
+      const lateComp = comp.find(c => c.execution_status === 'late')
+      const lateBy   = lateComp ? profMap[lateComp.completed_by] : null
+      const daysLate = lateComp ? calcDaysLate(lateComp) : 0
+      cells.push({ mk, label, status, cov: covProf, lateBy, daysLate })
     }
     return cells.reverse()
   }
@@ -1042,9 +1157,13 @@ export default function Rotinas() {
                                   {doneCycle && isLate && <span style={{ fontSize: 9.5, fontWeight: 600, padding: '1px 6px', borderRadius: 99, background: '#FEF3C7', color: '#92400E' }}>⏰ atraso</span>}
                                   {overdueFl && <span style={{ fontSize: 9, fontWeight: 600, padding: '1px 6px', borderRadius: 99, background: '#FEE2E2', color: RED, border: '1px solid #FECACA' }}>atraso</span>}
                                   {prof && <Avatar prof={prof} size={5} />}
-                                  <button onClick={() => { setActiveView('historico'); setHistRoutine(r); setHistProj(r.project_id) }}
+                                  <button onClick={(e) => { e.stopPropagation(); setActiveView('historico'); setHistRoutine(r); setHistProj(r.project_id) }}
                                     style={{ width: 22, height: 22, borderRadius: 6, border: '1px solid #EAECF0', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 10 }}>
                                     📊
+                                  </button>
+                                  <button onClick={(e) => { e.stopPropagation(); openEdit(r) }}
+                                    style={{ width: 22, height: 22, borderRadius: 6, border: '1px solid #EAECF0', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 10 }}>
+                                    ✏️
                                   </button>
                                 </div>
                               </div>
@@ -1062,293 +1181,248 @@ export default function Rotinas() {
       )}
 
       {/* ════════════════════════════════════════════════════════════════
-          VIEW: HISTÓRICO — split panel
+          VIEW: HISTÓRICO — página única, todos os calendários
       ════════════════════════════════════════════════════════════════ */}
       {activeView === 'historico' && (
         <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           {/* Summary bar */}
-          <div style={{ background: '#fff', borderBottom: '1px solid #EAECF0', padding: '8px 20px', display: 'flex', alignItems: 'center', gap: 0, flexShrink: 0 }}>
+          <div style={{ background: '#fff', borderBottom: '1px solid #EAECF0', padding: '8px 20px', display: 'flex', alignItems: 'center', gap: 0, flexShrink: 0, flexWrap: 'wrap' }}>
             {[
               { label: 'Geral',    value: compliance + '%', color: compliance >= 80 ? GREEN : AMBER },
               { label: 'Diárias',  value: (() => { const rs = routines.filter(r=>r.frequency==='diaria'); const d=rs.filter(r=>isDoneInCycle(r)).length; return rs.length ? Math.round(d/rs.length*100)+'%' : '—' })(), color: '#6366F1' },
               { label: 'Semanais', value: (() => { const rs = routines.filter(r=>r.frequency==='semanal'); const d=rs.filter(r=>isDoneInCycle(r)).length; return rs.length ? Math.round(d/rs.length*100)+'%' : '—' })(), color: '#F59E0B' },
               { label: 'Mensais',  value: (() => { const rs = routines.filter(r=>r.frequency==='mensal'); const d=rs.filter(r=>isDoneInCycle(r)).length; return rs.length ? Math.round(d/rs.length*100)+'%' : '—' })(), color: GREEN },
-              { label: 'Misses',   value: allOverdue, color: allOverdue > 0 ? RED : GREEN },
+              { label: 'Atrasos',  value: completions.filter(c=>c.execution_status==='late').length, color: AMBER },
             ].map((k, i, arr) => (
               <div key={k.label} style={{ padding: '0 14px', borderRight: i < arr.length-1 ? '1px solid #EAECF0' : 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
                 <div style={{ fontSize: 17, fontWeight: 800, lineHeight: 1, color: k.color }}>{k.value}</div>
                 <div style={{ fontSize: 8.5, fontWeight: 600, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.06em' }}>{k.label}</div>
               </div>
             ))}
+            {/* Project filter */}
+            <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontSize: 9, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase' }}>Projeto:</span>
+              {[{ id: 'all', name: 'Todos' }, ...projectsWithRoutines].map(p => {
+                const on = histProj === p.id || (p.id === 'all' && !histProj)
+                return (
+                  <button key={p.id} onClick={() => setHistProj(p.id === 'all' ? null : p.id)} style={{
+                    padding: '4px 11px', borderRadius: 99, fontSize: 11, fontWeight: on ? 600 : 500,
+                    border: `1.5px solid ${on ? VL : '#E5E7EB'}`, background: on ? '#EEF2FF' : '#fff',
+                    color: on ? VL : '#6B7280', cursor: 'pointer', outline: 'none',
+                  }}>{p.name?.length > 18 ? p.name.slice(0,18)+'…' : p.name}</button>
+                )
+              })}
+            </div>
+            {/* Legend */}
+            <div style={{ display: 'flex', gap: 10, marginLeft: 16 }}>
+              {[
+                { bg: '#D1FAE5', border: '#A7F3D0', label: 'No prazo' },
+                { bg: '#FEF3C7', border: '#FDE68A', label: 'Atraso', dot: AMBER },
+                { bg: '#FEE2E2', border: '#FECACA', label: 'Não feito' },
+                { bg: '#EEF2FF', border: '#DDD6FE', label: 'Pendente' },
+              ].map(l => (
+                <div key={l.label} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10.5, color: '#6B7280' }}>
+                  <div style={{ width: 11, height: 11, borderRadius: 3, border: `1.5px solid ${l.border}`, background: l.bg, flexShrink: 0, position: 'relative' }}>
+                    {l.dot && <div style={{ position: 'absolute', bottom: -1, right: -1, width: 5, height: 5, borderRadius: '50%', background: l.dot, border: '1px solid #fff' }} />}
+                  </div>
+                  {l.label}
+                </div>
+              ))}
+            </div>
           </div>
 
-          {/* Panels */}
-          <div style={{ flex: 1, overflow: 'hidden', display: 'flex' }}>
-            {/* Panel A: projects + routines */}
-            <div style={{ width: 260, minWidth: 260, borderRight: '1px solid #EAECF0', display: 'flex', flexDirection: 'column', background: '#FAFBFD', overflow: 'hidden' }}>
-              {/* Project tabs */}
-              <div style={{ padding: '8px 10px 6px', borderBottom: '1px solid #EAECF0', flexShrink: 0 }}>
-                <div style={{ fontSize: 8.5, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.1em', marginBottom: 5, padding: '0 2px' }}>Projetos</div>
-                {projectsWithRoutines.length === 0 ? (
-                  <div style={{ fontSize: 11, color: '#9CA3AF', padding: '4px 2px' }}>Nenhum projeto com rotinas</div>
-                ) : projectsWithRoutines.map(p => {
-                  const prs = routinesByProject[p.id] || []
-                  const ppct = calcCompliance(prs)
-                  const on = histProj === p.id
-                  return (
-                    <button key={p.id} onClick={() => { setHistProj(p.id); if (prs.length) setHistRoutine(prs[0]) }} style={{
-                      display: 'flex', alignItems: 'center', gap: 7, padding: '6px 9px',
-                      borderRadius: 7, cursor: 'pointer', border: `1.5px solid ${on ? 'rgba(84,82,193,.3)' : 'transparent'}`,
-                      background: on ? '#EEF2FF' : 'transparent', fontFamily: 'inherit',
-                      textAlign: 'left', width: '100%', marginBottom: 2, outline: 'none',
-                    }}>
-                      <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#F59E0B', flexShrink: 0 }} />
-                      <span style={{ fontSize: 11.5, fontWeight: on ? 600 : 500, color: on ? VL : '#374151', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
-                      <span style={{ fontSize: 9, padding: '1px 5px', borderRadius: 99, background: on ? '#DDD6FE' : '#EAECF0', color: on ? VL : '#9CA3AF', fontWeight: 600 }}>{prs.length}</span>
-                      <span style={{ fontSize: 10, fontWeight: 700, minWidth: 28, textAlign: 'right', color: ppct >= 80 ? GREEN : ppct >= 60 ? AMBER : RED }}>{ppct}%</span>
-                    </button>
-                  )
-                })}
-              </div>
+          {/* Scrollable calendar page */}
+          <div style={{ flex: 1, overflowY: 'auto', padding: '16px 24px' }}>
+            {['diaria', 'semanal', 'mensal'].map(freq => {
+              const cfg = FREQ_CFG[freq]
+              const rs  = (histProj
+                ? (routinesByProject[histProj] || [])
+                : routines
+              ).filter(r => r.frequency === freq)
+              if (!rs.length) return null
+              const done = rs.filter(r => isDoneInCycle(r)).length
+              const pct  = Math.round(done / rs.length * 100)
+              const pc   = pct >= 80 ? GREEN : pct >= 50 ? AMBER : RED
+              const wkH  = ['Seg','Ter','Qua','Qui','Sex','Sáb','Dom']
 
-              {/* Routine list */}
-              <div style={{ flex: 1, overflowY: 'auto' }}>
-                {['diaria', 'semanal', 'mensal'].map(freq => {
-                  const cfg = FREQ_CFG[freq]
-                  const frs = histProj
-                    ? (routinesByProject[histProj] || []).filter(r => r.frequency === freq)
-                    : routines.filter(r => r.frequency === freq)
-                  if (!frs.length) return null
-                  const avg = Math.round(frs.reduce((s,r) => s + (isDoneInCycle(r) ? 100 : 0), 0) / frs.length)
-                  const avgClr = avg >= 80 ? GREEN : avg >= 60 ? AMBER : RED
-                  return (
-                    <div key={freq}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px 3px', position: 'sticky', top: 0, zIndex: 1, background: '#F1F3F7', borderBottom: '1px solid #EAECF0' }}>
-                        <div style={{ width: 6, height: 6, borderRadius: '50%', background: cfg.dot }} />
-                        <span style={{ fontSize: 8.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.09em', color: cfg.dot }}>{cfg.title}</span>
-                        <span style={{ fontSize: 9, fontWeight: 700, marginLeft: 'auto', color: avgClr }}>{avg}%</span>
-                      </div>
-                      {frs.map(r => {
-                        const doneCycle = isDoneInCycle(r)
-                        const st = getCycleStatus(r)
-                        const sd = doneCycle ? (st === 'late' ? AMBER : GREEN) : isOverdue(r) ? RED : '#9CA3AF'
-                        const isSel = histRoutine?.id === r.id
-                        const hasMiss = !doneCycle && isOverdue(r)
-                        return (
-                          <div key={r.id} onClick={() => setHistRoutine(r)} style={{
-                            display: 'flex', alignItems: 'center', gap: 8, padding: '7px 12px',
-                            cursor: 'pointer', borderBottom: '1px solid #F3F4F6',
-                            background: isSel ? '#EEF2FF' : 'transparent',
-                            borderLeft: isSel ? `3px solid ${VL}` : '3px solid transparent',
-                            transition: 'all .1s'
-                          }}>
-                            <div style={{ width: 7, height: 7, borderRadius: '50%', background: sd, flexShrink: 0 }} />
-                            <span style={{ fontSize: 11.5, fontWeight: isSel ? 600 : 400, color: isSel ? VL : '#111827', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.title}</span>
-                            {hasMiss && <span style={{ fontSize: 10, flexShrink: 0 }}>⚠️</span>}
-                            {st === 'late' && <span style={{ fontSize: 9.5, padding: '1px 5px', borderRadius: 99, background: '#FEF3C7', color: '#92400E', flexShrink: 0, fontWeight: 600 }}>⏰</span>}
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-
-            {/* Panel B: calendar */}
-            <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#fff' }}>
-              {!histRoutine ? (
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#9CA3AF', padding: 40 }}>
-                  <div style={{ fontSize: 48, opacity: .2, marginBottom: 12 }}>📅</div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: '#6B7280', marginBottom: 6 }}>Selecione uma rotina</div>
-                  <div style={{ fontSize: 11.5, textAlign: 'center', lineHeight: 1.6 }}>Escolha um projeto e uma rotina à esquerda para ver o histórico completo</div>
-                </div>
-              ) : (() => {
-                const r = histRoutine
-                const prof = profMap[r.assigned_to]
-                const doneCycle = isDoneInCycle(r)
-                const st = getCycleStatus(r)
-                const freqCfg = {
-                  diaria:  { bg: '#EEF2FF', clr: '#4338CA', lbl: 'Diária' },
-                  semanal: { bg: '#FEF3C7', clr: '#92400E', lbl: 'Semanal' },
-                  mensal:  { bg: '#D1FAE5', clr: '#065F46', lbl: 'Mensal' },
-                }[r.frequency]
-                const allComps = completions.filter(c => c.routine_id === r.id)
-                const okCnt   = allComps.filter(c => c.execution_status !== 'late').length
-                const lateCnt = allComps.filter(c => c.execution_status === 'late').length
-                const covCnt  = allComps.filter(c => c.completed_by !== r.assigned_to).length
-
-                return (
-                  <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
-                    {/* Calendar header */}
-                    <div style={{ padding: '14px 18px 10px', borderBottom: '1px solid #EAECF0', flexShrink: 0 }}>
-                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 10 }}>
-                        <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 8px', borderRadius: 99, textTransform: 'uppercase', letterSpacing: '.05em', flexShrink: 0, marginTop: 4, background: freqCfg.bg, color: freqCfg.clr }}>{freqCfg.lbl}</span>
-                        <span style={{ fontSize: 15, fontWeight: 700, color: '#111827', flex: 1, lineHeight: 1.3 }}>{r.title}</span>
-                        {prof && <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: '#6B7280', flexShrink: 0, marginTop: 3 }}><Avatar prof={prof} size={5} />{prof.full_name.split(' ')[0]}</div>}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                          <button onClick={() => archive(r.id)} title="Arquivar" style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid #EAECF0', background: '#fff', cursor: 'pointer', fontSize: 10, color: '#9CA3AF' }}>
-                            <Archive style={{ width: 12, height: 12 }} />
-                          </button>
-                        </div>
-                      </div>
-                      {/* Metrics */}
-                      <div style={{ display: 'flex', gap: 6 }}>
-                        {[
-                          { label: 'No prazo',  value: okCnt,   color: GREEN },
-                          { label: 'Em atraso', value: lateCnt, color: AMBER },
-                          { label: 'Coberturas',value: covCnt,  color: VL   },
-                          { label: 'Ciclo atual',value: doneCycle ? (st === 'late' ? '⏰' : '✅') : '⏳', color: doneCycle ? (st === 'late' ? AMBER : GREEN) : '#9CA3AF' },
-                        ].map(m => (
-                          <div key={m.label} style={{ flex: 1, background: '#F9FAFB', border: '1px solid #EAECF0', borderRadius: 8, padding: '7px 10px', textAlign: 'center' }}>
-                            <div style={{ fontSize: 15, fontWeight: 800, lineHeight: 1, marginBottom: 2, color: m.color }}>{m.value}</div>
-                            <div style={{ fontSize: 8.5, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.06em', fontWeight: 600 }}>{m.label}</div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Calendar grid */}
-                    <div style={{ flex: 1, overflowY: 'auto', padding: '14px 18px' }}>
-                      {r.frequency === 'diaria' && (() => {
-                        const cells = buildDailyCells(r.id)
-                        const wkH = ['Seg','Ter','Qua','Qui','Sex','Sáb','Dom']
-                        return (
-                          <div>
-                            <div style={{ fontSize: 9, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.1em', marginBottom: 6 }}>
-                              {new Date().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
-                            </div>
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 30px)', gap: 4, marginBottom: 4 }}>
-                              {wkH.map((w, i) => <div key={w} style={{ fontSize: 8, fontWeight: 700, color: '#9CA3AF', textAlign: 'center', opacity: i >= 5 ? .4 : 1 }}>{w}</div>)}
-                            </div>
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 30px)', gap: 4 }}>
-                              {cells.map((c, i) => {
-                                const sc = statusColors[c.type] || statusColors.sp
-                                const canMarkLate = c.type === 'miss'
-                                return (
-                                  <div key={i} title={c.type === 'miss' ? `${c.dStr} — Clique para registrar atraso` : c.dStr || ''} onClick={() => canMarkLate && setLateModal({ routine: r, refDate: c.dStr, freq: 'diaria' })}
-                                    style={{
-                                      width: 30, height: 30, borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                      fontSize: 9.5, fontWeight: 600, cursor: canMarkLate ? 'pointer' : 'default',
-                                      position: 'relative', border: `1.5px solid ${sc.border}`,
-                                      background: sc.bg, color: sc.text,
-                                      outline: c.today ? `2px solid ${VL}` : 'none', outlineOffset: 2,
-                                      visibility: c.type === 'sp' ? 'hidden' : 'visible',
-                                      transition: 'transform .1s',
-                                    }}
-                                    onMouseEnter={e => { if (canMarkLate) e.currentTarget.style.transform = 'scale(1.15)' }}
-                                    onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)' }}
-                                  >
-                                    {sc.icon}
-                                    {c.cov && c.type !== 'miss' && <div style={{ position: 'absolute', bottom: 2, right: 2, width: 7, height: 7, borderRadius: '50%', background: c.cov.avatar_color || VL, border: '1.5px solid #fff' }} />}
-                                  </div>
-                                )
-                              })}
-                            </div>
-                            {cells.some(c => c.type === 'miss') && (
-                              <div style={{ marginTop: 10, padding: '8px 11px', background: '#FFF8EE', border: '1px solid #FDE68A', borderRadius: 7, fontSize: 11, color: '#92400E', display: 'flex', alignItems: 'center', gap: 7 }}>
-                                <span>⏰</span>
-                                <span>Clique em qualquer célula <strong>vermelha ✗</strong> para registrar execução com atraso — muda para <strong style={{ color: AMBER }}>amarelo</strong></span>
-                              </div>
-                            )}
-                          </div>
-                        )
-                      })()}
-
-                      {r.frequency === 'semanal' && (() => {
-                        const weeks = buildWeeklyCells(r.id)
-                        return (
-                          <div>
-                            <div style={{ fontSize: 9, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.1em', marginBottom: 10 }}>Semanas — referência: segunda-feira</div>
-                            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                              {weeks.map((w, i) => {
-                                const sc = statusColors[w.status]
-                                const canMarkLate = w.status === 'miss'
-                                const icon = w.status === 'ok' ? '✅' : w.status === 'late' ? '⏰' : w.status === 'miss' ? '❌' : '🔄'
-                                return (
-                                  <div key={i} onClick={() => canMarkLate && setLateModal({ routine: r, refDate: w.wStr, freq: 'semanal' })}
-                                    style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '9px 12px', borderRadius: 9, minWidth: 76, cursor: canMarkLate ? 'pointer' : 'default', border: `1.5px solid ${w.cur ? VL : sc.border}`, background: sc.bg, transition: 'transform .1s' }}
-                                    onMouseEnter={e => { if (canMarkLate) e.currentTarget.style.transform = 'scale(1.04)' }}
-                                    onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)' }}
-                                  >
-                                    <div style={{ fontSize: 15, marginBottom: 3 }}>{icon}</div>
-                                    <div style={{ fontSize: 10, fontWeight: 700, color: sc.text }}>{w.cur ? 'Esta semana' : w.label}</div>
-                                    {w.cov && <div style={{ fontSize: 8.5, color: AMBER, marginTop: 2, display: 'flex', alignItems: 'center', gap: 2 }}><Avatar prof={w.cov} size={3} />{w.cov.full_name?.split(' ')[0]} (cob.)</div>}
-                                  </div>
-                                )
-                              })}
-                            </div>
-                            {weeks.some(w => w.status === 'miss') && (
-                              <div style={{ marginTop: 12, padding: '8px 11px', background: '#FFF8EE', border: '1px solid #FDE68A', borderRadius: 7, fontSize: 11, color: '#92400E', display: 'flex', alignItems: 'center', gap: 7 }}>
-                                <span>⏰</span><span>Clique em qualquer semana <strong>vermelha ❌</strong> para registrar atraso</span>
-                              </div>
-                            )}
-                          </div>
-                        )
-                      })()}
-
-                      {r.frequency === 'mensal' && (() => {
-                        const months = buildMonthlyCells(r.id)
-                        const dueMatch = r.description?.match(/DIA\s*(\d+)/i)
-                        const dueDay = dueMatch ? parseInt(dueMatch[1]) : null
-                        const today = new Date().getDate()
-                        return (
-                          <div>
-                            {dueDay && !isDoneInCycle(r) && today > dueDay && (
-                              <div style={{ background: '#FEF9F9', border: '1px solid #FECACA', borderRadius: 8, padding: '9px 12px', display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: RED, marginBottom: 14 }}>
-                                <span style={{ fontSize: 16 }}>⚠️</span>
-                                <strong>Prazo vencido:</strong> era até dia {dueDay} · {today - dueDay} dias de atraso
-                              </div>
-                            )}
-                            <div style={{ fontSize: 9, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.1em', marginBottom: 10 }}>Meses — referência: dia 1 · 1 execução por mês</div>
-                            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                              {months.map((m, i) => {
-                                const sc = statusColors[m.status]
-                                const canMarkLate = m.status === 'miss'
-                                const icon = m.status === 'ok' ? '✅' : m.status === 'late' ? '⏰' : m.status === 'miss' ? '❌' : '🔄'
-                                return (
-                                  <div key={i} onClick={() => canMarkLate && setLateModal({ routine: r, refDate: m.mk + '-01', freq: 'mensal' })}
-                                    style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '10px 14px', borderRadius: 9, minWidth: 76, cursor: canMarkLate ? 'pointer' : 'default', border: `1.5px solid ${m.cur ? VL : sc.border}`, background: sc.bg, transition: 'transform .1s' }}
-                                    onMouseEnter={e => { if (canMarkLate) e.currentTarget.style.transform = 'scale(1.04)' }}
-                                    onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)' }}
-                                  >
-                                    <div style={{ fontSize: 18, marginBottom: 4 }}>{icon}</div>
-                                    <div style={{ fontSize: 10, fontWeight: 700, color: sc.text }}>{m.label}</div>
-                                    {m.cov && <div style={{ fontSize: 8.5, color: AMBER, marginTop: 2, display: 'flex', alignItems: 'center', gap: 2 }}><Avatar prof={m.cov} size={3} />{m.cov.full_name?.split(' ')[0]} (cob.)</div>}
-                                  </div>
-                                )
-                              })}
-                            </div>
-                          </div>
-                        )
-                      })()}
-                    </div>
-
-                    {/* Footer legend */}
-                    <div style={{ borderTop: '1px solid #EAECF0', padding: '10px 18px', background: '#F9FAFB', display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', flexShrink: 0 }}>
-                      {[
-                        { bg: '#D1FAE5', border: '#A7F3D0', label: 'Feito no prazo' },
-                        { bg: '#FEF3C7', border: '#FDE68A', label: 'Feito com atraso', dot: AMBER },
-                        { bg: '#FEE2E2', border: '#FECACA', label: 'Não feito' },
-                        { bg: '#EEF2FF', border: '#DDD6FE', label: 'Pendente' },
-                      ].map(l => (
-                        <div key={l.label} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10.5, color: '#6B7280' }}>
-                          <div style={{ width: 13, height: 13, borderRadius: 3, border: `1.5px solid ${l.border}`, background: l.bg, flexShrink: 0, position: 'relative' }}>
-                            {l.dot && <div style={{ position: 'absolute', bottom: -1, right: -1, width: 6, height: 6, borderRadius: '50%', background: l.dot, border: '1px solid #fff' }} />}
-                          </div>
-                          {l.label}
-                        </div>
-                      ))}
-                    </div>
+              return (
+                <div key={freq} style={{ marginBottom: 28 }}>
+                  {/* Section header */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, paddingBottom: 8, borderBottom: '2px solid #EAECF0' }}>
+                    <span style={{ fontSize: 16 }}>{cfg.icon}</span>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>{cfg.title}</span>
+                    <span style={{ fontSize: 11, color: '#9CA3AF' }}>· {rs.length} rotinas · {cfg.cycle}</span>
+                    <span style={{ marginLeft: 'auto', fontSize: 13, fontWeight: 800, color: pc }}>{pct}% compliance</span>
+                    <span style={{ fontSize: 11, color: '#9CA3AF' }}>{done}/{rs.length} feitas</span>
                   </div>
-                )
-              })()}
-            </div>
+
+                  {/* Grid of calendar cards */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(380px, 1fr))', gap: 12 }}>
+                    {rs.map(r => {
+                      const prof = profMap[r.assigned_to]
+                      const doneCycle = isDoneInCycle(r)
+                      const st = getCycleStatus(r)
+                      const hasAlert = !doneCycle && isOverdue(r)
+                      const freqColors = { diaria: { bg: '#EEF2FF', clr: '#4338CA' }, semanal: { bg: '#FEF3C7', clr: '#92400E' }, mensal: { bg: '#D1FAE5', clr: '#065F46' } }[r.frequency]
+
+                      // Últimas execuções para log
+                      const recentComps = completions
+                        .filter(c => c.routine_id === r.id)
+                        .sort((a,b) => (b.reference_date||'').localeCompare(a.reference_date||''))
+                        .slice(0, 4)
+
+                      return (
+                        <div key={r.id} style={{ background: '#fff', border: `1px solid ${hasAlert ? '#FECACA' : '#EAECF0'}`, borderRadius: 10, overflow: 'hidden' }}>
+                          {/* Card header */}
+                          <div style={{ padding: '10px 14px', borderBottom: '1px solid #F3F4F6', display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                            <span style={{ fontSize: 8.5, fontWeight: 700, padding: '2px 7px', borderRadius: 99, textTransform: 'uppercase', letterSpacing: '.05em', flexShrink: 0, marginTop: 2, background: freqColors.bg, color: freqColors.clr }}>{FREQ[r.frequency]?.label}</span>
+                            <span style={{ fontSize: 12.5, fontWeight: 600, color: '#111827', flex: 1, lineHeight: 1.3 }}>{r.title}</span>
+                            {prof && <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: '#6B7280', flexShrink: 0 }}><Avatar prof={prof} size={4} />{prof.full_name.split(' ')[0]}</div>}
+                            {/* Edit/Archive/Delete buttons */}
+                            <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                              <button onClick={() => openEdit(r)} title="Editar" style={{ width: 22, height: 22, borderRadius: 5, border: '1px solid #E5E7EB', background: '#fff', cursor: 'pointer', fontSize: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✏️</button>
+                              <button onClick={() => archive(r.id)} title="Arquivar" style={{ width: 22, height: 22, borderRadius: 5, border: '1px solid #E5E7EB', background: '#fff', cursor: 'pointer', fontSize: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>📦</button>
+                              <button onClick={() => deleteRoutine(r)} title="Excluir" style={{ width: 22, height: 22, borderRadius: 5, border: '1px solid #FECACA', background: '#FEF2F2', cursor: 'pointer', fontSize: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>🗑️</button>
+                            </div>
+                          </div>
+
+                          {/* Calendar */}
+                          <div style={{ padding: '10px 14px' }}>
+                            {r.frequency === 'diaria' && (() => {
+                              const cells = buildDailyCells(r.id)
+                              return (
+                                <div>
+                                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 26px)', gap: 3, marginBottom: 3 }}>
+                                    {wkH.map((w, i) => <div key={w} style={{ fontSize: 7.5, fontWeight: 700, color: '#9CA3AF', textAlign: 'center', opacity: i >= 5 ? .4 : 1 }}>{w}</div>)}
+                                  </div>
+                                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 26px)', gap: 3 }}>
+                                    {cells.map((c, i) => {
+                                      const sc = statusColors[c.type] || statusColors.sp
+                                      const tip = c.type === 'miss'
+                                        ? `${c.dStr} — Clique para registrar atraso`
+                                        : c.type === 'late'
+                                          ? `${c.dStr} — ⏰ Feito${c.lateDate ? ` em ${c.lateDate}` : ''} por ${c.lateBy?.full_name || '?'}${c.daysLate > 0 ? ` · +${c.daysLate}d de atraso` : ''}`
+                                          : c.type === 'ok' && c.cov
+                                            ? `${c.dStr} — ✓ Feito por ${c.cov.full_name} (cobertura)`
+                                            : c.dStr || ''
+                                      return (
+                                        <div key={i} title={tip}
+                                          onClick={() => c.type === 'miss' && setLateModal({ routine: r, refDate: c.dStr, freq: 'diaria' })}
+                                          style={{
+                                            width: 26, height: 26, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                            fontSize: 8.5, fontWeight: 600, cursor: c.type === 'miss' ? 'pointer' : 'default',
+                                            border: `1.5px solid ${sc.border}`, background: sc.bg, color: sc.text,
+                                            outline: c.today ? `2px solid ${VL}` : 'none', outlineOffset: 1,
+                                            visibility: c.type === 'sp' ? 'hidden' : 'visible',
+                                          }}
+                                          onMouseEnter={e => { if (c.type === 'miss') e.currentTarget.style.transform = 'scale(1.2)' }}
+                                          onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)' }}
+                                        >
+                                          {sc.icon}
+                                          {c.cov && c.type !== 'miss' && <div style={{ position: 'absolute', bottom: 1, right: 1, width: 6, height: 6, borderRadius: '50%', background: c.cov.avatar_color || VL, border: '1px solid #fff' }} />}
+                                          {c.lateBy && c.type === 'late' && <div style={{ position: 'absolute', bottom: 1, right: 1, width: 6, height: 6, borderRadius: '50%', background: AMBER, border: '1px solid #fff' }} />}
+                                        </div>
+                                      )
+                                    })}
+                                  </div>
+                                </div>
+                              )
+                            })()}
+
+                            {r.frequency === 'semanal' && (() => {
+                              const weeks = buildWeeklyCells(r.id)
+                              return (
+                                <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+                                  {weeks.map((w, i) => {
+                                    const sc = statusColors[w.status]
+                                    const icon = w.status === 'ok' ? '✅' : w.status === 'late' ? '⏰' : w.status === 'miss' ? '❌' : '🔄'
+                                    const tip = w.status === 'miss' ? `${w.label} — Clique para registrar atraso`
+                                      : w.status === 'late' ? `${w.label} — ⏰ por ${w.lateBy?.full_name || '?'} · +${w.daysLate || 1}d de atraso`
+                                      : w.status === 'ok' && w.cov ? `${w.label} — Feito por ${w.cov.full_name} (cobertura)`
+                                      : w.label
+                                    return (
+                                      <div key={i} title={tip}
+                                        onClick={() => w.status === 'miss' && setLateModal({ routine: r, refDate: w.wStr, freq: 'semanal' })}
+                                        style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '6px 8px', borderRadius: 7, minWidth: 58, cursor: w.status === 'miss' ? 'pointer' : 'default', border: `1.5px solid ${w.cur ? VL : sc.border}`, background: sc.bg, transition: 'transform .1s' }}
+                                        onMouseEnter={e => { if (w.status === 'miss') e.currentTarget.style.transform = 'scale(1.05)' }}
+                                        onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)' }}
+                                      >
+                                        <div style={{ fontSize: 13, marginBottom: 2 }}>{icon}</div>
+                                        <div style={{ fontSize: 8.5, fontWeight: 700, color: sc.text }}>{w.cur ? 'Agora' : w.label}</div>
+                                        {w.lateBy && w.status === 'late' && <div style={{ fontSize: 7.5, color: AMBER, marginTop: 1 }}>+{w.daysLate}d · {w.lateBy.full_name?.split(' ')[0]}</div>}
+                                        {w.cov && w.status === 'ok' && <div style={{ fontSize: 7.5, color: '#10B981', marginTop: 1 }}>{w.cov.full_name?.split(' ')[0]}</div>}
+                                      </div>
+                                    )
+                                  })}
+                                </div>
+                              )
+                            })()}
+
+                            {r.frequency === 'mensal' && (() => {
+                              const months = buildMonthlyCells(r.id)
+                              return (
+                                <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+                                  {months.map((m, i) => {
+                                    const sc = statusColors[m.status]
+                                    const icon = m.status === 'ok' ? '✅' : m.status === 'late' ? '⏰' : m.status === 'miss' ? '❌' : '🔄'
+                                    const tip = m.status === 'miss' ? `${m.label} — Clique para registrar atraso`
+                                      : m.status === 'late' ? `${m.label} — ⏰ por ${m.lateBy?.full_name || '?'} · +${m.daysLate || 1}d de atraso`
+                                      : m.label
+                                    return (
+                                      <div key={i} title={tip}
+                                        onClick={() => m.status === 'miss' && setLateModal({ routine: r, refDate: m.mk + '-01', freq: 'mensal' })}
+                                        style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '8px 10px', borderRadius: 7, minWidth: 62, cursor: m.status === 'miss' ? 'pointer' : 'default', border: `1.5px solid ${m.cur ? VL : sc.border}`, background: sc.bg, transition: 'transform .1s' }}
+                                        onMouseEnter={e => { if (m.status === 'miss') e.currentTarget.style.transform = 'scale(1.05)' }}
+                                        onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)' }}
+                                      >
+                                        <div style={{ fontSize: 15, marginBottom: 3 }}>{icon}</div>
+                                        <div style={{ fontSize: 9, fontWeight: 700, color: sc.text }}>{m.label}</div>
+                                        {m.lateBy && m.status === 'late' && <div style={{ fontSize: 7.5, color: AMBER, marginTop: 1 }}>+{m.daysLate}d · {m.lateBy.full_name?.split(' ')[0]}</div>}
+                                        {m.cov && m.status === 'ok' && <div style={{ fontSize: 7.5, color: '#10B981', marginTop: 1 }}>{m.cov.full_name?.split(' ')[0]}</div>}
+                                      </div>
+                                    )
+                                  })}
+                                </div>
+                              )
+                            })()}
+
+                            {/* Activity log: últimas execuções */}
+                            {recentComps.length > 0 && (
+                              <div style={{ marginTop: 10, paddingTop: 8, borderTop: '1px solid #F3F4F6' }}>
+                                <div style={{ fontSize: 8.5, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: 5 }}>Últimas execuções</div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                                  {recentComps.map((c, i) => {
+                                    const who = profMap[c.completed_by]
+                                    const isLate = c.execution_status === 'late'
+                                    const dLate = calcDaysLate(c)
+                                    const isCov = c.completed_by !== r.assigned_to
+                                    return (
+                                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10.5 }}>
+                                        <span>{isLate ? '⏰' : '✓'}</span>
+                                        <span style={{ color: '#6B7280' }}>{c.reference_date ? new Date(c.reference_date + 'T12:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) : '—'}</span>
+                                        <span style={{ fontWeight: 600, color: isLate ? AMBER : GREEN }}>{who?.full_name?.split(' ')[0] || '?'}</span>
+                                        {isCov && <span style={{ fontSize: 9, color: '#9CA3AF' }}>(cobertura)</span>}
+                                        {isLate && <span style={{ fontSize: 9, fontWeight: 600, padding: '0 5px', borderRadius: 99, background: '#FEF3C7', color: '#92400E' }}>+{dLate}d de atraso</span>}
+                                        {!isLate && <span style={{ fontSize: 9, color: '#9CA3AF' }}>no prazo</span>}
+                                      </div>
+                                    )
+                                  })}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )
+            })}
           </div>
         </div>
       )}
 
-      {/* ════════════════════════════════════════════════════════════════
+            {/* ════════════════════════════════════════════════════════════════
           VIEW: PENDÊNCIAS
       ════════════════════════════════════════════════════════════════ */}
       {activeView === 'pendencias' && (
