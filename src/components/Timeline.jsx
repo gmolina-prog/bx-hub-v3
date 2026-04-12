@@ -6,6 +6,7 @@ import { logActivity } from '../lib/activityLog'
 import { useEscapeKey } from '../hooks/useEscapeKey'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { useData } from '../contexts/DataContext'
+import { NovoProjetoModal } from './CadastroModal'
 
 const CH = '#2D2E39', VL = '#5452C1'
 const GREEN = '#10B981', AMBER = '#F59E0B', RED = '#EF4444', BLUE = '#3B82F6'
@@ -110,23 +111,8 @@ export default function Timeline() {
   const { profile } = useData()
   usePageTitle('Projetos')
 
-  async function openEdit(p) {
+  function openEdit(p) {
     setEditingProject(p)
-    setEditForm({
-      name:          p.name || '',
-      type:          p.type || 'Diagnóstico',
-      status:        p.status || 'Planejamento',
-      company_id:    p.company_id || '',
-      analyst_id:    p.analyst_id || '',
-      associate_id:  p.associate_id || '',
-      executive_id:  p.executive_id || '',
-      deadline:      p.deadline ? p.deadline.slice(0, 10) : '',
-      priority:      p.priority || 'medium',
-      progress:      p.progress ?? 0,
-      budget:        p.budget || '',
-      observacoes:   p.observacoes || '',
-      historico:     p.historico || '',
-    })
   }
 
   async function deleteProject(projId) {
@@ -260,7 +246,7 @@ export default function Timeline() {
       supabase.from('projects').select('*').eq('org_id', profile.org_id).order('deadline', { ascending: true, nullsFirst: false }),
       supabase.from('companies').select('id,name,color').eq('org_id', profile.org_id),
       supabase.from('profiles').select('id,full_name,initials').eq('org_id', profile.org_id).order('full_name'),
-      supabase.from('tasks').select('id,column_id,project_id,due_date').eq('org_id', profile.org_id).is('deleted_at', null),
+      supabase.from('tasks').select('id,column_id,project_id,due_date,created_at').eq('org_id', profile.org_id).is('deleted_at', null),
     ])
     if (projR.status === 'fulfilled' && !projR.value.error) setProjects(projR.value.data || [])
     if (compR.status === 'fulfilled' && !compR.value.error) setCompanies(compR.value.data || [])
@@ -285,37 +271,50 @@ export default function Timeline() {
     return matchStatus && matchComp
   })
 
-  // Gantt date range — dynamic based on actual project dates
+  // Gantt date range — baseado nas TAREFAS do Kanban, nao no prazo do projeto
   const now = new Date()
 
-  // Find earliest start and latest end across all projects
-  const projectStarts  = filtered.map(p => p.created_at ? new Date(p.created_at) : now)
-  const projectEnds    = filtered.map(p => p.deadline   ? new Date(p.deadline)   : now)
-  const earliestStart  = projectStarts.length ? new Date(Math.min(...projectStarts)) : now
-  const latestEnd      = projectEnds.length   ? new Date(Math.max(...projectEnds))   : now
+  function getProjectTaskRange(projectId) {
+    const projTasks = tasks.filter(t => t.project_id === projectId)
+    if (!projTasks.length) return null
+    const starts = projTasks.map(t => t.created_at ? new Date(t.created_at) : null).filter(Boolean)
+    const ends   = projTasks.map(t => t.due_date    ? new Date(t.due_date)   : null).filter(Boolean)
+    const start  = starts.length ? new Date(Math.min(...starts)) : null
+    const end    = ends.length   ? new Date(Math.max(...ends))   : null
+    return { start, end }
+  }
 
-  // Pad by 1 month on each side, align to month boundaries
-  const minDate = new Date(earliestStart.getFullYear(), earliestStart.getMonth() - 1, 1)
-  const maxDate = new Date(latestEnd.getFullYear(),     latestEnd.getMonth()   + 2, 1)
+  const allTaskStarts = filtered.flatMap(p => {
+    const r = getProjectTaskRange(p.id)
+    return r && r.start ? [r.start] : [p.created_at ? new Date(p.created_at) : now]
+  })
+  const allTaskEnds = filtered.flatMap(p => {
+    const r = getProjectTaskRange(p.id)
+    return r && r.end ? [r.end] : [new Date(now.getTime() + 30 * 86400000)]
+  })
+  const earliestStart = allTaskStarts.length ? new Date(Math.min(...allTaskStarts)) : now
+  const latestEnd     = allTaskEnds.length   ? new Date(Math.max(...allTaskEnds))   : new Date(now.getTime() + 90 * 86400000)
+
+  const minDate   = new Date(earliestStart.getFullYear(), earliestStart.getMonth() - 1, 1)
+  const maxDate   = new Date(latestEnd.getFullYear(),     latestEnd.getMonth()   + 2, 1)
   const totalDays = Math.max(30, Math.ceil((maxDate - minDate) / 86400000))
 
   const months = []
-  const md = new Date(minDate)
-  while (md < maxDate) {
-    months.push({ label: md.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }).toUpperCase(), pct: Math.round((md - minDate) / 86400000 / totalDays * 100) })
-    md.setMonth(md.getMonth() + 1)
+  const mdd = new Date(minDate)
+  while (mdd < maxDate) {
+    months.push({ label: mdd.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }).toUpperCase(), pct: Math.round((mdd - minDate) / 86400000 / totalDays * 100) })
+    mdd.setMonth(mdd.getMonth() + 1)
   }
 
   function ganttBar(project) {
-    // Use created_at as start, deadline as end
-    const start = project.created_at ? new Date(project.created_at) : now
-    const end   = project.deadline   ? new Date(project.deadline)   : new Date(start.getTime() + 180 * 86400000)
+    const range = getProjectTaskRange(project.id)
+    const start = (range && range.start) || (project.created_at ? new Date(project.created_at) : now)
+    const end   = (range && range.end)   || new Date(start.getTime() + 60 * 86400000)
     const left  = Math.max(0, Math.min(98, Math.round((start - minDate) / 86400000 / totalDays * 100)))
-    const right = Math.min(100, Math.round((end   - minDate) / 86400000 / totalDays * 100))
+    const right = Math.min(100, Math.round((end - minDate) / 86400000 / totalDays * 100))
     const width = Math.max(2, right - left)
-    return { left, width }
+    return { left, width, hasTaskDates: !!(range && (range.start || range.end)) }
   }
-
   const statuses = [...new Set(projects.map(p => p.status).filter(Boolean))]
 
   return (
@@ -491,7 +490,17 @@ export default function Timeline() {
                     <div className="absolute top-0 bottom-0 border-l border-violet-300 border-dashed z-10" style={{ left: `${Math.round((now - minDate) / 86400000 / totalDays * 100)}%` }} />
                     <div className="absolute h-8 rounded-lg overflow-hidden z-20"
                       style={{ left: `${left}%`, width: `${Math.max(width, 3)}%`, minWidth: 48 }}
-                      title={`${p.name} · Início: ${p.created_at ? new Date(p.created_at).toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'2-digit'}) : '?'} → Prazo: ${p.deadline ? new Date(p.deadline).toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'2-digit'}) : '—'}`}
+                      title={(() => {
+                        const range = getProjectTaskRange(p.id)
+                        const projTasks = tasks.filter(t => t.project_id === p.id)
+                        const done = projTasks.filter(t => t.column_id === 'done').length
+                        if (range && (range.start || range.end)) {
+                          const s = range.start ? range.start.toLocaleDateString('pt-BR', {day:'2-digit',month:'2-digit',year:'2-digit'}) : '?'
+                          const e = range.end   ? range.end.toLocaleDateString('pt-BR', {day:'2-digit',month:'2-digit',year:'2-digit'})   : '?'
+                          return `${p.name} · ${done}/${projTasks.length} tarefas · ${s} → ${e}`
+                        }
+                        return `${p.name} · Sem tarefas com prazo definido`
+                      })()}
                     >
                       <div className="absolute inset-0 rounded-lg" style={{ background: ganttColor(p.id), opacity: .88 }} />
                       <div className="absolute inset-y-0 left-0 rounded-lg transition-all" style={{ width: `${taskPct >= 0 ? taskPct : 0}%`, background: 'rgba(255,255,255,.28)' }} />
@@ -504,19 +513,29 @@ export default function Timeline() {
                 )
               })}
             </div>
-            {/* Deadline */}
+            {/* Progresso de Tarefas (substituindo Prazo) */}
             <div className="w-28 shrink-0 border-l border-zinc-200">
-              <div className="px-3 py-3 text-[10px] font-bold uppercase tracking-wider text-white" style={{ background: CH }}>Prazo</div>
-              {filtered.map(p => (
-                <div key={p.id} className="px-3 py-3 border-b border-zinc-100 h-14 flex flex-col justify-center">
-                  {p.deadline ? (
-                    <>
-                      <div className="text-xs font-semibold text-zinc-700">{new Date(p.deadline).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}</div>
-                      <div className={`text-[10px] font-semibold ${daysColor(p.deadline)}`}>{daysLabel(p.deadline)}</div>
-                    </>
-                  ) : <span className="text-[10px] text-zinc-400">—</span>}
-                </div>
-              ))}
+              <div className="px-3 py-3 text-[10px] font-bold uppercase tracking-wider text-white" style={{ background: CH }}>Tarefas</div>
+              {filtered.map(p => {
+                const projTasks = tasks.filter(t => t.project_id === p.id)
+                const done  = projTasks.filter(t => t.column_id === 'done').length
+                const total = projTasks.length
+                const pct   = total > 0 ? Math.round(done / total * 100) : null
+                const color = pct === null ? '#9CA3AF' : pct === 100 ? GREEN : pct >= 50 ? AMBER : RED
+                return (
+                  <div key={p.id} className="px-3 border-b border-zinc-100 h-14 flex flex-col justify-center">
+                    {total > 0 ? (
+                      <>
+                        <div className="text-xs font-bold" style={{ color }}>{pct}%</div>
+                        <div className="text-[10px] text-zinc-400">{done}/{total} feitas</div>
+                        <div className="mt-1 h-1.5 bg-zinc-100 rounded-full overflow-hidden">
+                          <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: color }} />
+                        </div>
+                      </>
+                    ) : <span className="text-[10px] text-zinc-400">Sem tasks</span>}
+                  </div>
+                )
+              })}
             </div>
           </div>
         </div>
@@ -583,163 +602,32 @@ export default function Timeline() {
           </table>
         </div>
       )}
-    {/* ── Modal Criar / Editar Projeto (unificado) ── */}
-    {(showNewProject || editingProject) && (() => {
-      const isEdit  = !!editingProject
-      const form    = isEdit ? editForm    : newProj
-      const setForm = isEdit ? setEditForm : setNewProj
-      const onSave  = isEdit ? updateProject : createProject
-      return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          style={{ background: 'rgba(0,0,0,0.45)' }}
-          onClick={e => e.target === e.currentTarget && (isEdit ? setEditingProject(null) : setShowNewProject(false))}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
-            <div className="flex items-center justify-between mb-5">
-              <h3 className="text-base font-bold text-zinc-800">
-                {isEdit ? 'Editar Projeto' : 'Novo Projeto'}
-              </h3>
-              <button onClick={() => isEdit ? setEditingProject(null) : setShowNewProject(false)}
-                className="text-zinc-400 hover:text-zinc-600">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="space-y-3">
-              <div>
-                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Nome *</label>
-                <input autoFocus className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
-                  value={form.name || ''} onChange={e => setForm(p => ({...p, name: e.target.value}))}
-                  placeholder="Ex: Diagnóstico Financeiro — Empresa X..." />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Tipo</label>
-                  <select className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
-                    value={form.type || 'Diagnóstico'} onChange={e => setForm(p => ({...p, type: e.target.value}))}>
-                    <option>Diagnóstico</option><option>RJ</option><option>M&A</option>
-                    <option>Reestruturação</option><option>Assessoria</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Status</label>
-                  <select className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
-                    value={form.status || 'Planejamento'} onChange={e => setForm(p => ({...p, status: e.target.value}))}>
-                    <option>Planejamento</option>
-                    <option value="Em andamento">Em andamento</option>
-                    <option>Concluído</option><option>Pausado</option>
-                  </select>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Empresa</label>
-                  <select className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
-                    value={form.company_id || ''} onChange={e => setForm(p => ({...p, company_id: e.target.value}))}>
-                    <option value="">— nenhuma —</option>
-                    {companies.map(co => <option key={co.id} value={co.id}>{co.name}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Analista</label>
-                  <select className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
-                    value={form.analyst_id || ''} onChange={e => setForm(p => ({...p, analyst_id: e.target.value}))}>
-                    <option value="">— nenhum —</option>
-                    {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
-                  </select>
-                </div>
-              </div>
-              <div>
-                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Prazo</label>
-                <input type="date" className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
-                  value={form.deadline || ''} onChange={e => setForm(p => ({...p, deadline: e.target.value}))} />
-              </div>
+    {/* ── NovoProjetoModal para EDIÇÃO (formulário completo com IA) ── */}
+    {editingProject && (
+      <NovoProjetoModal
+        initialData={editingProject}
+        companies={companies}
+        profiles={profiles}
+        onClose={() => setEditingProject(null)}
+        onSave={async (updatedProj) => {
+          setEditingProject(null)
+          await load()
+        }}
+      />
+    )}
 
-              {/* Sócio Responsável + Executivo */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Sócio Responsável</label>
-                  <select className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
-                    value={form.associate_id || ''} onChange={e => setForm(p => ({...p, associate_id: e.target.value}))}>
-                    <option value="">— nenhum —</option>
-                    {profiles.filter(p => ['owner','gerente','Gerente'].includes(p.role)).map(p => (
-                      <option key={p.id} value={p.id}>{p.full_name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Executivo</label>
-                  <select className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
-                    value={form.executive_id || ''} onChange={e => setForm(p => ({...p, executive_id: e.target.value}))}>
-                    <option value="">— nenhum —</option>
-                    {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
-                  </select>
-                </div>
-              </div>
-
-              {/* Orçamento */}
-              <div>
-                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Orçamento (R$)</label>
-                <input type="number" min="0" step="1000" className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
-                  placeholder="Ex: 50000"
-                  value={form.budget || ''} onChange={e => setForm(p => ({...p, budget: e.target.value}))} />
-              </div>
-
-              {/* Observações */}
-              <div>
-                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Observações</label>
-                <textarea rows={2} className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500 resize-none"
-                  placeholder="Contexto, condições especiais, riscos..."
-                  value={form.observacoes || ''} onChange={e => setForm(p => ({...p, observacoes: e.target.value}))} />
-              </div>
-
-              {/* Histórico */}
-              <div>
-                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Histórico / Timeline de eventos</label>
-                <textarea rows={3} className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500 resize-none"
-                  placeholder="Registro cronológico de eventos, decisões, marcos do projeto..."
-                  value={form.historico || ''} onChange={e => setForm(p => ({...p, historico: e.target.value}))} />
-              </div>
-
-              {isEdit && (
-                <div>
-                  <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">
-                    Progresso manual — {form.progress ?? 0}%
-                  </label>
-                  <input type="range" min="0" max="100" step="5"
-                    className="w-full accent-violet-600"
-                    value={form.progress ?? 0}
-                    onChange={e => setForm(p => ({...p, progress: parseInt(e.target.value)}))} />
-                  <div className="flex justify-between text-[10px] text-zinc-400 mt-0.5">
-                    <span>0%</span><span>50%</span><span>100%</span>
-                  </div>
-                  <p className="text-[10px] text-zinc-400 mt-1">
-                    Sobrescrito automaticamente pelo % de tarefas concluídas se houver tasks no projeto.
-                  </p>
-                </div>
-              )}
-              <div className="flex gap-3 pt-2">
-                <button onClick={onSave}
-                  disabled={savingProj || !(isEdit ? form.name?.trim() : form.name.trim())}
-                  className="flex-1 py-2.5 text-sm font-bold text-white rounded-xl hover:opacity-90 disabled:opacity-50"
-                  style={{ background: '#5452C1' }}>
-                  {savingProj ? (isEdit ? 'Salvando…' : 'Criando…') : (isEdit ? 'Salvar Alterações' : 'Criar Projeto')}
-                </button>
-                <button
-                  onClick={() => isEdit ? setEditingProject(null) : setShowNewProject(false)}
-                  className="px-4 text-sm text-zinc-500 hover:text-zinc-700">
-                  Cancelar
-                </button>
-                {isEdit && (
-                  <button onClick={() => { deleteProject(editingProject.id); setEditingProject(null) }}
-                    className="px-4 text-sm font-semibold text-red-500 hover:text-red-700 ml-auto">
-                    Excluir
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )
-    })()}
+    {/* ── Modal Novo Projeto (criar) ── */}
+    {showNewProject && (
+      <NovoProjetoModal
+        companies={companies}
+        profiles={profiles}
+        onClose={() => setShowNewProject(false)}
+        onSave={async (newProj) => {
+          setShowNewProject(false)
+          await load()
+        }}
+      />
+    )}
     </div>
     </>
   )
