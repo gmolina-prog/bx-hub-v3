@@ -4,509 +4,529 @@ import { usePageTitle } from '../hooks/usePageTitle'
 import { useData } from '../contexts/DataContext'
 import { useNavigate } from 'react-router-dom'
 import {
-  Building2,
-  Search,
-  Filter,
-  ExternalLink,
-  AlertCircle,
-  ChevronRight,
-  Briefcase,
-  Users,
-  TrendingUp,
-  Loader2,
-  FolderOpen,
-  Grid3x3,
-  List as ListIcon,
+  Building2, Search, Filter, ExternalLink, AlertCircle,
+  ChevronRight, Briefcase, TrendingUp, Loader2, FolderOpen,
+  Grid3x3, List as ListIcon, X,
 } from 'lucide-react'
 
-// ============================================================================
-// Portfolio.jsx — Round 6 · Visão consolidada de empresas e projetos
-// ----------------------------------------------------------------------------
-// Lista hierárquica: Empresa → Projetos → Tarefas count.
-// Filtros por criticidade, busca textual, 2 modos de view (grid/list).
-// ============================================================================
+// ── criticality config ───────────────────────────────────────────────────────
+const CRIT_CONFIG = {
+  critico: { border: '#EF4444', bg: '#FEF2F2', text: '#B91C1C', badge: '#FEE2E2', badgeText: '#991B1B', label: 'Crítico' },
+  alto:    { border: '#F59E0B', bg: '#FFFBEB', text: '#92400E', badge: '#FEF3C7', badgeText: '#78350F', label: 'Alto'    },
+  medio:   { border: '#6366F1', bg: '#EEF2FF', text: '#4338CA', badge: '#E0E7FF', badgeText: '#3730A3', label: 'Médio'   },
+  baixo:   { border: '#10B981', bg: '#ECFDF5', text: '#065F46', badge: '#D1FAE5', badgeText: '#064E3B', label: 'Baixo'   },
+  normal:  { border: '#9CA3AF', bg: '#F9FAFB', text: '#374151', badge: '#F3F4F6', badgeText: '#4B5563', label: 'Normal'  },
+}
+
+function getCrit(c) { return CRIT_CONFIG[c] || CRIT_CONFIG.normal }
+
+// project colors deterministic from id
+const PROJ_COLORS = ['#F59E0B','#EF4444','#6366F1','#10B981','#EC4899','#8B5CF6','#3B82F6','#14B8A6','#F97316']
+function projColor(id) {
+  if (!id) return '#9CA3AF'
+  let h = 0
+  for (const ch of String(id)) h = (h << 5) - h + ch.charCodeAt(0)
+  return PROJ_COLORS[Math.abs(h) % PROJ_COLORS.length]
+}
 
 export default function Portfolio() {
   const { profile } = useData()
   usePageTitle('Portfolio')
   const navigate = useNavigate()
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
-
-  const [companies, setCompanies] = useState([])
-  const [projects, setProjects] = useState([])
-  const [tasks, setTasks] = useState([])
-
-  // UI state
-  const [search,       setSearch]       = useState('')
+  const [loading, setLoading]         = useState(true)
+  const [error, setError]             = useState(null)
+  const [companies, setCompanies]     = useState([])
+  const [projects, setProjects]       = useState([])
+  const [tasks, setTasks]             = useState([])
   const [profilesList, setProfilesList] = useState([])
-  const [critFilter, setCritFilter] = useState('todos')
-  const [viewMode, setViewMode] = useState('grid')
+  const [search, setSearch]           = useState('')
+  const [critFilter, setCritFilter]   = useState('todos')
+  const [viewMode, setViewMode]       = useState('grid')
+  const [activeTab, setActiveTab]     = useState('empresas')
   const [selectedCompanyId, setSelectedCompanyId] = useState(null)
 
-  useEffect(function () {
-    if (profile?.org_id) loadAll()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profile?.org_id])
+  useEffect(() => { if (profile?.org_id) loadAll() }, [profile?.org_id])
 
   async function loadAll() {
-    setLoading(true)
-    setError(null)
+    setLoading(true); setError(null)
     try {
       const orgId = profile?.org_id
       if (!orgId) throw new Error('Perfil sem org_id')
-
       const [cRes, prRes, tRes, profRes] = await Promise.allSettled([
         supabase.from('companies').select('*').eq('org_id', orgId),
         supabase.from('projects').select('*').eq('org_id', orgId),
-        supabase.from('tasks').select('*').eq('org_id', orgId).is('deleted_at', null).eq('is_archived', false).limit(500),
+        supabase.from('tasks').select('id,column_id,project_id,due_date,priority').eq('org_id', orgId).is('deleted_at', null).eq('is_archived', false).limit(500),
         supabase.from('profiles').select('id,full_name,initials,avatar_color,role').eq('org_id', orgId),
       ])
-
-      if (cRes.status   === 'fulfilled' && !cRes.value.error)  setCompanies(cRes.value.data  || [])
+      if (cRes.status    === 'fulfilled' && !cRes.value.error)    setCompanies(cRes.value.data || [])
+      if (prRes.status   === 'fulfilled' && !prRes.value.error)   setProjects(prRes.value.data || [])
+      if (tRes.status    === 'fulfilled' && !tRes.value.error)    setTasks(tRes.value.data || [])
       if (profRes.status === 'fulfilled' && !profRes.value.error) setProfilesList(profRes.value.data || [])
-      else if (cRes.status  === 'rejected') console.error('Portfolio companies:', cRes.reason)
-      if (prRes.status === 'fulfilled' && !prRes.value.error) setProjects(prRes.value.data  || [])
-      else if (prRes.status === 'rejected') console.error('Portfolio projects:', prRes.reason)
-      if (tRes.status  === 'fulfilled' && !tRes.value.error)  setTasks(tRes.value.data    || [])
-      else if (tRes.status  === 'rejected') console.error('Portfolio tasks:', tRes.reason)
-    } catch (err) {
-      console.error('Portfolio loadAll error:', err)
-      setError(err.message || 'Erro ao carregar portfólio')
-    } finally {
-      setLoading(false)
-    }
+    } catch (err) { setError(err.message || 'Erro ao carregar portfólio') }
+    finally { setLoading(false) }
   }
 
-  // ──────────────────────────────────────────────────────────────────────
-  // Empresas enriquecidas (com contagem de projetos/tarefas)
-  // ──────────────────────────────────────────────────────────────────────
-  const enrichedCompanies = useMemo(function () {
-    return companies.map(function (c) {
-      const companyProjects = projects.filter(function (p) { return p.company_id === c.id })
-      const projectIds = companyProjects.map(function (p) { return p.id })
-      const companyTasks = tasks.filter(function (t) { return projectIds.indexOf(t.project_id) !== -1 })
+  const profMap = useMemo(() => {
+    const m = {}; profilesList.forEach(p => { m[p.id] = p }); return m
+  }, [profilesList])
 
-      const activeProjects = companyProjects.filter(function (p) {
-        const s = (p.status || '').toLowerCase()
-        return s === 'active' || s === 'em andamento' || s === 'andamento'
-      }).length
+  const INACTIVE = ['Cancelado','Completo','cancelled','complete','Concluído','concluido','Pausado','pausado']
 
-      const doneTasks = companyTasks.filter(function (t) { return t.column_id === 'done' }).length
-      const progress = companyTasks.length > 0
-        ? Math.round((doneTasks / companyTasks.length) * 100)
-        : 0
+  const enrichedCompanies = useMemo(() => companies.map(c => {
+    const cProjects = projects.filter(p => p.company_id === c.id)
+    const pIds = new Set(cProjects.map(p => p.id))
+    const cTasks = tasks.filter(t => pIds.has(t.project_id))
+    const activeProjects = cProjects.filter(p => !INACTIVE.includes(p.status || '')).length
+    const doneTasks = cTasks.filter(t => t.column_id === 'done').length
+    const overdueTasks = cTasks.filter(t => t.due_date && new Date(t.due_date) < new Date() && t.column_id !== 'done').length
+    const totalBudget = cProjects.reduce((s, p) => s + (parseFloat(p.budget) || 0), 0)
+    const progress = cTasks.length > 0 ? Math.round((doneTasks / cTasks.length) * 100) : 0
+    return { ...c, projectCount: cProjects.length, activeProjectCount: activeProjects, taskCount: cTasks.length, doneTaskCount: doneTasks, overdueTasks, totalBudget, progress, projects: cProjects }
+  }), [companies, projects, tasks])
 
-      return {
-        ...c,
-        projectCount: companyProjects.length,
-        activeProjectCount: activeProjects,
-        taskCount: companyTasks.length,
-        doneTaskCount: doneTasks,
-        progress,
-        projects: companyProjects,
-      }
-    })
-  }, [companies, projects, tasks])
-
-  // Filtros
-  const filteredCompanies = useMemo(function () {
-    return enrichedCompanies.filter(function (c) {
-      if (critFilter !== 'todos' && c.criticality !== critFilter) return false
-      if (search.trim()) {
-        const q = search.trim().toLowerCase()
-        const name = (c.name || '').toLowerCase()
-        const desc = (c.description || '').toLowerCase()
-        if (name.indexOf(q) === -1 && desc.indexOf(q) === -1) return false
-      }
-      return true
-    })
-  }, [enrichedCompanies, search, critFilter])
-
-  const selectedCompany = useMemo(function () {
-    if (!selectedCompanyId) return null
-    return enrichedCompanies.find(function (c) { return c.id === selectedCompanyId }) || null
-  }, [selectedCompanyId, enrichedCompanies])
-
-  // Contadores globais
-  const orphanProjects = useMemo(function () {
-    return projects.filter(function (p) { return !p.company_id })
-  }, [projects])
-
-  const totals = useMemo(function () {
-    return {
-      companies: enrichedCompanies.length,
-      critical: enrichedCompanies.filter(function (c) { return c.criticality === 'critico' }).length,
-      high: enrichedCompanies.filter(function (c) { return c.criticality === 'alto' }).length,
-      projects: projects.length,
-      activeProjects: projects.filter(function (p) {
-        const s = (p.status || '').toLowerCase()
-        return s === 'active' || s === 'em andamento' || s === 'andamento'
-      }).length,
+  const filteredCompanies = useMemo(() => enrichedCompanies.filter(c => {
+    if (activeTab === 'criticos' && c.criticality !== 'critico' && c.criticality !== 'alto') return false
+    if (activeTab === 'ativos' && c.activeProjectCount === 0) return false
+    if (critFilter !== 'todos' && c.criticality !== critFilter) return false
+    if (search.trim()) {
+      const q = search.trim().toLowerCase()
+      return (c.name || '').toLowerCase().includes(q) || (c.description || '').toLowerCase().includes(q)
     }
-  }, [enrichedCompanies, projects])
+    return true
+  }), [enrichedCompanies, search, critFilter, activeTab])
 
-  // Badge de criticidade
-  function CritBadge(props) {
-    const crit = props.crit || 'normal'
-    const map = {
-      critico: 'bg-red-100 text-red-700 border-red-200',
-      alto: 'bg-orange-100 text-orange-700 border-orange-200',
-      medio: 'bg-amber-100 text-amber-700 border-amber-200',
-      baixo: 'bg-emerald-100 text-emerald-700 border-emerald-200',
-      normal: 'bg-zinc-100 text-zinc-600 border-zinc-200',
-    }
-    const cls = map[crit] || map.normal
-    const label = crit.charAt(0).toUpperCase() + crit.slice(1)
-    const profMap = {}
-  profilesList.forEach(p => { profMap[p.id] = p })
+  const selectedCompany = useMemo(() =>
+    selectedCompanyId ? enrichedCompanies.find(c => c.id === selectedCompanyId) || null : null,
+    [selectedCompanyId, enrichedCompanies])
 
-  return (
-      <span className={'text-[10px] font-bold uppercase tracking-wide px-2 py-1 rounded border ' + cls}>
-        {label}
-      </span>
-    )
-  }
+  const totals = useMemo(() => ({
+    companies:      enrichedCompanies.length,
+    critical:       enrichedCompanies.filter(c => c.criticality === 'critico').length,
+    high:           enrichedCompanies.filter(c => c.criticality === 'alto').length,
+    projects:       projects.length,
+    activeProjects: projects.filter(p => !INACTIVE.includes(p.status || '')).length,
+    withProjects:   enrichedCompanies.filter(c => c.projectCount > 0).length,
+  }), [enrichedCompanies, projects])
 
-  if (loading) {
-    return (
-      <div className="p-6 max-w-[1600px] mx-auto">
-        <div className="flex items-center justify-center py-24">
-          <Loader2 className="w-8 h-8 text-violet animate-spin" />
-          <span className="ml-3 text-sm text-zinc-500">Carregando portfólio...</span>
-        </div>
+  const heroTabs = [
+    { id: 'empresas', label: 'Empresas',  count: enrichedCompanies.length },
+    { id: 'projetos', label: 'Projetos',  count: totals.projects },
+    { id: 'ativos',   label: 'Ativos',    count: totals.activeProjects },
+    { id: 'criticos', label: 'Críticos',  count: totals.critical + totals.high },
+  ]
+
+  // ─── loading / error ───────────────────────────────────────────────────────
+  if (loading) return (
+    <div className="flex items-center justify-center py-24">
+      <Loader2 className="w-8 h-8 text-violet-600 animate-spin" />
+      <span className="ml-3 text-sm text-zinc-500">Carregando portfólio...</span>
+    </div>
+  )
+
+  if (error) return (
+    <div className="p-6"><div className="bg-red-50 border border-red-200 rounded-xl p-6 flex gap-3">
+      <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+      <div><div className="font-bold text-red-900">Erro ao carregar Portfólio</div>
+        <div className="text-sm text-red-700 mt-1">{error}</div>
+        <button onClick={loadAll} className="mt-2 text-xs font-semibold text-red-700 underline">Tentar novamente</button>
       </div>
-    )
-  }
+    </div></div>
+  )
 
-  if (error) {
-    return (
-      <div className="p-6 max-w-[1600px] mx-auto">
-        <div className="bg-red-50 border border-red-200 rounded-xl p-6">
-          <div className="flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+  // ─── render ────────────────────────────────────────────────────────────────
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', minHeight: 'calc(100vh - 64px)', background: '#F4F5F8' }}>
+
+      {/* ══ HERO ══ */}
+      <div style={{ background: '#2D2E39', flexShrink: 0 }}>
+        <div style={{ padding: '20px 24px 0' }}>
+
+          {/* Tag + Título */}
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 14 }}>
             <div>
-              <div className="font-bold text-red-900">Erro ao carregar Portfólio</div>
-              <div className="text-sm text-red-700 mt-1">{error}</div>
-              <button onClick={loadAll} className="mt-3 text-xs font-semibold text-red-700 underline">
-                Tentar novamente
-              </button>
+              <div style={{ fontSize: 9.5, fontWeight: 600, color: '#818CF8', textTransform: 'uppercase', letterSpacing: '.12em', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 5 }}>
+                <Building2 style={{ width: 11, height: 11 }} />
+                Portfólio Consolidado
+              </div>
+              <div style={{ fontSize: 21, fontWeight: 700, color: 'white', marginBottom: 2 }}>Empresas & Projetos</div>
+              <div style={{ fontSize: 11.5, color: '#6B7280' }}>Visão hierárquica de toda a carteira sob gestão</div>
             </div>
+          </div>
+
+          {/* KPIs */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 8, marginBottom: 14 }}>
+            {[
+              { label: 'Empresas',    value: totals.companies,      color: '#A5B4FC' },
+              { label: 'Críticas',    value: totals.critical,       color: '#FCA5A5', sub: `${totals.high} altas` },
+              { label: 'Projetos',    value: totals.projects,       color: '#FCD34D' },
+              { label: 'Ativos',      value: totals.activeProjects, color: '#6EE7B7' },
+              { label: 'C/ Projetos', value: totals.withProjects,   color: '#F9A8D4' },
+            ].map(k => (
+              <div key={k.label} style={{ background: 'rgba(255,255,255,.07)', border: '1px solid rgba(255,255,255,.08)', borderRadius: 10, padding: '10px 14px' }}>
+                <div style={{ fontSize: 9, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.09em', color: '#6B7280', marginBottom: 4 }}>{k.label}</div>
+                <div style={{ fontSize: 19, fontWeight: 700, lineHeight: 1, color: k.color }}>{k.value}</div>
+                {k.sub && <div style={{ fontSize: 10, color: '#4B5563', marginTop: 2 }}>{k.sub}</div>}
+              </div>
+            ))}
+          </div>
+
+          {/* Tabs */}
+          <div style={{ display: 'flex', gap: 2 }}>
+            {heroTabs.map(tab => {
+              const on = activeTab === tab.id
+              return (
+                <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 5, padding: '9px 14px',
+                    fontSize: 12, fontWeight: on ? 600 : 500,
+                    borderRadius: '8px 8px 0 0', cursor: 'pointer', whiteSpace: 'nowrap',
+                    border: '1px solid transparent', borderBottom: 'none', outline: 'none',
+                    background: on ? 'white' : 'transparent',
+                    color: on ? '#5452C1' : '#6B7280',
+                    borderColor: on ? 'rgba(255,255,255,.12)' : 'transparent',
+                    transition: 'all .12s',
+                  }}>
+                  {tab.label}
+                  <span style={{
+                    fontSize: 9.5, fontWeight: 600, padding: '1px 5px', borderRadius: 99,
+                    background: on ? '#EEF2FF' : 'rgba(255,255,255,.1)',
+                    color: on ? '#5452C1' : '#9CA3AF',
+                  }}>{tab.count}</span>
+                </button>
+              )
+            })}
           </div>
         </div>
       </div>
-    )
-  }
 
-  return (
-    <div className="p-6 max-w-[1600px] mx-auto">
-      {/* HERO */}
-      <div className="bg-gradient-to-br from-zinc-800 to-zinc-900 rounded-2xl p-6 mb-6 text-white">
-        <div className="flex items-start justify-between mb-4">
-          <div>
-            <div className="text-xs font-bold uppercase tracking-wider text-violet-300 mb-1 flex items-center gap-2">
-              <Building2 className="w-3 h-3" />
-              Portfólio Consolidado
-            </div>
-            <h1 className="text-2xl font-bold mb-1">Empresas & Projetos</h1>
-            <p className="text-sm text-zinc-300">Visão hierárquica de toda a carteira sob gestão</p>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <div className="bg-white/5 border border-white/10 rounded-lg p-3">
-            <div className="text-[10px] font-bold uppercase text-zinc-400 mb-1">Empresas</div>
-            <div className="text-2xl font-bold">{totals.companies}</div>
-          </div>
-          <div className="bg-white/5 border border-white/10 rounded-lg p-3">
-            <div className="text-[10px] font-bold uppercase text-zinc-400 mb-1">Criticidade</div>
-            <div className="flex items-baseline gap-2">
-              <span className="text-2xl font-bold text-red-300">{totals.critical}</span>
-              <span className="text-xs text-zinc-500">/ {totals.high} altas</span>
-            </div>
-          </div>
-          <div className="bg-white/5 border border-white/10 rounded-lg p-3">
-            <div className="text-[10px] font-bold uppercase text-zinc-400 mb-1">Projetos</div>
-            <div className="text-2xl font-bold">{totals.projects}</div>
-          </div>
-          <div className="bg-white/5 border border-white/10 rounded-lg p-3">
-            <div className="text-[10px] font-bold uppercase text-zinc-400 mb-1">Projetos Ativos</div>
-            <div className="text-2xl font-bold text-violet-300">{totals.activeProjects}</div>
-          </div>
-        </div>
-      </div>
-
-      {/* TOOLBAR */}
-      <div className="bg-white border border-zinc-200 rounded-xl p-4 mb-6 flex flex-wrap items-center gap-3">
-        <div className="flex-1 min-w-[200px] relative">
-          <Search className="w-4 h-4 text-zinc-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+      {/* ══ TOOLBAR ══ */}
+      <div style={{ background: 'white', borderBottom: '1px solid #EAECF0', padding: '10px 24px', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+        {/* Search */}
+        <div style={{ flex: 1, minWidth: 200, position: 'relative' }}>
+          <Search style={{ width: 14, height: 14, color: '#9CA3AF', position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)' }} />
           <input
-            type="text"
-            value={search}
-            onChange={function (e) { setSearch(e.target.value) }}
-            placeholder="Buscar por empresa ou descrição..."
-            className="w-full pl-10 pr-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg text-sm focus:outline-none focus:border-violet focus:bg-white transition-all"
+            type="text" value={search} onChange={e => setSearch(e.target.value)}
+            placeholder="Buscar empresa..."
+            style={{ width: '100%', paddingLeft: 32, paddingRight: 10, paddingTop: 7, paddingBottom: 7, fontSize: 12.5, border: '1px solid #EAECF0', borderRadius: 8, outline: 'none', background: '#FAFBFD', fontFamily: 'inherit', color: '#374151' }}
           />
         </div>
-
-        <div className="flex items-center gap-2">
-          <Filter className="w-4 h-4 text-zinc-400" />
-          <select
-            value={critFilter}
-            onChange={function (e) { setCritFilter(e.target.value) }}
-            className="px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg text-sm font-semibold text-zinc-700 focus:outline-none focus:border-violet"
-          >
-            <option value="todos">Todas criticidades</option>
-            <option value="critico">Crítico</option>
-            <option value="alto">Alto</option>
-            <option value="medio">Médio</option>
-            <option value="baixo">Baixo</option>
-          </select>
+        {/* Criticidade filter */}
+        <select value={critFilter} onChange={e => setCritFilter(e.target.value)}
+          style={{ padding: '7px 10px', fontSize: 12, border: '1px solid #EAECF0', borderRadius: 8, background: 'white', outline: 'none', color: '#374151', fontFamily: 'inherit', cursor: 'pointer' }}>
+          <option value="todos">Todas criticidades</option>
+          <option value="critico">Crítico</option>
+          <option value="alto">Alto</option>
+          <option value="medio">Médio</option>
+          <option value="baixo">Baixo</option>
+        </select>
+        {/* View mode */}
+        <div style={{ display: 'flex', background: '#F4F5F8', borderRadius: 8, padding: 3, gap: 2 }}>
+          {[{ m: 'grid', Icon: Grid3x3 }, { m: 'list', Icon: ListIcon }].map(({ m, Icon }) => (
+            <button key={m} onClick={() => setViewMode(m)}
+              style={{ width: 30, height: 30, borderRadius: 6, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', background: viewMode === m ? 'white' : 'transparent', boxShadow: viewMode === m ? '0 1px 3px rgba(0,0,0,.1)' : 'none', transition: 'all .12s' }}>
+              <Icon style={{ width: 15, height: 15, color: viewMode === m ? '#5452C1' : '#9CA3AF' }} />
+            </button>
+          ))}
         </div>
-
-        <div className="flex items-center gap-1 bg-zinc-100 rounded-lg p-1">
-          <button
-            onClick={function () { setViewMode('grid') }}
-            className={'p-1.5 rounded transition-all ' + (viewMode === 'grid' ? 'bg-white shadow-sm text-violet' : 'text-zinc-500 hover:text-zinc-800')}
-            title="Grid"
-          >
-            <Grid3x3 className="w-4 h-4" />
-          </button>
-          <button
-            onClick={function () { setViewMode('list') }}
-            className={'p-1.5 rounded transition-all ' + (viewMode === 'list' ? 'bg-white shadow-sm text-violet' : 'text-zinc-500 hover:text-zinc-800')}
-            title="Lista"
-          >
-            <ListIcon className="w-4 h-4" />
-          </button>
-        </div>
+        <span style={{ fontSize: 11, color: '#9CA3AF', marginLeft: 4 }}>
+          {filteredCompanies.length} de {enrichedCompanies.length} empresas
+        </span>
       </div>
 
-      {/* LAYOUT 2 COLUNAS: LISTA + DETALHE */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {/* ══ CONTENT ══ */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: 24 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: selectedCompany ? '1fr 320px' : '1fr', gap: 20, alignItems: 'start' }}>
 
-        {/* LISTA DE EMPRESAS */}
-        <div className={selectedCompany ? 'lg:col-span-2' : 'lg:col-span-3'}>
-          {filteredCompanies.length === 0 ? (
-            <div className="bg-white border border-zinc-200 rounded-xl p-12 text-center">
-              <Building2 className="w-12 h-12 text-zinc-300 mx-auto mb-3" />
-              <div className="text-sm font-bold text-zinc-700">Nenhuma empresa encontrada</div>
-              <div className="text-xs text-zinc-500 mt-1">
-                {search || critFilter !== 'todos' ? 'Ajuste os filtros para ver mais resultados' : 'Cadastre empresas na seção Cadastro'}
-              </div>
-            </div>
-          ) : viewMode === 'grid' ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {filteredCompanies.map(function (c) {
-                const isSelected = selectedCompanyId === c.id
-                return (
-                  <button
-                    key={c.id}
-                    onClick={function () { setSelectedCompanyId(isSelected ? null : c.id) }}
-                    className={'text-left bg-white border rounded-xl p-5 transition-all hover:shadow-md ' + (isSelected ? 'border-violet shadow-md ring-2 ring-violet/20' : 'border-zinc-200')}
-                  >
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-violet to-violet/70 flex items-center justify-center flex-shrink-0">
-                        <Building2 className="w-5 h-5 text-white" />
-                      </div>
-                      <CritBadge crit={c.criticality} />
-                    </div>
-
-                    <div className="text-sm font-bold text-zinc-800 truncate mb-1">{c.name || 'Sem nome'}</div>
-                    <div className="text-xs text-zinc-500 line-clamp-2 mb-4 min-h-[2rem]">
-                      {c.description || 'Sem descrição'}
-                    </div>
-
-                    <div className="grid grid-cols-3 gap-2 pt-3 border-t border-zinc-100">
-                      <div>
-                        <div className="text-[9px] font-bold uppercase text-zinc-400">Projetos</div>
-                        <div className="text-sm font-bold text-zinc-800">{c.projectCount}</div>
-                      </div>
-                      <div>
-                        <div className="text-[9px] font-bold uppercase text-zinc-400">Ativos</div>
-                        <div className="text-sm font-bold text-violet">{c.activeProjectCount}</div>
-                      </div>
-                      <div>
-                        <div className="text-[9px] font-bold uppercase text-zinc-400">Progresso</div>
-                        <div className="text-sm font-bold text-emerald-600">{c.progress}%</div>
-                      </div>
-                    </div>
-
-                    <div className="mt-3 h-1.5 bg-zinc-100 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-gradient-to-r from-violet to-violet/70 transition-all"
-                        style={{ width: c.progress + '%' }}
-                      />
-                    </div>
-                  </button>
-                )
-              })}
-            </div>
-          ) : (
-            <div className="bg-white border border-zinc-200 rounded-xl overflow-hidden">
-              <table className="w-full text-sm">
-                <thead className="bg-zinc-800 text-white">
-                  <tr>
-                    <th className="text-left px-4 py-3 font-bold text-xs uppercase tracking-wide">Empresa</th>
-                    <th className="text-left px-4 py-3 font-bold text-xs uppercase tracking-wide">Criticidade</th>
-                    <th className="text-right px-4 py-3 font-bold text-xs uppercase tracking-wide">Projetos</th>
-                    <th className="text-right px-4 py-3 font-bold text-xs uppercase tracking-wide">Ativos</th>
-                    <th className="text-right px-4 py-3 font-bold text-xs uppercase tracking-wide">Progresso</th>
-                    <th className="w-10 px-4 py-3"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-zinc-100">
-                  {filteredCompanies.map(function (c) {
-                    const isSelected = selectedCompanyId === c.id
-                    return (
-                      <tr
-                        key={c.id}
-                        onClick={function () { setSelectedCompanyId(isSelected ? null : c.id) }}
-                        className={'cursor-pointer transition-colors ' + (isSelected ? 'bg-violet/5' : 'hover:bg-zinc-50')}
-                      >
-                        <td className="px-4 py-3">
-                          <div className="font-semibold text-zinc-800">{c.name || 'Sem nome'}</div>
-                          <div className="text-xs text-zinc-500 truncate max-w-md">{c.description || '—'}</div>
-                        </td>
-                        <td className="px-4 py-3"><CritBadge crit={c.criticality} /></td>
-                        <td className="px-4 py-3 text-right font-bold text-zinc-800">{c.projectCount}</td>
-                        <td className="px-4 py-3 text-right font-bold text-violet">{c.activeProjectCount}</td>
-                        <td className="px-4 py-3 text-right font-bold text-emerald-600">{c.progress}%</td>
-                        <td className="px-4 py-3 text-zinc-400"><ChevronRight className="w-4 h-4" /></td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-
-        {/* DETALHE DA EMPRESA SELECIONADA */}
-        {selectedCompany && (
-          <div className="lg:col-span-1">
-            <div className="bg-white border border-zinc-200 rounded-xl p-5 sticky top-6">
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-violet to-violet/70 flex items-center justify-center">
-                    <Building2 className="w-5 h-5 text-white" />
-                  </div>
-                  <div>
-                    <div className="text-sm font-bold text-zinc-800">{selectedCompany.name}</div>
-                    <CritBadge crit={selectedCompany.criticality} />
-                  </div>
-                </div>
-                <button
-                  onClick={function () { setSelectedCompanyId(null) }}
-                  className="text-xs text-zinc-400 hover:text-zinc-800"
-                >
-                  ✕
-                </button>
-              </div>
-
-              {selectedCompany.description && (
-                <div className="mb-4 p-3 bg-zinc-50 rounded-lg text-xs text-zinc-600 leading-relaxed">
-                  {selectedCompany.description}
-                </div>
-              )}
-
-              {selectedCompany.powerbi_link && (
-                <a
-                  href={selectedCompany.powerbi_link}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="mb-4 flex items-center gap-2 p-3 bg-violet/5 border border-violet/20 rounded-lg text-xs font-semibold text-violet hover:bg-violet/10 transition-all"
-                >
-                  <TrendingUp className="w-3 h-3" />
-                  Abrir dashboard Power BI
-                  <ExternalLink className="w-3 h-3 ml-auto" />
-                </a>
-              )}
-
-              <div className="mb-4">
-                <div className="flex items-center justify-between text-xs mb-2">
-                  <span className="font-semibold text-zinc-600">Progresso geral</span>
-                  <span className="font-bold text-zinc-800">{selectedCompany.progress}%</span>
-                </div>
-                <div className="h-2 bg-zinc-100 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-gradient-to-r from-violet to-violet/70"
-                    style={{ width: selectedCompany.progress + '%' }}
-                  />
-                </div>
-                <div className="flex items-center justify-between text-[10px] text-zinc-500 mt-1">
-                  <span>{selectedCompany.doneTaskCount} concluídas</span>
-                  <span>{selectedCompany.taskCount} tarefas totais</span>
+          {/* ── Companies grid/list ── */}
+          <div>
+            {filteredCompanies.length === 0 ? (
+              <div style={{ background: 'white', border: '1px solid #EAECF0', borderRadius: 12, padding: 48, textAlign: 'center' }}>
+                <Building2 style={{ width: 40, height: 40, color: '#D1D5DB', margin: '0 auto 12px' }} />
+                <div style={{ fontSize: 14, fontWeight: 600, color: '#374151', marginBottom: 4 }}>Nenhuma empresa encontrada</div>
+                <div style={{ fontSize: 12, color: '#9CA3AF' }}>
+                  {search || critFilter !== 'todos' ? 'Ajuste os filtros para ver mais resultados' : 'Cadastre empresas na seção Cadastro'}
                 </div>
               </div>
+            ) : viewMode === 'grid' ? (
+              <div style={{ display: 'grid', gridTemplateColumns: selectedCompany ? '1fr' : 'repeat(auto-fill, minmax(340px, 1fr))', gap: 12 }}>
+                {filteredCompanies.map(c => {
+                  const cc = getCrit(c.criticality)
+                  const isSel = selectedCompanyId === c.id
+                  const initials = (c.name || '??').slice(0, 2).toUpperCase()
 
-              <div className="border-t border-zinc-100 pt-4">
-                <div className="flex items-center gap-2 mb-3">
-                  <FolderOpen className="w-4 h-4 text-violet" />
-                  <h3 className="text-xs font-bold uppercase tracking-wide text-zinc-700">
-                    Projetos ({selectedCompany.projects.length})
-                  </h3>
-                </div>
-
-                {selectedCompany.projects.length === 0 ? (
-                  <div className="text-xs text-zinc-500 text-center py-4">
-                    Nenhum projeto cadastrado
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {selectedCompany.projects.map(function (p) {
-                      return (
-                        <div key={p.id}
-                          onClick={() => navigate('/timeline')}
-                          className="p-3 bg-zinc-50 rounded-lg border border-zinc-100 cursor-pointer hover:border-violet-300 hover:bg-violet-50/40 transition-all group">
-                          <div className="flex items-start justify-between gap-2 mb-1">
-                            <div className="text-xs font-semibold text-zinc-800 flex-1 min-w-0 truncate group-hover:text-violet-700">
-                              {p.name || 'Sem nome'}
+                  return (
+                    <button key={c.id}
+                      onClick={() => setSelectedCompanyId(isSel ? null : c.id)}
+                      style={{
+                        textAlign: 'left', background: 'white', borderRadius: 12, overflow: 'hidden',
+                        borderLeft: `3px solid ${cc.border}`,
+                        boxShadow: isSel
+                          ? `0 0 0 2px #5452C1, 0 4px 16px rgba(84,82,193,.15)`
+                          : '0 1px 3px rgba(0,0,0,.06), 0 0 0 0.5px rgba(0,0,0,.04)',
+                        cursor: 'pointer', transition: 'all .15s', outline: 'none',
+                        border: isSel ? `2px solid #5452C1` : `1px solid #EAECF0`,
+                        borderLeftWidth: 3, borderLeftColor: cc.border,
+                      }}
+                      onMouseEnter={e => { if (!isSel) { e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,.1)'; e.currentTarget.style.transform = 'translateY(-1px)' } }}
+                      onMouseLeave={e => { if (!isSel) { e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,.06), 0 0 0 0.5px rgba(0,0,0,.04)'; e.currentTarget.style.transform = 'none' } }}
+                    >
+                      <div style={{ padding: 16 }}>
+                        {/* Row 1: avatar + name + badge */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                          <div style={{
+                            width: 38, height: 38, borderRadius: 10, flexShrink: 0,
+                            background: cc.border, display: 'flex', alignItems: 'center',
+                            justifyContent: 'center', fontSize: 13, fontWeight: 700, color: 'white',
+                          }}>{initials}</div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 13, fontWeight: 600, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.3 }}>
+                              {c.name || 'Sem nome'}
                             </div>
-                            {p.priority && (
-                              <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 bg-white text-zinc-600 rounded">
-                                {p.priority}
+                            {c.description && (
+                              <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {c.description}
+                              </div>
+                            )}
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, flexShrink: 0 }}>
+                            <span style={{ fontSize: 9.5, fontWeight: 700, padding: '2px 7px', borderRadius: 99, background: cc.badge, color: cc.badgeText, textTransform: 'uppercase', letterSpacing: '.05em' }}>
+                              {cc.label}
+                            </span>
+                            {c.overdueTasks > 0 && (
+                              <span style={{ fontSize: 9, fontWeight: 600, padding: '1px 5px', borderRadius: 99, background: '#FEF2F2', color: '#EF4444', border: '1px solid #FECACA' }}>
+                                ⚠ {c.overdueTasks} atraso
                               </span>
                             )}
                           </div>
-                          <div className="text-[10px] text-zinc-500 flex items-center justify-between mb-1">
-                            <span>{p.status || 'Sem status'}</span>
-                            <span className="text-violet-400 opacity-0 group-hover:opacity-100 text-[9px] font-bold">Ver Timeline →</span>
-                          </div>
-                          {/* B-180: budget e associate */}
-                          {(p.budget || p.associate_id) && (
-                            <div className="flex items-center gap-2 mt-1 pt-1 border-t border-zinc-200">
-                              {p.budget && (
-                                <span className="text-[9px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">
-                                  R$ {(p.budget/1000).toFixed(0)}k
-                                </span>
-                              )}
-                              {p.associate_id && profMap[p.associate_id] && (
-                                <span className="text-[9px] text-zinc-500">
-                                  {profMap[p.associate_id].full_name?.split(' ')[0]}
-                                </span>
-                              )}
-                              {p.observacoes && (
-                                <span className="text-[9px] text-zinc-400 truncate flex-1" title={p.observacoes}>
-                                  {p.observacoes.slice(0, 40)}
-                                </span>
-                              )}
-                            </div>
-                          )}
                         </div>
+
+                        {/* Row 2: stats */}
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 6, marginBottom: 10 }}>
+                          <div style={{ background: '#F9FAFB', borderRadius: 7, padding: '7px 8px', textAlign: 'center' }}>
+                            <div style={{ fontSize: 16, fontWeight: 700, color: '#111827', lineHeight: 1 }}>{c.projectCount}</div>
+                            <div style={{ fontSize: 9, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.06em', marginTop: 2 }}>Projetos</div>
+                          </div>
+                          <div style={{ background: cc.bg, borderRadius: 7, padding: '7px 8px', textAlign: 'center' }}>
+                            <div style={{ fontSize: 16, fontWeight: 700, color: cc.border, lineHeight: 1 }}>{c.activeProjectCount}</div>
+                            <div style={{ fontSize: 9, color: cc.text, textTransform: 'uppercase', letterSpacing: '.06em', marginTop: 2, opacity: .75 }}>Ativos</div>
+                          </div>
+                          <div style={{ background: '#F9FAFB', borderRadius: 7, padding: '7px 8px', textAlign: 'center' }}>
+                            <div style={{ fontSize: 16, fontWeight: 700, color: '#111827', lineHeight: 1 }}>{c.taskCount}</div>
+                            <div style={{ fontSize: 9, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.06em', marginTop: 2 }}>Tarefas</div>
+                          </div>
+                        </div>
+
+                        {/* Row 3: progress bar */}
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                            <span style={{ fontSize: 10.5, color: '#6B7280' }}>Progresso geral</span>
+                            <span style={{ fontSize: 10.5, fontWeight: 700, color: c.progress === 100 ? '#10B981' : cc.border }}>
+                              {c.doneTaskCount}/{c.taskCount} tarefas · {c.progress}%
+                            </span>
+                          </div>
+                          <div style={{ height: 5, background: '#F3F4F6', borderRadius: 99, overflow: 'hidden' }}>
+                            <div style={{ height: '100%', borderRadius: 99, background: c.progress === 100 ? '#10B981' : cc.border, width: c.progress + '%', transition: 'width .4s' }} />
+                          </div>
+                        </div>
+
+                        {/* Row 4: budget if set */}
+                        {c.totalBudget > 0 && (
+                          <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid #F3F4F6', display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span style={{ fontSize: 9.5, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.06em', fontWeight: 600 }}>Orçamento</span>
+                            <span style={{ fontSize: 11.5, fontWeight: 700, color: cc.border }}>
+                              {c.totalBudget >= 1000000
+                                ? `R$ ${(c.totalBudget / 1000000).toFixed(1)}M`
+                                : `R$ ${(c.totalBudget / 1000).toFixed(0)}k`}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+            ) : (
+              /* LIST MODE */
+              <div style={{ background: 'white', border: '1px solid #EAECF0', borderRadius: 12, overflow: 'hidden' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ background: '#2D2E39' }}>
+                      {['Empresa', 'Criticidade', 'Projetos', 'Ativos', 'Tarefas', 'Progresso', ''].map((h, i) => (
+                        <th key={i} style={{ textAlign: i >= 2 && i <= 5 ? 'right' : 'left', padding: '10px 14px', fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.07em', color: '#9CA3AF' }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredCompanies.map(c => {
+                      const cc = getCrit(c.criticality)
+                      const isSel = selectedCompanyId === c.id
+                      return (
+                        <tr key={c.id}
+                          onClick={() => setSelectedCompanyId(isSel ? null : c.id)}
+                          style={{ borderBottom: '1px solid #F3F4F6', cursor: 'pointer', background: isSel ? '#F5F3FF' : 'white', transition: 'background .1s', borderLeft: `3px solid ${cc.border}` }}
+                          onMouseEnter={e => { if (!isSel) e.currentTarget.style.background = '#FAFBFF' }}
+                          onMouseLeave={e => { if (!isSel) e.currentTarget.style.background = 'white' }}
+                        >
+                          <td style={{ padding: '11px 14px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <div style={{ width: 28, height: 28, borderRadius: 7, background: cc.border, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: 'white', flexShrink: 0 }}>
+                                {(c.name || '??').slice(0,2).toUpperCase()}
+                              </div>
+                              <div>
+                                <div style={{ fontSize: 13, fontWeight: 600, color: '#111827' }}>{c.name || 'Sem nome'}</div>
+                                {c.description && <div style={{ fontSize: 10.5, color: '#9CA3AF', marginTop: 1 }}>{c.description.slice(0,50)}{c.description.length > 50 ? '...' : ''}</div>}
+                              </div>
+                            </div>
+                          </td>
+                          <td style={{ padding: '11px 14px' }}>
+                            <span style={{ fontSize: 9.5, fontWeight: 700, padding: '2px 7px', borderRadius: 99, background: cc.badge, color: cc.badgeText }}>
+                              {cc.label}
+                            </span>
+                          </td>
+                          <td style={{ padding: '11px 14px', textAlign: 'right', fontWeight: 700, color: '#111827' }}>{c.projectCount}</td>
+                          <td style={{ padding: '11px 14px', textAlign: 'right', fontWeight: 700, color: cc.border }}>{c.activeProjectCount}</td>
+                          <td style={{ padding: '11px 14px', textAlign: 'right', fontWeight: 700, color: '#111827' }}>{c.taskCount}</td>
+                          <td style={{ padding: '11px 14px', textAlign: 'right' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-end' }}>
+                              <div style={{ width: 60, height: 5, background: '#F3F4F6', borderRadius: 99, overflow: 'hidden' }}>
+                                <div style={{ height: '100%', width: c.progress + '%', background: c.progress === 100 ? '#10B981' : cc.border, borderRadius: 99 }} />
+                              </div>
+                              <span style={{ fontSize: 11, fontWeight: 700, color: c.progress === 100 ? '#10B981' : '#374151', minWidth: 32 }}>{c.progress}%</span>
+                            </div>
+                          </td>
+                          <td style={{ padding: '11px 14px' }}>
+                            <ChevronRight style={{ width: 14, height: 14, color: '#D1D5DB' }} />
+                          </td>
+                        </tr>
                       )
                     })}
-                  </div>
-                )}
+                  </tbody>
+                </table>
               </div>
-            </div>
+            )}
           </div>
-        )}
+
+          {/* ── Detail panel ── */}
+          {selectedCompany && (() => {
+            const cc = getCrit(selectedCompany.criticality)
+            return (
+              <div style={{ position: 'sticky', top: 0 }}>
+                <div style={{ background: 'white', border: '1px solid #EAECF0', borderRadius: 12, overflow: 'hidden', borderTop: `3px solid ${cc.border}` }}>
+
+                  {/* Header */}
+                  <div style={{ padding: '14px 16px', borderBottom: '1px solid #F3F4F6' }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 10 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <div style={{ width: 38, height: 38, borderRadius: 10, background: cc.border, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, color: 'white', flexShrink: 0 }}>
+                          {(selectedCompany.name || '??').slice(0,2).toUpperCase()}
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 13.5, fontWeight: 700, color: '#111827', lineHeight: 1.3 }}>{selectedCompany.name}</div>
+                          <span style={{ fontSize: 9.5, fontWeight: 700, padding: '2px 7px', borderRadius: 99, background: cc.badge, color: cc.badgeText }}>{cc.label}</span>
+                        </div>
+                      </div>
+                      <button onClick={() => setSelectedCompanyId(null)}
+                        style={{ background: '#F4F5F8', border: 'none', borderRadius: 6, width: 24, height: 24, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6B7280' }}>
+                        <X style={{ width: 12, height: 12 }} />
+                      </button>
+                    </div>
+
+                    {selectedCompany.description && (
+                      <div style={{ fontSize: 11.5, color: '#6B7280', lineHeight: 1.5, background: '#F9FAFB', borderRadius: 7, padding: '7px 9px' }}>
+                        {selectedCompany.description}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Stats */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 1, background: '#F3F4F6' }}>
+                    {[
+                      { label: 'Projetos', value: selectedCompany.projectCount, color: '#111827' },
+                      { label: 'Ativos',   value: selectedCompany.activeProjectCount, color: cc.border },
+                      { label: 'Tarefas',  value: selectedCompany.taskCount, color: '#111827' },
+                    ].map(s => (
+                      <div key={s.label} style={{ background: 'white', padding: '10px 12px', textAlign: 'center' }}>
+                        <div style={{ fontSize: 18, fontWeight: 700, color: s.color }}>{s.value}</div>
+                        <div style={{ fontSize: 9.5, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.06em' }}>{s.label}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Progress */}
+                  <div style={{ padding: '12px 16px', borderBottom: '1px solid #F3F4F6' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                      <span style={{ fontSize: 11, color: '#6B7280', fontWeight: 500 }}>Progresso geral</span>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: cc.border }}>{selectedCompany.doneTaskCount}/{selectedCompany.taskCount} · {selectedCompany.progress}%</span>
+                    </div>
+                    <div style={{ height: 6, background: '#F3F4F6', borderRadius: 99, overflow: 'hidden' }}>
+                      <div style={{ height: '100%', width: selectedCompany.progress + '%', background: selectedCompany.progress === 100 ? '#10B981' : cc.border, borderRadius: 99 }} />
+                    </div>
+                  </div>
+
+                  {/* PowerBI link */}
+                  {selectedCompany.powerbi_link && (
+                    <div style={{ padding: '8px 16px', borderBottom: '1px solid #F3F4F6' }}>
+                      <a href={selectedCompany.powerbi_link} target="_blank" rel="noopener noreferrer"
+                        style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 10px', background: '#EEF2FF', borderRadius: 8, fontSize: 12, fontWeight: 600, color: '#5452C1', textDecoration: 'none' }}>
+                        <TrendingUp style={{ width: 13, height: 13 }} />
+                        Abrir dashboard Power BI
+                        <ExternalLink style={{ width: 11, height: 11, marginLeft: 'auto' }} />
+                      </a>
+                    </div>
+                  )}
+
+                  {/* Projects list */}
+                  <div style={{ padding: '12px 16px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+                      <FolderOpen style={{ width: 14, height: 14, color: '#5452C1' }} />
+                      <span style={{ fontSize: 11, fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: '.07em' }}>
+                        Projetos ({selectedCompany.projects.length})
+                      </span>
+                    </div>
+                    {selectedCompany.projects.length === 0 ? (
+                      <div style={{ textAlign: 'center', padding: '16px 0', fontSize: 12, color: '#9CA3AF' }}>Nenhum projeto cadastrado</div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        {selectedCompany.projects.map(p => {
+                          const pc = projColor(p.id)
+                          const isActive = !INACTIVE.includes(p.status || '')
+                          return (
+                            <div key={p.id} onClick={() => navigate('/timeline')}
+                              style={{ background: '#F9FAFB', border: '1px solid #EAECF0', borderLeft: `3px solid ${pc}`, borderRadius: 8, padding: '9px 10px', cursor: 'pointer', transition: 'all .1s' }}
+                              onMouseEnter={e => { e.currentTarget.style.background = '#EEF2FF'; e.currentTarget.style.borderColor = '#DDD6FE' }}
+                              onMouseLeave={e => { e.currentTarget.style.background = '#F9FAFB'; e.currentTarget.style.borderColor = '#EAECF0'; e.currentTarget.style.borderLeftColor = pc }}>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3 }}>
+                                <div style={{ fontSize: 12, fontWeight: 600, color: '#111827', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  {p.name || 'Sem nome'}
+                                </div>
+                                <span style={{ fontSize: 9.5, padding: '1px 6px', borderRadius: 99, background: isActive ? '#D1FAE5' : '#F3F4F6', color: isActive ? '#065F46' : '#6B7280', fontWeight: 600, flexShrink: 0, marginLeft: 6 }}>
+                                  {isActive ? 'Ativo' : p.status || '—'}
+                                </span>
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                {p.deadline && <span style={{ fontSize: 10, color: '#9CA3AF' }}>📅 {new Date(p.deadline).toLocaleDateString('pt-BR')}</span>}
+                                {p.budget && <span style={{ fontSize: 10, color: '#10B981', fontWeight: 600 }}>R$ {(p.budget/1000).toFixed(0)}k</span>}
+                                {profMap[p.associate_id] && <span style={{ fontSize: 10, color: '#9CA3AF', marginLeft: 'auto' }}>{profMap[p.associate_id].full_name?.split(' ')[0]}</span>}
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )
+          })()}
+
+        </div>
+
+        {/* Footer */}
+        <div style={{ textAlign: 'center', fontSize: 10, color: '#D1D5DB', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.08em', marginTop: 24, paddingTop: 16, borderTop: '1px solid #F3F4F6' }}>
+          BX Hub v3 · Portfólio · {filteredCompanies.length} de {enrichedCompanies.length} empresas
+        </div>
       </div>
 
-      <div className="mt-8 text-center text-[10px] text-zinc-400 font-semibold uppercase tracking-wider">
-        BX Hub v3 · Portfólio · {filteredCompanies.length} de {enrichedCompanies.length} empresas
-      </div>
     </div>
   )
 }
