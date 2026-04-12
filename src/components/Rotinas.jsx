@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import {
   RefreshCw, Plus, X, Check, Clock, Building2,
-  ChevronDown, ChevronRight, Archive, BookOpen,
-  BarChart2, Calendar, TrendingUp, AlertCircle, Zap
+  ChevronDown, Archive, BookOpen, BarChart2, Zap, AlertTriangle
 } from 'lucide-react'
 import { toast, confirm } from './Toast'
 import { supabase } from '../lib/supabase'
@@ -16,13 +15,16 @@ const AMBER = '#F59E0B'
 const RED   = '#EF4444'
 
 const FREQ = {
-  diaria:  { label: 'Diária',  color: VL,   bg: '#EEF2FF', days: 1  },
+  diaria:  { label: 'Diária',  color: VL,    bg: '#EEF2FF', days: 1  },
   semanal: { label: 'Semanal', color: CH,    bg: '#F2F2F2', days: 7  },
   mensal:  { label: 'Mensal',  color: GREEN, bg: '#F0FDF4', days: 30 },
 }
-
-// Ordem fixa de exibição dentro de cada grupo de projeto
 const FREQ_ORDER = { diaria: 0, semanal: 1, mensal: 2 }
+const FREQ_CFG = {
+  diaria:  { title: 'Diárias',  icon: '📆', dot: '#818CF8', hbg: '#3730A3', cycle: 'Renova todo dia à meia-noite', ref: () => { const d = new Date(); return d.toISOString().split('T')[0] } },
+  semanal: { title: 'Semanais', icon: '📅', dot: '#F59E0B', hbg: '#92400E', cycle: 'Renova toda segunda-feira às 8h', ref: () => { const d = new Date(); d.setDate(d.getDate() - (d.getDay() === 0 ? 6 : d.getDay() - 1)); return d.toISOString().split('T')[0] } },
+  mensal:  { title: 'Mensais',  icon: '📋', dot: '#10B981', hbg: '#065F46', cycle: 'Renova todo dia 1 do mês',       ref: () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01` } },
+}
 
 // ─── BIBLIOTECA DE TEMPLATES ──────────────────────────────────────────────────
 const TEMPLATE_LIBRARY = [
@@ -308,80 +310,103 @@ function MonthlyHistoryChart({ routineId, frequency, completions }) {
   )
 }
 
+function formatDate(iso) {
+  if (!iso) return '—'
+  return new Date(iso + 'T12:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })
+}
+
 // ─── COMPONENTE PRINCIPAL ─────────────────────────────────────────────────────
 export default function Rotinas() {
   const { profile } = useData()
   usePageTitle('Rotinas')
 
-  const [routines,    setRoutines]     = useState([])
-  const [completions, setCompletions]  = useState([])
-  const [projects,    setProjects]     = useState([])
-  const [companies,   setCompanies]    = useState([])
-  const [profiles,    setProfilesList] = useState([])
-  const [loading,     setLoading]      = useState(true)
-  const [saving,      setSaving]       = useState(null)
-  const [showForm,    setShowForm]     = useState(false)
+  // Data state
+  const [routines,      setRoutines]     = useState([])
+  const [completions,   setCompletions]  = useState([])
+  const [projects,      setProjects]     = useState([])
+  const [companies,     setCompanies]    = useState([])
+  const [profiles,      setProfilesList] = useState([])
+  const [loading,       setLoading]      = useState(true)
+  const [saving,        setSaving]       = useState(null)
+
+  // View state
+  const [activeView,   setActiveView]   = useState('hoje')  // 'hoje' | 'historico' | 'pendencias'
+  const [projFilter,   setProjFilter]   = useState('all')   // project_id or 'all'
+
+  // Histórico state
+  const [histProj,    setHistProj]    = useState(null)    // selected project_id in history
+  const [histRoutine, setHistRoutine] = useState(null)    // selected routine object in history
+
+  // Late modal state
+  const [lateModal, setLateModal] = useState(null)  // { routine, refDate, freq } | null
+  const [lateWho,   setLateWho]   = useState('')
+  const [lateDate,  setLateDate]  = useState('')
+  const [lateObs,   setLateObs]   = useState('')
+  const [lateSaving,setLateSaving]= useState(false)
+
+  // Formulários
+  const [showForm,      setShowForm]      = useState(false)
   const [showTemplates, setShowTemplates] = useState(false)
-  const [showHistory,   setShowHistory]   = useState(null)  // routineId
-  const [collapsed,   setCollapsed]    = useState({})
+  const [form, setForm] = useState({ title: '', frequency: 'semanal', assigned_to: '', company_id: '', project_id: '', description: '' })
+  const [tplState, setTplState] = useState({ selectedId: null, company_id: '', project_id: '', assigned_to: '', step: 'choose' })
 
-  // Formulário nova rotina
-  const [form, setForm] = useState({
-    title: '', frequency: 'semanal', assigned_to: '',
-    company_id: '', project_id: '', description: '',
-  })
-
-  // Formulário usar template
-  const [tplState, setTplState] = useState({
-    selectedId: null, company_id: '', project_id: '', assigned_to: '',
-    step: 'choose', // 'choose' | 'configure'
-  })
-
-  const [filterFreq,    setFilterFreq]    = useState('all')
-  const [filterProject, setFilterProject] = useState('all')
-  const [search,        setSearch]        = useState('')
-  const [viewMode,      setViewMode]      = useState('today') // 'today' | 'month'
-
-  // ── Load ──────────────────────────────────────────────────────────────
+  // ── Load ────────────────────────────────────────────────────────────────
   const load = useCallback(async () => {
     if (!profile) return
     setLoading(true)
-    const since = new Date(Date.now() - 180 * 86400000).toISOString().split('T')[0] // 6 meses
+    const since = new Date(Date.now() - 180 * 86400000).toISOString().split('T')[0]
     const [routR, compR, projR, profR, coR] = await Promise.allSettled([
       supabase.from('routines').select('*').eq('org_id', profile.org_id).eq('is_active', true).is('deleted_at', null).order('title'),
-      supabase.from('routine_completions').select('*').eq('org_id', profile.org_id)
-        .gte('reference_date', since).limit(2000),
+      supabase.from('routine_completions').select('*').eq('org_id', profile.org_id).gte('reference_date', since).limit(2000),
       supabase.from('projects').select('id,name,company_id,status').eq('org_id', profile.org_id).order('name'),
       supabase.from('profiles').select('id,full_name,initials,avatar_color').eq('org_id', profile.org_id).order('full_name'),
       supabase.from('companies').select('id,name').eq('org_id', profile.org_id).order('name'),
     ])
-    if (routR.status === 'fulfilled' && !routR.value.error) setRoutines(routR.value.data || [])
+    if (routR.status === 'fulfilled' && !routR.value.error) { setRoutines(routR.value.data || []); if (!histRoutine && routR.value.data?.length) { setHistRoutine(routR.value.data[0]); setHistProj(routR.value.data[0].project_id) } }
     if (compR.status === 'fulfilled' && !compR.value.error) setCompletions(compR.value.data || [])
     if (projR.status === 'fulfilled' && !projR.value.error) setProjects(projR.value.data || [])
     if (profR.status === 'fulfilled' && !profR.value.error) setProfilesList(profR.value.data || [])
     if (coR.status  === 'fulfilled' && !coR.value.error)   setCompanies(coR.value.data || [])
     setLoading(false)
   }, [profile])
-
   useEffect(() => { load() }, [load])
 
-  const todayStr   = todayISO()
-  const currentMk  = monthKey(new Date())
+  const todayStr  = todayISO()
+  const currentMk = monthKey(new Date())
 
-  // ── Helpers de compliance ─────────────────────────────────────────────
+  // ── Compliance helpers ───────────────────────────────────────────────────
+  function getReference(freq) {
+    return FREQ_CFG[freq]?.ref() || todayStr
+  }
+
+  function getCompletionsInCycle(routineId, freq) {
+    const ref = getReference(freq)
+    return completions.filter(c => {
+      if (c.routine_id !== routineId) return false
+      const d = c.reference_date || c.completed_at?.slice(0, 10) || ''
+      if (freq === 'diaria')  return d === ref
+      if (freq === 'semanal') return d >= ref && d <= todayStr
+      if (freq === 'mensal')  return d.startsWith(ref.slice(0, 7))
+      return false
+    })
+  }
+
+  function isDoneInCycle(r) {
+    return getCompletionsInCycle(r.id, r.frequency).length > 0
+  }
+
+  function getCycleStatus(r) {
+    const comps = getCompletionsInCycle(r.id, r.frequency)
+    if (!comps.length) return null
+    const hasLate = comps.some(c => c.execution_status === 'late')
+    return hasLate ? 'late' : 'done'
+  }
+
   function isDoneToday(id) {
     return completions.some(c => {
       if (c.routine_id !== id) return false
       const d = c.reference_date || c.completed_at?.slice(0, 10) || ''
       return d === todayStr
-    })
-  }
-
-  function isDoneThisMonth(id) {
-    return completions.some(c => {
-      if (c.routine_id !== id) return false
-      const d = c.reference_date || c.completed_at?.slice(0, 10) || ''
-      return d.startsWith(currentMk)
     })
   }
 
@@ -391,10 +416,6 @@ export default function Rotinas() {
       const d = c.reference_date || c.completed_at?.slice(0, 10) || ''
       return d.startsWith(currentMk)
     }).length
-  }
-
-  function isDoneInCycle(r) {
-    return r.frequency === 'diaria' ? isDoneToday(r.id) : isDoneThisMonth(r.id)
   }
 
   function lastDone(id) {
@@ -412,46 +433,37 @@ export default function Rotinas() {
     const last = lastDone(r.id)
     const days = FREQ[r.frequency]?.days || 7
     if (!last) {
-      // Rotina nunca executada: só é "em atraso" se foi criada há mais de 1 ciclo
       const createdAt = r.created_at ? r.created_at.slice(0, 10) : todayStr
-      const daysSinceCreation = Math.floor((new Date(todayStr) - new Date(createdAt)) / 86400000)
-      return daysSinceCreation >= days
+      const daysSince = Math.floor((new Date(todayStr) - new Date(createdAt)) / 86400000)
+      return daysSince >= days
     }
     return Math.floor((new Date(todayStr) - new Date(last)) / 86400000) >= days
   }
 
-  // Compliance do mês atual para uma lista de rotinas
-  function monthlyCompliance(routineList) {
+  // Compliance % para uma lista de rotinas no mês atual
+  function calcCompliance(routineList) {
     const diarias = routineList.filter(r => r.frequency === 'diaria')
     const outras  = routineList.filter(r => r.frequency !== 'diaria')
-    const today   = new Date(todayStr)
-    const daysElapsed = today.getDate() // dias decorridos no mês
-
+    const daysElapsed = new Date().getDate()
     let done = 0, total = 0
-    for (const r of diarias) {
-      const count = countThisMonth(r.id)
-      done  += count
-      total += daysElapsed
-    }
-    for (const r of outras) {
-      if (isDoneThisMonth(r.id)) done++
-      total++
-    }
+    for (const r of diarias) { done += countThisMonth(r.id); total += daysElapsed }
+    for (const r of outras) { if (completions.some(c => c.routine_id === r.id && (c.reference_date || c.completed_at?.slice(0,10)||''). startsWith(currentMk))) done++; total++ }
     return total > 0 ? Math.round(done / total * 100) : 0
   }
 
-  // ── Maps ──────────────────────────────────────────────────────────────
+  // Maps
   const profMap = Object.fromEntries(profiles.map(p => [p.id, p]))
   const projMap = Object.fromEntries(projects.map(p => [p.id, p]))
   const compMap = Object.fromEntries(companies.map(c => [c.id, c]))
 
-  // ── Toggle (check diário) ─────────────────────────────────────────────
+  // ── Toggle ───────────────────────────────────────────────────────────────
   async function toggle(r) {
-    const done = isDoneToday(r.id)
+    const ref  = getReference(r.frequency)
+    const done = getCompletionsInCycle(r.id, r.frequency).length > 0
     setSaving(r.id)
     try {
       if (done) {
-        const comp = completions.find(c => c.routine_id === r.id && (c.reference_date === todayStr || c.completed_at?.startsWith(todayStr)))
+        const comp = completions.find(c => c.routine_id === r.id && (c.reference_date === ref || c.reference_date?.startsWith(ref.slice(0,7))))
         if (comp) {
           const { error } = await supabase.from('routine_completions').delete().eq('id', comp.id).eq('org_id', profile.org_id)
           if (error) throw error
@@ -459,36 +471,44 @@ export default function Rotinas() {
       } else {
         const { error } = await supabase.from('routine_completions').insert({
           routine_id: r.id, completed_by: profile.id,
-          reference_date: todayStr, org_id: profile.org_id,
+          reference_date: ref, org_id: profile.org_id,
+          execution_status: 'done',
         })
         if (error) throw error
-        const freqLabel = { diaria: 'Diária', semanal: 'Semanal', mensal: 'Mensal' }
-        const { error: tErr } = await supabase.from('tasks').insert({
-          org_id: profile.org_id,
-          title: `[Rotina ${freqLabel[r.frequency] || r.frequency}] ${r.title}`,
-          description: r.description || `Gerada automaticamente pela rotina "${r.title}"`,
-          column_id: 'doing', priority: 'media',
-          project_id: r.project_id || null,
-          assigned_to: r.assigned_to || profile.id,
-          due_date: new Date(Date.now() + 86400000).toISOString().slice(0, 10),
-          created_by: profile.id,
-        })
-        if (!tErr) toast.success('✅ Rotina registrada — task criada no Kanban')
-        else toast.success('✅ Rotina registrada')
+        toast.success('✅ Rotina registrada')
       }
       await load()
     } catch (err) {
-      toast.error('Erro ao registrar: ' + err.message)
+      toast.error('Erro: ' + err.message)
     } finally { setSaving(null) }
   }
 
-  // ── Criar rotina individual ────────────────────────────────────────────
+  // ── Registrar execução em atraso ─────────────────────────────────────────
+  async function saveLate() {
+    if (!lateModal || !lateWho || !lateDate) { toast.warning('Preencha quem executou e a data'); return }
+    setLateSaving(true)
+    try {
+      const { error } = await supabase.from('routine_completions').insert({
+        routine_id: lateModal.routine.id,
+        completed_by: lateWho,
+        reference_date: lateModal.refDate,
+        org_id: profile.org_id,
+        execution_status: 'late',
+        notes: lateObs || null,
+      })
+      if (error) throw error
+      toast.success('⏰ Execução em atraso registrada')
+      setLateModal(null)
+      await load()
+    } catch (err) {
+      toast.error('Erro: ' + err.message)
+    } finally { setLateSaving(false) }
+  }
+
+  // ── Criar rotina ─────────────────────────────────────────────────────────
   async function createRoutine() {
     if (!form.title.trim()) return
-    if (!form.project_id) {
-      toast.warning('Selecione um projeto antes de criar a rotina')
-      return
-    }
+    if (!form.project_id) { toast.warning('Selecione um projeto'); return }
     const { error } = await supabase.from('routines').insert({
       org_id: profile.org_id, title: form.title.trim(),
       description: form.description.trim() || null,
@@ -504,22 +524,14 @@ export default function Rotinas() {
     toast.success('Rotina criada')
   }
 
-  // ── Aplicar template ──────────────────────────────────────────────────
+  // ── Aplicar template ─────────────────────────────────────────────────────
   async function applyTemplate() {
     const tpl = TEMPLATE_LIBRARY.find(t => t.id === tplState.selectedId)
-    if (!tpl) return
-    // Bloquear se não selecionou projeto
-    if (!tplState.project_id) {
-      toast.warning('Selecione um projeto antes de aplicar o template')
-      return
-    }
+    if (!tpl || !tplState.project_id) { toast.warning('Selecione um projeto'); return }
     const inserts = tpl.routines.map(r => ({
-      org_id: profile.org_id,
-      title: r.title, description: r.description || null,
-      frequency: r.frequency,
-      assigned_to: tplState.assigned_to || null,
-      project_id: tplState.project_id || null,
-      is_active: true,
+      org_id: profile.org_id, title: r.title, description: r.description || null,
+      frequency: r.frequency, assigned_to: tplState.assigned_to || null,
+      project_id: tplState.project_id || null, is_active: true,
     }))
     const { error } = await supabase.from('routines').insert(inserts)
     if (error) { toast.error('Erro ao aplicar template: ' + error.message); return }
@@ -529,175 +541,158 @@ export default function Rotinas() {
     toast.success(`✅ ${tpl.routines.length} rotinas criadas a partir do template "${tpl.label}"`)
   }
 
-  // ── Arquivar rotina individual ─────────────────────────────────────────
+  // ── Arquivar rotina ──────────────────────────────────────────────────────
   async function archive(id) {
-    const { error } = await supabase.from('routines')
-      .update({ is_active: false }).eq('id', id).eq('org_id', profile.org_id)
+    const { error } = await supabase.from('routines').update({ is_active: false }).eq('id', id).eq('org_id', profile.org_id)
     if (error) { toast.error('Erro ao arquivar: ' + error.message); return }
-    await load()
-    toast.success('Rotina arquivada — histórico preservado')
+    await load(); toast.success('Rotina arquivada — histórico preservado')
   }
 
-  // ── Encerrar fase (arquivar todas as rotinas de um projeto) ────────────
   async function archivePhase(projectId, projectName) {
-    const ok = await confirm(
-      `Encerrar fase "${projectName}"?\n\nTodas as ${routines.filter(r => r.project_id === projectId).length} rotinas deste projeto serão arquivadas. O histórico de execução fica preservado e consultável.`,
-      { danger: true, confirmLabel: 'Encerrar fase', cancelLabel: 'Cancelar' }
-    )
+    const ok = await confirm(`Encerrar fase "${projectName}"?\n\nTodas as ${routines.filter(r => r.project_id === projectId).length} rotinas serão arquivadas. O histórico fica preservado.`, { danger: true, confirmLabel: 'Encerrar fase', cancelLabel: 'Cancelar' })
     if (!ok) return
-    const { error } = await supabase.from('routines')
-      .update({ is_active: false })
-      .eq('org_id', profile.org_id)
-      .eq('project_id', projectId)
-    if (error) { toast.error('Erro ao encerrar fase: ' + error.message); return }
-    await load()
-    toast.success(`✅ Fase "${projectName}" encerrada — ${routines.filter(r => r.project_id === projectId).length} rotinas arquivadas`)
+    const { error } = await supabase.from('routines').update({ is_active: false }).eq('org_id', profile.org_id).eq('project_id', projectId)
+    if (error) { toast.error('Erro: ' + error.message); return }
+    await load(); toast.success(`✅ Fase "${projectName}" encerrada`)
   }
 
-  // ── Filtros ────────────────────────────────────────────────────────────
-  const filtered = routines.filter(r => {
-    const matchFreq    = filterFreq    === 'all' || r.frequency  === filterFreq
-    const matchProject = filterProject === 'all' || r.project_id === filterProject ||
-                         (filterProject === '__sem_projeto__' && !r.project_id)
-    const matchSearch  = !search.trim() ||
-      (r.title || '').toLowerCase().includes(search.toLowerCase()) ||
-      (r.description || '').toLowerCase().includes(search.toLowerCase())
-    return matchFreq && matchProject && matchSearch
-  })
+  // ── Grouping helpers ─────────────────────────────────────────────────────
+  const routinesByProject = useMemo(() => {
+    const map = {}
+    routines.forEach(r => {
+      const pid = r.project_id || '__sem_projeto__'
+      if (!map[pid]) map[pid] = []
+      map[pid].push(r)
+    })
+    return map
+  }, [routines])
 
-  // Métricas globais (modo hoje)
-  const doneToday  = filtered.filter(r =>  isDoneToday(r.id)).length
-  const overdue    = filtered.filter(r => !isDoneToday(r.id) && isOverdue(r)).length
-  const compliance = filtered.length > 0 ? Math.round(doneToday / filtered.length * 100) : 0
+  const projectsWithRoutines = useMemo(() =>
+    projects.filter(p => routinesByProject[p.id]?.length > 0),
+  [projects, routinesByProject])
 
-  // Métricas mês atual
-  const monthComp = monthlyCompliance(filtered)
-
-  // ── Agrupamento Empresa → Projeto ──────────────────────────────────────
-  const grouped = {}
-  for (const r of filtered) {
-    const proj      = projMap[r.project_id]
-    const companyId = proj?.company_id || '__sem_empresa__'
-    const projectId = r.project_id    || '__sem_projeto__'
-    if (!grouped[companyId]) grouped[companyId] = {}
-    if (!grouped[companyId][projectId]) grouped[companyId][projectId] = []
-    grouped[companyId][projectId].push(r)
+  const filteredByProjAndFreq = (freq) => {
+    let rs = routines.filter(r => r.frequency === freq)
+    if (projFilter !== 'all') rs = rs.filter(r => r.project_id === projFilter)
+    return rs
   }
-  // Ordenar rotinas dentro de cada projeto: Diárias → Semanais → Mensais → alfabético
-  for (const co of Object.values(grouped)) {
-    for (const projKey of Object.keys(co)) {
-      co[projKey].sort((a, b) => {
-        const fo = (FREQ_ORDER[a.frequency] ?? 9) - (FREQ_ORDER[b.frequency] ?? 9)
-        if (fo !== 0) return fo
-        return (a.title || '').localeCompare(b.title || '')
-      })
+
+  // Pendências analysis
+  const pendencias = useMemo(() => {
+    const criticos = []
+    const atencao  = []
+    const tardios  = []
+
+    routines.forEach(r => {
+      // Check consecutive misses (diárias: últimos 3 dias úteis)
+      if (r.frequency === 'diaria') {
+        let missed = 0
+        for (let i = 1; i <= 5; i++) {
+          const d = new Date(); d.setDate(d.getDate() - i)
+          const dow = d.getDay(); if (dow === 0 || dow === 6) continue
+          const dStr = d.toISOString().split('T')[0]
+          const hasDone = completions.some(c => c.routine_id === r.id && (c.reference_date === dStr || c.completed_at?.startsWith(dStr)))
+          if (!hasDone) missed++; else break
+        }
+        if (missed >= 3) {
+          criticos.push({ routine: r, type: 'consecutive_miss', count: missed })
+        } else if (missed >= 1) {
+          atencao.push({ routine: r, type: 'recent_miss', count: missed })
+        }
+      }
+
+      // Late completions
+      const lateComps = completions.filter(c => c.routine_id === r.id && c.execution_status === 'late')
+      if (lateComps.length > 0) {
+        tardios.push({ routine: r, lates: lateComps })
+      }
+
+      // Monthly overdue
+      if (r.frequency === 'mensal') {
+        const today = new Date()
+        const refDate = getReference('mensal')
+        const hasDoneThisMonth = completions.some(c => c.routine_id === r.id && (c.reference_date || '').startsWith(today.toISOString().slice(0,7)))
+        if (!hasDoneThisMonth) {
+          const dueMatch = r.description?.match(/DIA\s*(\d+)/i)
+          const dueDay = dueMatch ? parseInt(dueMatch[1]) : null
+          if (dueDay && today.getDate() > dueDay) {
+            const daysLate = today.getDate() - dueDay
+            criticos.push({ routine: r, type: 'monthly_overdue', daysLate, dueDay })
+          }
+        }
+      }
+    })
+    return { criticos, atencao, tardios, total: criticos.length + atencao.length }
+  }, [routines, completions])
+
+  // ── Calendar builders ────────────────────────────────────────────────────
+  function buildDailyCells(routineId) {
+    const today = new Date()
+    const year = today.getFullYear()
+    const month = today.getMonth()
+    const firstDow = new Date(year, month, 1).getDay()
+    const blanks = firstDow === 0 ? 6 : firstDow - 1
+    const daysInMonth = new Date(year, month + 1, 0).getDate()
+    const cells = []
+    for (let i = 0; i < blanks; i++) cells.push({ type: 'sp' })
+    for (let d = 1; d <= daysInMonth; d++) {
+      const date = new Date(year, month, d)
+      const dow  = date.getDay()
+      const we   = dow === 0 || dow === 6
+      const dStr = date.toISOString().split('T')[0]
+      const future = dStr > todayStr
+      if (future) { cells.push({ type: 'fu', d, dStr, we }); continue }
+      if (we)     { cells.push({ type: 'we', d, dStr }); continue }
+      const comp = completions.filter(c => c.routine_id === routineId && (c.reference_date === dStr || c.completed_at?.startsWith(dStr)))
+      const status = comp.length === 0 ? 'miss' : comp.some(c => c.execution_status === 'late') ? 'late' : 'ok'
+      const covComp = comp.find(c => c.completed_by !== routines.find(r=>r.id===routineId)?.assigned_to && c.execution_status !== 'late')
+      const covProf = covComp ? profMap[covComp.completed_by] : null
+      cells.push({ type: status, d, dStr, today: dStr === todayStr, cov: covProf })
     }
+    return cells
   }
 
-  const companyKeys = Object.keys(grouped).sort((a, b) => {
-    if (a === '__sem_empresa__') return 1
-    if (b === '__sem_empresa__') return -1
-    return (compMap[a]?.name || '').localeCompare(compMap[b]?.name || '')
-  })
-
-  const projectsForForm = form.company_id
-    ? projects.filter(p => p.company_id === form.company_id)
-    : projects
-
-  const projectsForTpl = tplState.company_id
-    ? projects.filter(p => p.company_id === tplState.company_id)
-    : projects
-
-  function toggleCollapse(id) { setCollapsed(prev => ({ ...prev, [id]: !prev[id] })) }
-
-  // ── Card de rotina ─────────────────────────────────────────────────────
-  function RoutineCard({ r }) {
-    const done      = isDoneToday(r.id)
-    const monthDone = countThisMonth(r.id)
-    const overdueFl = !done && isOverdue(r)
-    const last      = lastDone(r.id)
-    const prof      = profMap[r.assigned_to]
-    const leftColor = done ? GREEN : overdueFl ? RED : VL
-    const borderColor = done ? '#BBF7D0' : overdueFl ? '#FECACA' : '#E5E7EB'
-    const bgColor     = done ? '#F0FDF4' : overdueFl ? '#FFF5F5' : '#FFFFFF'
-    const isExpanded  = showHistory === r.id
-
-    return (
-      <div className="rounded-xl overflow-hidden transition-all duration-200"
-        style={{ border: `1px solid ${borderColor}`, background: bgColor }}>
-        <div className="flex items-stretch">
-          <div className="w-1 shrink-0" style={{ background: leftColor }} />
-          <div className="flex-1 flex items-center gap-4 px-4 py-3">
-            {/* Check button */}
-            <button onClick={() => toggle(r)} disabled={saving === r.id}
-              title={done ? 'Desfazer' : 'Concluir hoje'}
-              className="w-8 h-8 rounded-full border-2 flex items-center justify-center shrink-0 transition-all hover:scale-110"
-              style={done
-                ? { background: GREEN, borderColor: GREEN, color: '#fff' }
-                : overdueFl ? { borderColor: RED, color: RED }
-                : { borderColor: '#D1D5DB', color: '#9CA3AF' }
-              }>
-              {saving === r.id
-                ? <div className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin" />
-                : done ? <Check className="w-3.5 h-3.5" /> : null
-              }
-            </button>
-
-            {/* Conteúdo */}
-            <div className="flex-1 min-w-0">
-              <div className={`text-sm font-semibold ${done ? 'line-through text-zinc-400' : 'text-zinc-800'}`}>{r.title}</div>
-              {r.description && <div className="text-xs text-zinc-400 mt-0.5 truncate">{r.description}</div>}
-              <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                <FreqBadge frequency={r.frequency} />
-                {prof && (
-                  <div className="flex items-center gap-1">
-                    <Avatar prof={prof} size={5} />
-                    <span className="text-xs text-zinc-500">{prof.full_name.split(' ')[0]}</span>
-                  </div>
-                )}
-                {/* Contador do mês para diárias */}
-                {r.frequency === 'diaria' && (
-                  <span className="text-[10px] text-zinc-400 flex items-center gap-1">
-                    <Calendar className="w-3 h-3" />
-                    {monthDone} vezes este mês
-                  </span>
-                )}
-                {last && r.frequency !== 'diaria' && (
-                  <span className="text-[10px] text-zinc-400 flex items-center gap-1">
-                    <Clock className="w-3 h-3" />
-                    {new Date(last + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
-                  </span>
-                )}
-                {overdueFl && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: '#FEE2E2', color: RED }}>Em atraso</span>}
-                {done && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: '#DCFCE7', color: GREEN }}>✓ Hoje</span>}
-              </div>
-            </div>
-
-            {/* Ações */}
-            <div className="flex items-center gap-1 shrink-0">
-              <button onClick={() => setShowHistory(isExpanded ? null : r.id)}
-                title="Ver histórico"
-                className={`p-1.5 rounded-lg transition-colors ${isExpanded ? 'bg-violet-100' : 'hover:bg-zinc-100'}`}
-                style={{ color: isExpanded ? VL : '#9CA3AF' }}>
-                <BarChart2 className="w-3.5 h-3.5" />
-              </button>
-              <button onClick={() => archive(r.id)} title="Arquivar rotina"
-                className="p-1.5 rounded-lg hover:bg-zinc-100 text-zinc-300 hover:text-zinc-500 transition-colors">
-                <Archive className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Histórico expandido */}
-        {isExpanded && (
-          <div className="px-5 pb-4 border-t border-zinc-100">
-            <MonthlyHistoryChart routineId={r.id} frequency={r.frequency} completions={completions} />
-          </div>
-        )}
-      </div>
-    )
+  function buildWeeklyCells(routineId) {
+    const weeks = []
+    const today = new Date()
+    for (let w = 5; w >= 0; w--) {
+      const monday = new Date(today)
+      monday.setDate(today.getDate() - (today.getDay() === 0 ? 6 : today.getDay() - 1) - w * 7)
+      const mondayStr = monday.toISOString().split('T')[0]
+      const sunday = new Date(monday); sunday.setDate(monday.getDate() + 6)
+      const sundayStr = sunday.toISOString().split('T')[0]
+      const isCurrent = w === 0
+      if (isCurrent) { weeks.push({ wStr: mondayStr, label: 'Esta semana', status: 'pend', cur: true }); continue }
+      const comp = completions.filter(c => c.routine_id === routineId && (c.reference_date || '') >= mondayStr && (c.reference_date || '') <= sundayStr)
+      const status = comp.length === 0 ? 'miss' : comp.some(c => c.execution_status === 'late') ? 'late' : 'ok'
+      const covComp = comp.find(c => c.completed_by !== routines.find(r=>r.id===routineId)?.assigned_to)
+      const covProf = covComp ? profMap[covComp.completed_by] : null
+      const wLabel = monday.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+      weeks.push({ wStr: mondayStr, label: wLabel, status, cov: covProf })
+    }
+    return weeks.reverse()
   }
+
+  function buildMonthlyCells(routineId) {
+    const cells = []
+    const today = new Date()
+    for (let m = 5; m >= 0; m--) {
+      const d = new Date(today.getFullYear(), today.getMonth() - m, 1)
+      const mk = d.toISOString().slice(0,7)
+      const label = d.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' })
+      const isCurrent = m === 0
+      if (isCurrent) { cells.push({ mk, label, status: 'pend', cur: true }); continue }
+      const comp = completions.filter(c => c.routine_id === routineId && (c.reference_date || '').startsWith(mk))
+      const status = comp.length === 0 ? 'miss' : comp.some(c => c.execution_status === 'late') ? 'late' : 'ok'
+      const covComp = comp.find(c => c.completed_by !== routines.find(r=>r.id===routineId)?.assigned_to)
+      const covProf = covComp ? profMap[covComp.completed_by] : null
+      cells.push({ mk, label, status, cov: covProf })
+    }
+    return cells.reverse()
+  }
+
+  const projectsForForm = form.company_id ? projects.filter(p => p.company_id === form.company_id) : projects
+  const projectsForTpl  = tplState.company_id ? projects.filter(p => p.company_id === tplState.company_id) : projects
 
   // ── Modal de Templates ─────────────────────────────────────────────────
   function TemplateModal() {
@@ -827,346 +822,770 @@ export default function Rotinas() {
     )
   }
 
-  // ── RENDER PRINCIPAL ───────────────────────────────────────────────────
-  return (
-    <div className="p-6 max-w-[1400px] mx-auto">
+  // ── Helpers de cor/status ────────────────────────────────────────────────
+  const statusColors = {
+    ok:   { bg: '#D1FAE5', border: '#A7F3D0', text: '#065F46', icon: '✓' },
+    late: { bg: '#FEF3C7', border: '#FDE68A', text: '#92400E', icon: '⏰' },
+    miss: { bg: '#FEE2E2', border: '#FECACA', text: '#991B1B', icon: '✗' },
+    pend: { bg: '#EEF2FF', border: '#DDD6FE', text: VL,        icon: '●' },
+    fu:   { bg: '#F9FAFB', border: '#F3F4F6', text: '#E5E7EB', icon: '' },
+    we:   { bg: '#F4F5F8', border: '#F4F5F8', text: '#D1D5DB', icon: '—' },
+    sp:   { bg: 'transparent', border: 'transparent', text: '', icon: '' },
+  }
 
+  // ─── RENDER ─────────────────────────────────────────────────────────────────
+  if (loading) return (
+    <div className="flex items-center justify-center h-64 text-zinc-400">
+      <RefreshCw className="w-5 h-5 animate-spin mr-2" /> Carregando rotinas…
+    </div>
+  )
+
+  const allDone = routines.filter(r => isDoneInCycle(r)).length
+  const allOverdue = routines.filter(r => !isDoneInCycle(r) && isOverdue(r)).length
+  const compliance = routines.length > 0 ? Math.round(allDone / routines.length * 100) : 0
+  const pctColor = compliance >= 80 ? '#4ADE80' : compliance >= 50 ? AMBER : '#F87171'
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
       {showTemplates && <TemplateModal />}
 
-      {/* Hero */}
-      <div className="rounded-2xl p-6 mb-6 text-white" style={{ background: CH }}>
-        <div className="flex items-center justify-between flex-wrap gap-4">
+      {/* ── HERO ── */}
+      <div style={{ background: CH, flexShrink: 0, padding: '16px 24px 0' }}>
+        <div style={{ fontSize: 9, fontWeight: 600, color: '#818CF8', textTransform: 'uppercase', letterSpacing: '.12em', marginBottom: 4 }}>
+          🔄 Compliance Operacional
+        </div>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16, marginBottom: 12, flexWrap: 'wrap' }}>
           <div>
-            <div className="text-xs font-bold uppercase tracking-wider mb-1 flex items-center gap-2" style={{ color: '#A5B4FC' }}>
-              <RefreshCw className="w-3 h-3" /> Compliance Operacional
+            <h1 style={{ fontSize: 22, fontWeight: 700, color: '#fff', marginBottom: 2 }}>Rotinas</h1>
+            <div style={{ fontSize: 11, color: '#6B7280' }}>
+              {routines.length} ativas · {projectsWithRoutines.length} projeto{projectsWithRoutines.length !== 1 ? 's' : ''} · {new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}
             </div>
-            <h1 className="text-2xl font-bold mb-1">Rotinas</h1>
-            <p className="text-sm text-zinc-400">{routines.length} rotina{routines.length !== 1 ? 's' : ''} ativas</p>
           </div>
-          <div className="flex gap-3 flex-wrap items-center">
-            {/* Toggle hoje / mês */}
-            <div className="flex rounded-xl overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.15)' }}>
-              {[['today','Hoje'],['month','Mês']].map(([v,l]) => (
-                <button key={v} onClick={() => setViewMode(v)}
-                  className="px-4 py-2 text-xs font-bold transition-colors"
-                  style={viewMode === v
-                    ? { background: VL, color: '#fff' }
-                    : { background: 'transparent', color: 'rgba(255,255,255,0.5)' }
-                  }>{l}</button>
-              ))}
-            </div>
+          {/* KPIs */}
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginLeft: 'auto' }}>
             {[
-              { label: viewMode === 'today' ? 'Compliance hoje' : 'Compliance mês',
-                value: `${viewMode === 'today' ? compliance : monthComp}%`,
-                color: (viewMode === 'today' ? compliance : monthComp) >= 80 ? '#4ADE80' : (viewMode === 'today' ? compliance : monthComp) >= 50 ? AMBER : '#F87171' },
-              { label: 'Concluídas', value: doneToday, color: '#A5B4FC' },
-              { label: 'Em atraso',  value: overdue, color: overdue > 0 ? '#F87171' : '#4ADE80' },
+              { label: 'Compliance', value: compliance + '%', color: pctColor },
+              { label: 'Feitas', value: allDone, color: '#A5B4FC' },
+              { label: 'Em atraso', value: allOverdue, color: allOverdue > 0 ? '#F87171' : '#4ADE80' },
+              { label: 'Pendências', value: pendencias.total, color: pendencias.total > 0 ? '#FBBF24' : '#4ADE80' },
             ].map(k => (
-              <div key={k.label} className="rounded-xl px-4 py-3 text-center min-w-[90px]"
-                style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)' }}>
-                <div className="text-xl font-bold" style={{ color: k.color }}>{k.value}</div>
-                <div className="text-[10px] text-zinc-400 uppercase tracking-wider mt-0.5">{k.label}</div>
+              <div key={k.label} style={{ background: 'rgba(255,255,255,.07)', border: '1px solid rgba(255,255,255,.1)', borderRadius: 9, padding: '8px 12px', textAlign: 'center', minWidth: 72 }}>
+                <div style={{ fontSize: 18, fontWeight: 800, color: k.color, lineHeight: 1, marginBottom: 2 }}>{k.value}</div>
+                <div style={{ fontSize: 8.5, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '.07em', fontWeight: 600 }}>{k.label}</div>
               </div>
             ))}
+            {/* Actions */}
+            <button onClick={() => setShowTemplates(true)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 9, border: '1px solid rgba(255,255,255,.15)', background: 'transparent', color: 'rgba(255,255,255,.8)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+              <BookOpen style={{ width: 14, height: 14 }} /> Templates
+            </button>
+            <button onClick={() => setShowForm(true)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 9, border: 'none', background: VL, color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+              <Plus style={{ width: 14, height: 14 }} /> Nova rotina
+            </button>
           </div>
         </div>
-        <div className="mt-4 rounded-full h-2" style={{ background: 'rgba(255,255,255,0.1)' }}>
-          <div className="h-2 rounded-full transition-all duration-700"
-            style={{ width: `${viewMode === 'today' ? compliance : monthComp}%`,
-                     background: (viewMode === 'today' ? compliance : monthComp) >= 80 ? GREEN : (viewMode === 'today' ? compliance : monthComp) >= 50 ? AMBER : VL }} />
+        {/* Progress bar */}
+        <div style={{ height: 5, background: 'rgba(255,255,255,.1)', borderRadius: 99, overflow: 'hidden', marginBottom: 12 }}>
+          <div style={{ height: '100%', borderRadius: 99, background: compliance >= 80 ? GREEN : compliance >= 50 ? AMBER : VL, width: compliance + '%', transition: 'width .5s' }} />
         </div>
-        {/* Tabs com contadores */}
-        <div className="flex gap-1 mt-4">
+        {/* Tabs */}
+        <div style={{ display: 'flex', gap: 2 }}>
           {[
-            { id: 'all',     label: 'Todas',    count: routines.length },
-            { id: 'diaria',  label: 'Diárias',  count: routines.filter(r => r.frequency === 'diaria').length },
-            { id: 'semanal', label: 'Semanais', count: routines.filter(r => r.frequency === 'semanal').length },
-            { id: 'mensal',  label: 'Mensais',  count: routines.filter(r => r.frequency === 'mensal').length },
-          ].map(tab => {
-            const on = filterFreq === (tab.id === 'all' ? 'all' : tab.id)
+            { id: 'hoje',       label: '📋 Rotinas',   cnt: routines.length },
+            { id: 'historico',  label: '📊 Histórico' },
+            { id: 'pendencias', label: '⚠️ Pendências', cnt: pendencias.total, warn: pendencias.total > 0 },
+          ].map(t => {
+            const on = activeView === t.id
             return (
-              <button key={tab.id}
-                onClick={() => setFilterFreq(tab.id === 'all' ? 'all' : tab.id)}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 5, padding: '8px 13px',
-                  fontSize: 12, fontWeight: on ? 600 : 500, borderRadius: '8px 8px 0 0',
-                  cursor: 'pointer', whiteSpace: 'nowrap', outline: 'none',
-                  border: '1px solid transparent', borderBottom: 'none',
-                  background: on ? 'white' : 'transparent',
-                  color: on ? VL : '#6B7280',
-                  borderColor: on ? 'rgba(255,255,255,.12)' : 'transparent',
-                  transition: 'all .12s',
-                }}>
-                {tab.label}
-                <span style={{ fontSize: 9.5, fontWeight: 600, padding: '1px 5px', borderRadius: 99, background: on ? '#EEF2FF' : 'rgba(255,255,255,.1)', color: on ? VL : '#9CA3AF' }}>
-                  {tab.count}
-                </span>
+              <button key={t.id} onClick={() => setActiveView(t.id)} style={{
+                display: 'flex', alignItems: 'center', gap: 5,
+                padding: '8px 14px', fontSize: 12, fontWeight: on ? 600 : 500,
+                borderRadius: '8px 8px 0 0', cursor: 'pointer',
+                border: '1px solid transparent', borderBottom: 'none',
+                background: on ? '#fff' : 'transparent',
+                color: on ? (t.warn ? RED : VL) : t.warn ? '#FCA5A5' : '#6B7280',
+                borderColor: on ? 'rgba(255,255,255,.12)' : 'transparent',
+                outline: 'none',
+              }}>
+                {t.label}
+                {t.cnt !== undefined && (
+                  <span style={{ fontSize: 9.5, fontWeight: 600, padding: '1px 5px', borderRadius: 99, background: on ? (t.warn ? '#FEE2E2' : '#EEF2FF') : 'rgba(255,255,255,.1)', color: on ? (t.warn ? RED : VL) : '#9CA3AF' }}>{t.cnt}</span>
+                )}
               </button>
             )
           })}
         </div>
       </div>
 
-      {/* Controls */}
-      <div className="flex items-center gap-3 mb-5 flex-wrap">
-        <input type="text" placeholder="Buscar rotina…" value={search}
-          onChange={e => setSearch(e.target.value)}
-          className="px-3 py-2 text-sm border border-zinc-200 rounded-lg focus:outline-none focus:border-violet-500 w-48" />
-        <select className="text-sm border border-zinc-200 rounded-lg px-3 py-2 bg-white"
-          value={filterFreq} onChange={e => setFilterFreq(e.target.value)}>
-          <option value="all">Todas as frequências</option>
-          {Object.entries(FREQ).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-        </select>
-        <select className="text-sm border border-zinc-200 rounded-lg px-3 py-2 bg-white max-w-[280px]"
-          value={filterProject} onChange={e => setFilterProject(e.target.value)}>
-          <option value="all">Todos os projetos</option>
-          {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-        </select>
-        <div className="ml-auto flex gap-2">
-          <button onClick={() => setShowTemplates(true)}
-            className="flex items-center gap-2 text-sm font-bold px-4 py-2 rounded-xl border-2 transition-all hover:shadow-md"
-            style={{ borderColor: VL, color: VL, background: '#F5F3FF' }}>
-            <BookOpen className="w-4 h-4" /> Templates
-          </button>
-          <button onClick={() => setShowForm(v => !v)}
-            className="flex items-center gap-2 text-white text-sm font-bold px-4 py-2 rounded-xl hover:opacity-90 transition-all"
-            style={{ background: VL }}>
-            <Plus className="w-4 h-4" /> Nova rotina
-          </button>
-        </div>
-      </div>
-
-      {/* Formulário nova rotina */}
-      {showForm && (
-        <div className="bg-white border-2 rounded-2xl p-5 mb-6 shadow-lg" style={{ borderColor: `${VL}50` }}>
-          <div className="flex items-center justify-between mb-5">
-            <div>
-              <h3 className="text-sm font-bold text-zinc-800">Nova Rotina</h3>
-              <p className="text-xs text-zinc-400 mt-0.5">Associe a uma empresa e projeto para organizar sua equipe</p>
-            </div>
-            <button onClick={() => setShowForm(false)} className="text-zinc-400 hover:text-zinc-600 p-1 rounded-lg hover:bg-zinc-100">
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-            <div className="md:col-span-2">
-              <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1.5 block">Título *</label>
-              <input className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-100"
-                value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))}
-                placeholder="Ex: Envio de relatório semanal ao cliente" autoFocus />
-            </div>
-            <div>
-              <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1.5 block flex items-center gap-1">
-                <Building2 className="w-3 h-3" /> Empresa
-              </label>
-              <select className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:border-violet-500"
-                value={form.company_id}
-                onChange={e => setForm(p => ({ ...p, company_id: e.target.value, project_id: '' }))}>
-                <option value="">— nenhuma —</option>
-                {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1.5 block">
-                Projeto <span className="text-red-500">*</span>
-                {form.company_id && projectsForForm.length > 0 && <span className="text-zinc-400 font-normal"> ({projectsForForm.length} disponíveis)</span>}
-              </label>
-              <select className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:border-violet-500"
-                value={form.project_id} onChange={e => setForm(p => ({ ...p, project_id: e.target.value }))}>
-                <option value="">— sem projeto —</option>
-                {projectsForForm.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1.5 block">Frequência</label>
-              <div className="flex gap-2">
-                {Object.entries(FREQ).map(([k, v]) => (
-                  <button key={k} type="button" onClick={() => setForm(p => ({ ...p, frequency: k }))}
-                    className="flex-1 py-2.5 text-xs font-bold rounded-xl border-2 transition-all"
-                    style={form.frequency === k
-                      ? { background: v.bg, color: v.color, borderColor: v.color }
-                      : { background: '#F9FAFB', color: '#9CA3AF', borderColor: '#E5E7EB' }}>
-                    {v.label}
+      {/* ════════════════════════════════════════════════════════════════
+          VIEW: HOJE — 3 colunas
+      ════════════════════════════════════════════════════════════════ */}
+      {activeView === 'hoje' && (
+        <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          {/* Project pills */}
+          {projectsWithRoutines.length > 1 && (
+            <div style={{ padding: '8px 24px 0', background: '#F4F5F8', display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 9, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.08em', whiteSpace: 'nowrap' }}>Projeto:</span>
+              {[{ id: 'all', name: 'Todos', cnt: routines.length, color: '#6366F1', pct: null }, ...projectsWithRoutines.map(p => {
+                const prs = routinesByProject[p.id] || []
+                const pct = calcCompliance(prs)
+                return { id: p.id, name: p.name, cnt: prs.length, color: '#F59E0B', pct }
+              })].map(p => {
+                const on = projFilter === p.id
+                return (
+                  <button key={p.id} onClick={() => setProjFilter(p.id)} style={{
+                    display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px',
+                    borderRadius: 99, cursor: 'pointer', fontSize: 11.5, fontWeight: on ? 600 : 500,
+                    border: `1.5px solid ${on ? VL : '#E5E7EB'}`,
+                    background: on ? '#EEF2FF' : '#fff', color: on ? VL : '#6B7280',
+                    outline: 'none',
+                  }}>
+                    <span style={{ width: 7, height: 7, borderRadius: '50%', background: p.color, flexShrink: 0 }} />
+                    {p.name.length > 20 ? p.name.slice(0,20)+'…' : p.name}
+                    <span style={{ fontSize: 9.5, padding: '1px 5px', borderRadius: 99, background: on ? '#DDD6FE' : 'rgba(0,0,0,.06)', color: on ? VL : '#9CA3AF', fontWeight: 600 }}>{p.cnt}</span>
+                    {p.pct !== null && <span style={{ fontSize: 10, fontWeight: 700, color: p.pct >= 80 ? GREEN : p.pct >= 50 ? AMBER : RED }}>{p.pct}%</span>}
                   </button>
-                ))}
-              </div>
+                )
+              })}
             </div>
-            <div>
-              <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1.5 block">Responsável</label>
-              <select className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:border-violet-500"
-                value={form.assigned_to} onChange={e => setForm(p => ({ ...p, assigned_to: e.target.value }))}>
-                <option value="">— nenhum —</option>
-                {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
-              </select>
-            </div>
-            <div className="md:col-span-2">
-              <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1.5 block">
-                Descrição <span className="font-normal text-zinc-400">(opcional)</span>
-              </label>
-              <textarea className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500 resize-none"
-                rows={2} value={form.description}
-                onChange={e => setForm(p => ({ ...p, description: e.target.value }))}
-                placeholder="Instruções, contexto ou checklist da rotina…" />
-            </div>
-          </div>
-          <div className="flex gap-3 justify-end">
-            <button onClick={() => setShowForm(false)} className="text-sm text-zinc-500 px-4 py-2 rounded-xl hover:bg-zinc-100 transition-colors">Cancelar</button>
-            <button onClick={createRoutine} disabled={!form.title.trim() || !form.project_id}
-              className="flex items-center gap-2 text-white text-sm font-bold px-5 py-2 rounded-xl hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
-              style={{ background: VL }}>
-              <Plus className="w-4 h-4" /> Criar rotina
-            </button>
-          </div>
-        </div>
-      )}
+          )}
 
-      {/* Lista */}
-      {loading ? (
-        <div className="bg-white border border-zinc-100 rounded-2xl p-10 text-center text-sm text-zinc-400">
-          <RefreshCw className="w-5 h-5 mx-auto mb-2 animate-spin text-zinc-300" />Carregando…
-        </div>
-      ) : filtered.length === 0 ? (
-        <div className="bg-white border border-zinc-100 rounded-2xl p-6">
-          <div className="text-center mb-8">
-            <BookOpen className="w-10 h-10 text-zinc-200 mx-auto mb-3" />
-            <div className="text-sm font-semibold text-zinc-600 mb-1">Nenhuma rotina ativa</div>
-            <div className="text-xs text-zinc-400 mb-4">Aplique um template pré-montado ou crie uma rotina avulsa para começar</div>
-            <button onClick={() => setShowForm(v => !v)}
-              className="inline-flex items-center gap-2 text-sm font-bold px-4 py-2 rounded-xl hover:opacity-90 mr-2"
-              style={{ background: VL, color: '#fff' }}>
-              <Plus className="w-4 h-4" /> Nova rotina
-            </button>
-          </div>
-          <div className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-4 text-center">Templates pré-montados</div>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            {TEMPLATE_LIBRARY.map(tpl => (
-              <button key={tpl.id} onClick={() => { setShowTemplates(true) }}
-                className="text-left p-4 rounded-xl border-2 border-zinc-100 hover:border-violet-300 hover:bg-violet-50 transition-all group"
-                style={{ borderLeftWidth: 3, borderLeftColor: tpl.color }}>
-                <div className="text-2xl mb-3">{tpl.icon}</div>
-                <div className="text-xs font-bold text-zinc-800 mb-1 leading-snug group-hover:text-violet-700">{tpl.label}</div>
-                <div className="text-[10px] text-zinc-400 leading-snug mb-3 line-clamp-2">{tpl.desc}</div>
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
-                    style={{ background: tpl.color + '18', color: tpl.color }}>
-                    {tpl.routines.length} rotinas
-                  </span>
-                  <span className="text-[10px] text-zinc-400 group-hover:text-violet-600 font-semibold">Aplicar →</span>
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-      ) : (
-        <div className="space-y-5">
-          {companyKeys.map(companyId => {
-            const company     = compMap[companyId]
-            const isCollapsed = collapsed[companyId]
-            const compRoutines = Object.values(grouped[companyId]).flat()
-            const compDone    = compRoutines.filter(r => isDoneToday(r.id)).length
-            const compMonthPct = monthlyCompliance(compRoutines)
-            const compName    = companyId === '__sem_empresa__' ? 'Sem empresa' : (company?.name || companyId)
-            const projectKeys = Object.keys(grouped[companyId]).sort((a, b) => {
-              if (a === '__sem_projeto__') return 1
-              if (b === '__sem_projeto__') return -1
-              return (projMap[a]?.name || '').localeCompare(projMap[b]?.name || '')
-            })
-            const isDark = companyId !== '__sem_empresa__'
+          {/* 3 columns */}
+          <div style={{ flex: 1, overflow: 'hidden', display: 'flex', gap: 14, padding: '10px 24px 16px' }}>
+            {['diaria', 'semanal', 'mensal'].map(freq => {
+              const cfg = FREQ_CFG[freq]
+              const rs  = filteredByProjAndFreq(freq)
+              if (!rs.length) return <div key={freq} style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9CA3AF', fontSize: 12 }}>Sem {cfg.title.toLowerCase()} neste projeto</div>
+              const done = rs.filter(r => isDoneInCycle(r)).length
+              const pct  = Math.round(done / rs.length * 100)
+              const bc   = pct >= 80 ? GREEN : pct >= 50 ? AMBER : RED
+              const pc   = pct >= 80 ? '#6EE7B7' : pct >= 50 ? '#FCD34D' : '#FCA5A5'
 
-            return (
-              <div key={companyId} className="rounded-2xl overflow-hidden" style={{ border: '1.5px solid #E5E7EB' }}>
+              // Group by project within column
+              const byProj = {}
+              rs.forEach(r => { const pid = r.project_id || '__'; if (!byProj[pid]) byProj[pid] = []; byProj[pid].push(r) })
 
-                {/* Header empresa */}
-                <div className="flex items-center" style={{ background: isDark ? CH : '#FAFAFA' }}>
-                  <button onClick={() => toggleCollapse(companyId)}
-                    className="flex-1 flex items-center justify-between px-5 py-4 transition-colors hover:opacity-90">
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-xl flex items-center justify-center text-xs font-bold text-white shrink-0"
-                        style={{ background: isDark ? VL : '#D1D5DB' }}>
-                        {companyId === '__sem_empresa__' ? '?' : compName.split(' ').filter(w => w).map(w => w[0]).slice(0, 2).join('').toUpperCase()}
-                      </div>
-                      <div className="text-left">
-                        <div className="text-sm font-bold" style={{ color: isDark ? '#FFFFFF' : '#374151' }}>{compName}</div>
-                        <div className="text-[10px] mt-0.5" style={{ color: isDark ? 'rgba(255,255,255,0.45)' : '#9CA3AF' }}>
-                          {compRoutines.length} rotina{compRoutines.length !== 1 ? 's' : ''} · {projectKeys.length} projeto{projectKeys.length !== 1 ? 's' : ''}
-                        </div>
-                      </div>
+              return (
+                <div key={freq} style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                  {/* Column header */}
+                  <div style={{ background: `linear-gradient(135deg,${cfg.hbg},${cfg.hbg}ee)`, borderRadius: '9px 9px 0 0', padding: '11px 13px', flexShrink: 0 }}>
+                    <div style={{ fontSize: 12.5, fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                      {cfg.icon} {cfg.title}
+                      <span style={{ fontSize: 8.5, background: 'rgba(255,255,255,.15)', padding: '1px 7px', borderRadius: 99, marginLeft: 'auto' }}>{rs.length}</span>
                     </div>
-                    <div className="flex items-center gap-4">
-                      <div className="text-right hidden md:block">
-                        <div className="text-[10px] mb-1" style={{ color: isDark ? 'rgba(255,255,255,0.4)' : '#9CA3AF' }}>
-                          {viewMode === 'today' ? 'hoje' : 'mês'}
-                        </div>
-                        <div className="w-28">
-                          <ProgressBar done={viewMode === 'today' ? compDone : Math.round(compMonthPct)} total={viewMode === 'today' ? compRoutines.length : 100} />
-                        </div>
-                      </div>
-                      {isCollapsed
-                        ? <ChevronRight className="w-4 h-4" style={{ color: isDark ? 'rgba(255,255,255,0.4)' : '#9CA3AF' }} />
-                        : <ChevronDown  className="w-4 h-4" style={{ color: isDark ? 'rgba(255,255,255,0.4)' : '#9CA3AF' }} />
-                      }
+                    <div style={{ fontSize: 10, color: 'rgba(255,255,255,.5)', marginBottom: 2 }}>{cfg.ref()}</div>
+                    <div style={{ fontSize: 9, color: 'rgba(255,255,255,.3)', marginBottom: 7 }}>🔄 {cfg.cycle}</div>
+                    <div style={{ height: 4, background: 'rgba(255,255,255,.12)', borderRadius: 99, overflow: 'hidden', marginBottom: 5 }}>
+                      <div style={{ height: '100%', borderRadius: 99, background: bc, width: pct + '%', transition: 'width .4s' }} />
                     </div>
-                  </button>
-                </div>
-
-                {/* Projetos */}
-                {!isCollapsed && (
-                  <div className="divide-y divide-zinc-100">
-                    {projectKeys.map(projKey => {
-                      const proj      = projMap[projKey]
-                      const projName  = projKey === '__sem_projeto__' ? 'Sem projeto' : (proj?.name || projKey)
-                      const projRouts = grouped[companyId][projKey]
-                      const projDone  = projRouts.filter(r => isDoneToday(r.id)).length
-                      const projMonthPct = monthlyCompliance(projRouts)
-
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, fontWeight: 700 }}>
+                      <span style={{ color: 'rgba(255,255,255,.4)', textTransform: 'uppercase', letterSpacing: '.06em' }}>Compliance</span>
+                      <span style={{ color: pc }}>{done}/{rs.length} · {pct}%</span>
+                    </div>
+                  </div>
+                  {/* Column body */}
+                  <div style={{ border: '1px solid #EAECF0', borderTop: 'none', borderRadius: '0 0 9px 9px', flex: 1, overflowY: 'auto', background: '#fff' }}>
+                    {Object.entries(byProj).map(([pid, prs]) => {
+                      const proj = projMap[pid]
+                      const pdone = prs.filter(r => isDoneInCycle(r)).length
                       return (
-                        <div key={projKey}>
-                          {/* Sub-header projeto com botão "Encerrar fase" */}
-                          <div className="flex items-center justify-between px-5 py-2.5 bg-zinc-50">
-                            <div className="flex items-center gap-2">
-                              <div className="w-1.5 h-1.5 rounded-full"
-                                style={{ background: projKey === '__sem_projeto__' ? '#D1D5DB' : VL }} />
-                              <span className="text-[11px] font-bold uppercase tracking-wider"
-                                style={{ color: projKey === '__sem_projeto__' ? '#9CA3AF' : '#4B5563' }}>
-                                {projName}
-                              </span>
-                              <span className="text-[10px] text-zinc-400">({projRouts.length})</span>
+                        <div key={pid}>
+                          {projFilter === 'all' && Object.keys(byProj).length > 1 && (
+                            <div style={{ padding: '4px 13px 3px', background: '#F4F5F8', borderBottom: '1px solid #EAECF0', display: 'flex', alignItems: 'center', gap: 5 }}>
+                              <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#F59E0B', flexShrink: 0 }} />
+                              <span style={{ fontSize: 10, fontWeight: 600, color: '#6B7280', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{proj?.name || 'Sem projeto'}</span>
+                              <span style={{ fontSize: 9, color: '#9CA3AF' }}>{pdone}/{prs.length}</span>
                             </div>
-                            <div className="flex items-center gap-3">
-                              <div className="w-24">
-                                <ProgressBar
-                                  done={viewMode === 'today' ? projDone : Math.round(projMonthPct)}
-                                  total={viewMode === 'today' ? projRouts.length : 100} />
-                              </div>
-                              {projKey !== '__sem_projeto__' && (
-                                <button
-                                  onClick={() => archivePhase(projKey, projName)}
-                                  title="Encerrar fase — arquivar todas as rotinas deste projeto"
-                                  className="flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-lg border transition-colors hover:bg-red-50"
-                                  style={{ color: '#9CA3AF', borderColor: '#E5E7EB' }}
-                                  onMouseEnter={e => { e.currentTarget.style.color = RED; e.currentTarget.style.borderColor = '#FECACA' }}
-                                  onMouseLeave={e => { e.currentTarget.style.color = '#9CA3AF'; e.currentTarget.style.borderColor = '#E5E7EB' }}
-                                >
-                                  <Archive className="w-3 h-3" /> Encerrar fase
+                          )}
+                          {prs.map(r => {
+                            const doneCycle = isDoneInCycle(r)
+                            const st = getCycleStatus(r)
+                            const overdueFl = !doneCycle && isOverdue(r)
+                            const prof = profMap[r.assigned_to]
+                            const lastDate = lastDone(r.id)
+                            const isLate = st === 'late'
+                            const rowBg = doneCycle ? (isLate ? '#FFFBEB' : '#F0FDF4') : overdueFl ? '#FEF9F9' : '#fff'
+                            return (
+                              <div key={r.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 9, padding: '8px 13px', borderBottom: '1px solid #F9FAFB', cursor: 'pointer', background: rowBg, transition: 'background .1s' }}
+                                onMouseEnter={e => { if (!doneCycle) e.currentTarget.style.background = '#FAFBFF' }}
+                                onMouseLeave={e => e.currentTarget.style.background = rowBg}
+                              >
+                                {/* Checkbox */}
+                                <button onClick={() => toggle(r)} disabled={saving === r.id} style={{
+                                  width: 20, height: 20, borderRadius: '50%', border: `2px solid ${doneCycle ? (isLate ? AMBER : GREEN) : overdueFl ? RED : '#D1D5DB'}`,
+                                  background: doneCycle ? (isLate ? AMBER : GREEN) : '#fff',
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0, marginTop: 1,
+                                  transition: 'all .15s'
+                                }}>
+                                  {saving === r.id
+                                    ? <div style={{ width: 8, height: 8, border: '2px solid currentColor', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+                                    : doneCycle ? <Check style={{ width: 10, height: 10, color: '#fff' }} /> : null
+                                  }
                                 </button>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Cards */}
-                          <div className="px-4 py-3 space-y-2">
-                            {projRouts.map(r => <RoutineCard key={r.id} r={r} />)}
-                          </div>
+                                {/* Content */}
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <div style={{ fontSize: 11.5, fontWeight: 500, color: doneCycle ? '#9CA3AF' : '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textDecoration: doneCycle ? 'line-through' : 'none' }}>
+                                    {r.title}
+                                  </div>
+                                  {r.description && <div style={{ fontSize: 10, color: '#9CA3AF', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.description}</div>}
+                                  {/* Late warning for monthly */}
+                                  {r.frequency === 'mensal' && !doneCycle && (() => {
+                                    const m = r.description?.match(/DIA\s*(\d+)/i); const dueDay = m ? parseInt(m[1]) : null
+                                    const today = new Date().getDate()
+                                    if (!dueDay) return null
+                                    if (today > dueDay) return <div style={{ fontSize: 9.5, fontWeight: 600, color: RED, marginTop: 2 }}>⚠ {today - dueDay}d atrasada · prazo era dia {dueDay}</div>
+                                    if (dueDay - today <= 5) return <div style={{ fontSize: 9.5, fontWeight: 600, color: AMBER, marginTop: 2 }}>⏰ Vence em {dueDay - today}d (dia {dueDay})</div>
+                                    return <div style={{ fontSize: 9.5, color: '#9CA3AF', marginTop: 2 }}>Até dia {dueDay}</div>
+                                  })()}
+                                </div>
+                                {/* Meta */}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0, marginTop: 1 }}>
+                                  {doneCycle && isLate && <span style={{ fontSize: 9.5, fontWeight: 600, padding: '1px 6px', borderRadius: 99, background: '#FEF3C7', color: '#92400E' }}>⏰ atraso</span>}
+                                  {overdueFl && <span style={{ fontSize: 9, fontWeight: 600, padding: '1px 6px', borderRadius: 99, background: '#FEE2E2', color: RED, border: '1px solid #FECACA' }}>atraso</span>}
+                                  {prof && <Avatar prof={prof} size={5} />}
+                                  <button onClick={() => { setActiveView('historico'); setHistRoutine(r); setHistProj(r.project_id) }}
+                                    style={{ width: 22, height: 22, borderRadius: 6, border: '1px solid #EAECF0', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 10 }}>
+                                    📊
+                                  </button>
+                                </div>
+                              </div>
+                            )
+                          })}
                         </div>
                       )
                     })}
                   </div>
-                )}
-              </div>
-            )
-          })}
+                </div>
+              )
+            })}
+          </div>
         </div>
       )}
+
+      {/* ════════════════════════════════════════════════════════════════
+          VIEW: HISTÓRICO — split panel
+      ════════════════════════════════════════════════════════════════ */}
+      {activeView === 'historico' && (
+        <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          {/* Summary bar */}
+          <div style={{ background: '#fff', borderBottom: '1px solid #EAECF0', padding: '8px 20px', display: 'flex', alignItems: 'center', gap: 0, flexShrink: 0 }}>
+            {[
+              { label: 'Geral',    value: compliance + '%', color: compliance >= 80 ? GREEN : AMBER },
+              { label: 'Diárias',  value: (() => { const rs = routines.filter(r=>r.frequency==='diaria'); const d=rs.filter(r=>isDoneInCycle(r)).length; return rs.length ? Math.round(d/rs.length*100)+'%' : '—' })(), color: '#6366F1' },
+              { label: 'Semanais', value: (() => { const rs = routines.filter(r=>r.frequency==='semanal'); const d=rs.filter(r=>isDoneInCycle(r)).length; return rs.length ? Math.round(d/rs.length*100)+'%' : '—' })(), color: '#F59E0B' },
+              { label: 'Mensais',  value: (() => { const rs = routines.filter(r=>r.frequency==='mensal'); const d=rs.filter(r=>isDoneInCycle(r)).length; return rs.length ? Math.round(d/rs.length*100)+'%' : '—' })(), color: GREEN },
+              { label: 'Misses',   value: allOverdue, color: allOverdue > 0 ? RED : GREEN },
+            ].map((k, i, arr) => (
+              <div key={k.label} style={{ padding: '0 14px', borderRight: i < arr.length-1 ? '1px solid #EAECF0' : 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                <div style={{ fontSize: 17, fontWeight: 800, lineHeight: 1, color: k.color }}>{k.value}</div>
+                <div style={{ fontSize: 8.5, fontWeight: 600, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.06em' }}>{k.label}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Panels */}
+          <div style={{ flex: 1, overflow: 'hidden', display: 'flex' }}>
+            {/* Panel A: projects + routines */}
+            <div style={{ width: 260, minWidth: 260, borderRight: '1px solid #EAECF0', display: 'flex', flexDirection: 'column', background: '#FAFBFD', overflow: 'hidden' }}>
+              {/* Project tabs */}
+              <div style={{ padding: '8px 10px 6px', borderBottom: '1px solid #EAECF0', flexShrink: 0 }}>
+                <div style={{ fontSize: 8.5, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.1em', marginBottom: 5, padding: '0 2px' }}>Projetos</div>
+                {projectsWithRoutines.length === 0 ? (
+                  <div style={{ fontSize: 11, color: '#9CA3AF', padding: '4px 2px' }}>Nenhum projeto com rotinas</div>
+                ) : projectsWithRoutines.map(p => {
+                  const prs = routinesByProject[p.id] || []
+                  const ppct = calcCompliance(prs)
+                  const on = histProj === p.id
+                  return (
+                    <button key={p.id} onClick={() => { setHistProj(p.id); if (prs.length) setHistRoutine(prs[0]) }} style={{
+                      display: 'flex', alignItems: 'center', gap: 7, padding: '6px 9px',
+                      borderRadius: 7, cursor: 'pointer', border: `1.5px solid ${on ? 'rgba(84,82,193,.3)' : 'transparent'}`,
+                      background: on ? '#EEF2FF' : 'transparent', fontFamily: 'inherit',
+                      textAlign: 'left', width: '100%', marginBottom: 2, outline: 'none',
+                    }}>
+                      <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#F59E0B', flexShrink: 0 }} />
+                      <span style={{ fontSize: 11.5, fontWeight: on ? 600 : 500, color: on ? VL : '#374151', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
+                      <span style={{ fontSize: 9, padding: '1px 5px', borderRadius: 99, background: on ? '#DDD6FE' : '#EAECF0', color: on ? VL : '#9CA3AF', fontWeight: 600 }}>{prs.length}</span>
+                      <span style={{ fontSize: 10, fontWeight: 700, minWidth: 28, textAlign: 'right', color: ppct >= 80 ? GREEN : ppct >= 60 ? AMBER : RED }}>{ppct}%</span>
+                    </button>
+                  )
+                })}
+              </div>
+
+              {/* Routine list */}
+              <div style={{ flex: 1, overflowY: 'auto' }}>
+                {['diaria', 'semanal', 'mensal'].map(freq => {
+                  const cfg = FREQ_CFG[freq]
+                  const frs = histProj
+                    ? (routinesByProject[histProj] || []).filter(r => r.frequency === freq)
+                    : routines.filter(r => r.frequency === freq)
+                  if (!frs.length) return null
+                  const avg = Math.round(frs.reduce((s,r) => s + (isDoneInCycle(r) ? 100 : 0), 0) / frs.length)
+                  const avgClr = avg >= 80 ? GREEN : avg >= 60 ? AMBER : RED
+                  return (
+                    <div key={freq}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px 3px', position: 'sticky', top: 0, zIndex: 1, background: '#F1F3F7', borderBottom: '1px solid #EAECF0' }}>
+                        <div style={{ width: 6, height: 6, borderRadius: '50%', background: cfg.dot }} />
+                        <span style={{ fontSize: 8.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.09em', color: cfg.dot }}>{cfg.title}</span>
+                        <span style={{ fontSize: 9, fontWeight: 700, marginLeft: 'auto', color: avgClr }}>{avg}%</span>
+                      </div>
+                      {frs.map(r => {
+                        const doneCycle = isDoneInCycle(r)
+                        const st = getCycleStatus(r)
+                        const sd = doneCycle ? (st === 'late' ? AMBER : GREEN) : isOverdue(r) ? RED : '#9CA3AF'
+                        const isSel = histRoutine?.id === r.id
+                        const hasMiss = !doneCycle && isOverdue(r)
+                        return (
+                          <div key={r.id} onClick={() => setHistRoutine(r)} style={{
+                            display: 'flex', alignItems: 'center', gap: 8, padding: '7px 12px',
+                            cursor: 'pointer', borderBottom: '1px solid #F3F4F6',
+                            background: isSel ? '#EEF2FF' : 'transparent',
+                            borderLeft: isSel ? `3px solid ${VL}` : '3px solid transparent',
+                            transition: 'all .1s'
+                          }}>
+                            <div style={{ width: 7, height: 7, borderRadius: '50%', background: sd, flexShrink: 0 }} />
+                            <span style={{ fontSize: 11.5, fontWeight: isSel ? 600 : 400, color: isSel ? VL : '#111827', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.title}</span>
+                            {hasMiss && <span style={{ fontSize: 10, flexShrink: 0 }}>⚠️</span>}
+                            {st === 'late' && <span style={{ fontSize: 9.5, padding: '1px 5px', borderRadius: 99, background: '#FEF3C7', color: '#92400E', flexShrink: 0, fontWeight: 600 }}>⏰</span>}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Panel B: calendar */}
+            <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#fff' }}>
+              {!histRoutine ? (
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#9CA3AF', padding: 40 }}>
+                  <div style={{ fontSize: 48, opacity: .2, marginBottom: 12 }}>📅</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#6B7280', marginBottom: 6 }}>Selecione uma rotina</div>
+                  <div style={{ fontSize: 11.5, textAlign: 'center', lineHeight: 1.6 }}>Escolha um projeto e uma rotina à esquerda para ver o histórico completo</div>
+                </div>
+              ) : (() => {
+                const r = histRoutine
+                const prof = profMap[r.assigned_to]
+                const doneCycle = isDoneInCycle(r)
+                const st = getCycleStatus(r)
+                const freqCfg = {
+                  diaria:  { bg: '#EEF2FF', clr: '#4338CA', lbl: 'Diária' },
+                  semanal: { bg: '#FEF3C7', clr: '#92400E', lbl: 'Semanal' },
+                  mensal:  { bg: '#D1FAE5', clr: '#065F46', lbl: 'Mensal' },
+                }[r.frequency]
+                const allComps = completions.filter(c => c.routine_id === r.id)
+                const okCnt   = allComps.filter(c => c.execution_status !== 'late').length
+                const lateCnt = allComps.filter(c => c.execution_status === 'late').length
+                const covCnt  = allComps.filter(c => c.completed_by !== r.assigned_to).length
+
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+                    {/* Calendar header */}
+                    <div style={{ padding: '14px 18px 10px', borderBottom: '1px solid #EAECF0', flexShrink: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 10 }}>
+                        <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 8px', borderRadius: 99, textTransform: 'uppercase', letterSpacing: '.05em', flexShrink: 0, marginTop: 4, background: freqCfg.bg, color: freqCfg.clr }}>{freqCfg.lbl}</span>
+                        <span style={{ fontSize: 15, fontWeight: 700, color: '#111827', flex: 1, lineHeight: 1.3 }}>{r.title}</span>
+                        {prof && <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: '#6B7280', flexShrink: 0, marginTop: 3 }}><Avatar prof={prof} size={5} />{prof.full_name.split(' ')[0]}</div>}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                          <button onClick={() => archive(r.id)} title="Arquivar" style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid #EAECF0', background: '#fff', cursor: 'pointer', fontSize: 10, color: '#9CA3AF' }}>
+                            <Archive style={{ width: 12, height: 12 }} />
+                          </button>
+                        </div>
+                      </div>
+                      {/* Metrics */}
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        {[
+                          { label: 'No prazo',  value: okCnt,   color: GREEN },
+                          { label: 'Em atraso', value: lateCnt, color: AMBER },
+                          { label: 'Coberturas',value: covCnt,  color: VL   },
+                          { label: 'Ciclo atual',value: doneCycle ? (st === 'late' ? '⏰' : '✅') : '⏳', color: doneCycle ? (st === 'late' ? AMBER : GREEN) : '#9CA3AF' },
+                        ].map(m => (
+                          <div key={m.label} style={{ flex: 1, background: '#F9FAFB', border: '1px solid #EAECF0', borderRadius: 8, padding: '7px 10px', textAlign: 'center' }}>
+                            <div style={{ fontSize: 15, fontWeight: 800, lineHeight: 1, marginBottom: 2, color: m.color }}>{m.value}</div>
+                            <div style={{ fontSize: 8.5, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.06em', fontWeight: 600 }}>{m.label}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Calendar grid */}
+                    <div style={{ flex: 1, overflowY: 'auto', padding: '14px 18px' }}>
+                      {r.frequency === 'diaria' && (() => {
+                        const cells = buildDailyCells(r.id)
+                        const wkH = ['Seg','Ter','Qua','Qui','Sex','Sáb','Dom']
+                        return (
+                          <div>
+                            <div style={{ fontSize: 9, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.1em', marginBottom: 6 }}>
+                              {new Date().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 30px)', gap: 4, marginBottom: 4 }}>
+                              {wkH.map((w, i) => <div key={w} style={{ fontSize: 8, fontWeight: 700, color: '#9CA3AF', textAlign: 'center', opacity: i >= 5 ? .4 : 1 }}>{w}</div>)}
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 30px)', gap: 4 }}>
+                              {cells.map((c, i) => {
+                                const sc = statusColors[c.type] || statusColors.sp
+                                const canMarkLate = c.type === 'miss'
+                                return (
+                                  <div key={i} title={c.type === 'miss' ? `${c.dStr} — Clique para registrar atraso` : c.dStr || ''} onClick={() => canMarkLate && setLateModal({ routine: r, refDate: c.dStr, freq: 'diaria' })}
+                                    style={{
+                                      width: 30, height: 30, borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                      fontSize: 9.5, fontWeight: 600, cursor: canMarkLate ? 'pointer' : 'default',
+                                      position: 'relative', border: `1.5px solid ${sc.border}`,
+                                      background: sc.bg, color: sc.text,
+                                      outline: c.today ? `2px solid ${VL}` : 'none', outlineOffset: 2,
+                                      visibility: c.type === 'sp' ? 'hidden' : 'visible',
+                                      transition: 'transform .1s',
+                                    }}
+                                    onMouseEnter={e => { if (canMarkLate) e.currentTarget.style.transform = 'scale(1.15)' }}
+                                    onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)' }}
+                                  >
+                                    {sc.icon}
+                                    {c.cov && c.type !== 'miss' && <div style={{ position: 'absolute', bottom: 2, right: 2, width: 7, height: 7, borderRadius: '50%', background: c.cov.avatar_color || VL, border: '1.5px solid #fff' }} />}
+                                  </div>
+                                )
+                              })}
+                            </div>
+                            {cells.some(c => c.type === 'miss') && (
+                              <div style={{ marginTop: 10, padding: '8px 11px', background: '#FFF8EE', border: '1px solid #FDE68A', borderRadius: 7, fontSize: 11, color: '#92400E', display: 'flex', alignItems: 'center', gap: 7 }}>
+                                <span>⏰</span>
+                                <span>Clique em qualquer célula <strong>vermelha ✗</strong> para registrar execução com atraso — muda para <strong style={{ color: AMBER }}>amarelo</strong></span>
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })()}
+
+                      {r.frequency === 'semanal' && (() => {
+                        const weeks = buildWeeklyCells(r.id)
+                        return (
+                          <div>
+                            <div style={{ fontSize: 9, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.1em', marginBottom: 10 }}>Semanas — referência: segunda-feira</div>
+                            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                              {weeks.map((w, i) => {
+                                const sc = statusColors[w.status]
+                                const canMarkLate = w.status === 'miss'
+                                const icon = w.status === 'ok' ? '✅' : w.status === 'late' ? '⏰' : w.status === 'miss' ? '❌' : '🔄'
+                                return (
+                                  <div key={i} onClick={() => canMarkLate && setLateModal({ routine: r, refDate: w.wStr, freq: 'semanal' })}
+                                    style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '9px 12px', borderRadius: 9, minWidth: 76, cursor: canMarkLate ? 'pointer' : 'default', border: `1.5px solid ${w.cur ? VL : sc.border}`, background: sc.bg, transition: 'transform .1s' }}
+                                    onMouseEnter={e => { if (canMarkLate) e.currentTarget.style.transform = 'scale(1.04)' }}
+                                    onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)' }}
+                                  >
+                                    <div style={{ fontSize: 15, marginBottom: 3 }}>{icon}</div>
+                                    <div style={{ fontSize: 10, fontWeight: 700, color: sc.text }}>{w.cur ? 'Esta semana' : w.label}</div>
+                                    {w.cov && <div style={{ fontSize: 8.5, color: AMBER, marginTop: 2, display: 'flex', alignItems: 'center', gap: 2 }}><Avatar prof={w.cov} size={3} />{w.cov.full_name?.split(' ')[0]} (cob.)</div>}
+                                  </div>
+                                )
+                              })}
+                            </div>
+                            {weeks.some(w => w.status === 'miss') && (
+                              <div style={{ marginTop: 12, padding: '8px 11px', background: '#FFF8EE', border: '1px solid #FDE68A', borderRadius: 7, fontSize: 11, color: '#92400E', display: 'flex', alignItems: 'center', gap: 7 }}>
+                                <span>⏰</span><span>Clique em qualquer semana <strong>vermelha ❌</strong> para registrar atraso</span>
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })()}
+
+                      {r.frequency === 'mensal' && (() => {
+                        const months = buildMonthlyCells(r.id)
+                        const dueMatch = r.description?.match(/DIA\s*(\d+)/i)
+                        const dueDay = dueMatch ? parseInt(dueMatch[1]) : null
+                        const today = new Date().getDate()
+                        return (
+                          <div>
+                            {dueDay && !isDoneInCycle(r) && today > dueDay && (
+                              <div style={{ background: '#FEF9F9', border: '1px solid #FECACA', borderRadius: 8, padding: '9px 12px', display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: RED, marginBottom: 14 }}>
+                                <span style={{ fontSize: 16 }}>⚠️</span>
+                                <strong>Prazo vencido:</strong> era até dia {dueDay} · {today - dueDay} dias de atraso
+                              </div>
+                            )}
+                            <div style={{ fontSize: 9, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.1em', marginBottom: 10 }}>Meses — referência: dia 1 · 1 execução por mês</div>
+                            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                              {months.map((m, i) => {
+                                const sc = statusColors[m.status]
+                                const canMarkLate = m.status === 'miss'
+                                const icon = m.status === 'ok' ? '✅' : m.status === 'late' ? '⏰' : m.status === 'miss' ? '❌' : '🔄'
+                                return (
+                                  <div key={i} onClick={() => canMarkLate && setLateModal({ routine: r, refDate: m.mk + '-01', freq: 'mensal' })}
+                                    style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '10px 14px', borderRadius: 9, minWidth: 76, cursor: canMarkLate ? 'pointer' : 'default', border: `1.5px solid ${m.cur ? VL : sc.border}`, background: sc.bg, transition: 'transform .1s' }}
+                                    onMouseEnter={e => { if (canMarkLate) e.currentTarget.style.transform = 'scale(1.04)' }}
+                                    onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)' }}
+                                  >
+                                    <div style={{ fontSize: 18, marginBottom: 4 }}>{icon}</div>
+                                    <div style={{ fontSize: 10, fontWeight: 700, color: sc.text }}>{m.label}</div>
+                                    {m.cov && <div style={{ fontSize: 8.5, color: AMBER, marginTop: 2, display: 'flex', alignItems: 'center', gap: 2 }}><Avatar prof={m.cov} size={3} />{m.cov.full_name?.split(' ')[0]} (cob.)</div>}
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        )
+                      })()}
+                    </div>
+
+                    {/* Footer legend */}
+                    <div style={{ borderTop: '1px solid #EAECF0', padding: '10px 18px', background: '#F9FAFB', display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', flexShrink: 0 }}>
+                      {[
+                        { bg: '#D1FAE5', border: '#A7F3D0', label: 'Feito no prazo' },
+                        { bg: '#FEF3C7', border: '#FDE68A', label: 'Feito com atraso', dot: AMBER },
+                        { bg: '#FEE2E2', border: '#FECACA', label: 'Não feito' },
+                        { bg: '#EEF2FF', border: '#DDD6FE', label: 'Pendente' },
+                      ].map(l => (
+                        <div key={l.label} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10.5, color: '#6B7280' }}>
+                          <div style={{ width: 13, height: 13, borderRadius: 3, border: `1.5px solid ${l.border}`, background: l.bg, flexShrink: 0, position: 'relative' }}>
+                            {l.dot && <div style={{ position: 'absolute', bottom: -1, right: -1, width: 6, height: 6, borderRadius: '50%', background: l.dot, border: '1px solid #fff' }} />}
+                          </div>
+                          {l.label}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ════════════════════════════════════════════════════════════════
+          VIEW: PENDÊNCIAS
+      ════════════════════════════════════════════════════════════════ */}
+      {activeView === 'pendencias' && (
+        <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ background: '#fff', borderBottom: '1px solid #EAECF0', padding: '8px 20px', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: '#111827' }}>Pendências & Alertas</span>
+            <span style={{ fontSize: 11, color: '#9CA3AF' }}>· {new Date().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}</span>
+          </div>
+          <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px' }}>
+
+            {/* Críticos */}
+            {pendencias.criticos.length > 0 && (
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ fontSize: 9, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.1em', marginBottom: 8 }}>🔴 Críticos — ação imediata</div>
+                {pendencias.criticos.map((a, i) => {
+                  const proj = projMap[a.routine.project_id]
+                  const prof = profMap[a.routine.assigned_to]
+                  return (
+                    <div key={i} style={{ background: '#fff', border: '1px solid #EAECF0', borderLeft: `3px solid ${RED}`, borderRadius: 10, padding: '13px 15px', marginBottom: 8, display: 'flex', alignItems: 'flex-start', gap: 11 }}>
+                      <div style={{ fontSize: 20, flexShrink: 0, marginTop: 1 }}>🔴</div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 12.5, fontWeight: 600, color: '#111827', marginBottom: 3 }}>
+                          {a.routine.title}
+                          {a.type === 'consecutive_miss' && ` — ${a.count} dias consecutivos sem execução`}
+                          {a.type === 'monthly_overdue' && ` — prazo vencido há ${a.daysLate} dias`}
+                        </div>
+                        <div style={{ fontSize: 11, color: '#6B7280', lineHeight: 1.5, marginBottom: 7 }}>
+                          {proj && <strong>{proj.name}</strong>}{prof && <> · <strong>{prof.full_name}</strong></>}
+                          {a.type === 'monthly_overdue' && <> · prazo era dia {a.dueDay}</>}
+                        </div>
+                        <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: 9, fontWeight: 600, padding: '2px 7px', borderRadius: 99, background: '#FEE2E2', color: '#991B1B' }}>🔴 {FREQ[a.routine.frequency]?.label}</span>
+                        </div>
+                      </div>
+                      <button onClick={() => { setActiveView('historico'); setHistRoutine(a.routine); setHistProj(a.routine.project_id) }}
+                        style={{ fontSize: 11, fontWeight: 600, color: VL, cursor: 'pointer', padding: '5px 10px', borderRadius: 7, border: '1px solid #DDD6FE', background: '#EEF2FF', flexShrink: 0, alignSelf: 'center', outline: 'none' }}>
+                        Ver histórico →
+                      </button>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+
+            {/* Atenção */}
+            {pendencias.atencao.length > 0 && (
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ fontSize: 9, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.1em', marginBottom: 8 }}>🟡 Atenção — monitorar</div>
+                {pendencias.atencao.map((a, i) => {
+                  const proj = projMap[a.routine.project_id]
+                  const prof = profMap[a.routine.assigned_to]
+                  return (
+                    <div key={i} style={{ background: '#fff', border: '1px solid #EAECF0', borderLeft: `3px solid ${AMBER}`, borderRadius: 10, padding: '13px 15px', marginBottom: 8, display: 'flex', alignItems: 'flex-start', gap: 11 }}>
+                      <div style={{ fontSize: 20, flexShrink: 0, marginTop: 1 }}>🟡</div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 12.5, fontWeight: 600, color: '#111827', marginBottom: 3 }}>
+                          {a.routine.title} — {a.count} miss{a.count > 1 ? 'es' : ''} recente{a.count > 1 ? 's' : ''}
+                        </div>
+                        <div style={{ fontSize: 11, color: '#6B7280', marginBottom: 7 }}>
+                          {proj && <strong>{proj.name}</strong>}{prof && <> · <strong>{prof.full_name}</strong></>}
+                        </div>
+                        <div style={{ display: 'flex', gap: 5 }}>
+                          <span style={{ fontSize: 9, fontWeight: 600, padding: '2px 7px', borderRadius: 99, background: '#FEF3C7', color: '#92400E' }}>🟡 {FREQ[a.routine.frequency]?.label}</span>
+                        </div>
+                      </div>
+                      <button onClick={() => { setActiveView('historico'); setHistRoutine(a.routine); setHistProj(a.routine.project_id) }}
+                        style={{ fontSize: 11, fontWeight: 600, color: VL, cursor: 'pointer', padding: '5px 10px', borderRadius: 7, border: '1px solid #DDD6FE', background: '#EEF2FF', flexShrink: 0, alignSelf: 'center', outline: 'none' }}>
+                        Ver histórico →
+                      </button>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+
+            {/* Tardios */}
+            {pendencias.tardios.length > 0 && (
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ fontSize: 9, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.1em', marginBottom: 8 }}>⏰ Executados em atraso — registrados</div>
+                {pendencias.tardios.map((a, i) => {
+                  const proj = projMap[a.routine.project_id]
+                  const prof = profMap[a.routine.assigned_to]
+                  return (
+                    <div key={i} style={{ background: '#fff', border: '1px solid #EAECF0', borderLeft: `3px solid ${VL}`, borderRadius: 10, padding: '13px 15px', marginBottom: 8, display: 'flex', alignItems: 'flex-start', gap: 11 }}>
+                      <div style={{ fontSize: 20, flexShrink: 0, marginTop: 1 }}>⏰</div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 12.5, fontWeight: 600, color: '#111827', marginBottom: 3 }}>
+                          {a.routine.title} — {a.lates.length} execução{a.lates.length > 1 ? 'ões' : ''} com atraso registrada{a.lates.length > 1 ? 's' : ''}
+                        </div>
+                        <div style={{ fontSize: 11, color: '#6B7280', marginBottom: 7 }}>
+                          {proj && <strong>{proj.name}</strong>}{prof && <> · <strong>{prof.full_name}</strong></>}
+                        </div>
+                        <div style={{ display: 'flex', gap: 5 }}>
+                          <span style={{ fontSize: 9, fontWeight: 600, padding: '2px 7px', borderRadius: 99, background: '#EEF2FF', color: VL }}>⏰ {FREQ[a.routine.frequency]?.label} · atraso registrado</span>
+                          <span style={{ fontSize: 9, fontWeight: 600, padding: '2px 7px', borderRadius: 99, background: '#F0FDF4', color: '#065F46' }}>✓ Registrada</span>
+                        </div>
+                      </div>
+                      <button onClick={() => { setActiveView('historico'); setHistRoutine(a.routine); setHistProj(a.routine.project_id) }}
+                        style={{ fontSize: 11, fontWeight: 600, color: VL, cursor: 'pointer', padding: '5px 10px', borderRadius: 7, border: '1px solid #DDD6FE', background: '#EEF2FF', flexShrink: 0, alignSelf: 'center', outline: 'none' }}>
+                        Ver histórico →
+                      </button>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+
+            {/* OK summary */}
+            {pendencias.total === 0 && pendencias.tardios.length === 0 && (
+              <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 10, padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
+                <span style={{ fontSize: 22 }}>✅</span>
+                <div>
+                  <div style={{ fontSize: 12.5, fontWeight: 700, color: '#065F46' }}>Tudo em ordem!</div>
+                  <div style={{ fontSize: 11, color: '#6B7280', marginTop: 2 }}>Todas as rotinas estão em conformidade neste período</div>
+                </div>
+              </div>
+            )}
+
+            {pendencias.total > 0 && (
+              <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 10, padding: '13px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
+                <span style={{ fontSize: 22 }}>✅</span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 12.5, fontWeight: 700, color: '#065F46' }}>{routines.length - pendencias.criticos.length - pendencias.atencao.length} rotinas em conformidade</div>
+                  <div style={{ fontSize: 11, color: '#6B7280', marginTop: 2 }}>Executadas corretamente no período</div>
+                </div>
+                <div style={{ fontSize: 22, fontWeight: 800, color: GREEN }}>{compliance}%</div>
+              </div>
+            )}
+
+          </div>
+        </div>
+      )}
+
+      {/* ── Nova Rotina form ── */}
+      {showForm && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-lg p-6 shadow-2xl">
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-base font-bold text-zinc-800">Nova Rotina</h2>
+              <button onClick={() => setShowForm(false)} className="p-1.5 rounded-lg hover:bg-zinc-100 text-zinc-400"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1.5 block">Título *</label>
+                <input type="text" value={form.title} onChange={e => setForm(p => ({...p, title: e.target.value}))} placeholder="Nome da rotina" className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1.5 block">Frequência</label>
+                  <select value={form.frequency} onChange={e => setForm(p => ({...p, frequency: e.target.value}))} className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:border-violet-500">
+                    <option value="diaria">Diária</option>
+                    <option value="semanal">Semanal</option>
+                    <option value="mensal">Mensal</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1.5 block">Responsável</label>
+                  <select value={form.assigned_to} onChange={e => setForm(p => ({...p, assigned_to: e.target.value}))} className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:border-violet-500">
+                    <option value="">— nenhum —</option>
+                    {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1.5 block">Empresa</label>
+                  <select value={form.company_id} onChange={e => setForm(p => ({...p, company_id: e.target.value, project_id: ''}))} className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:border-violet-500">
+                    <option value="">— nenhuma —</option>
+                    {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1.5 block">Projeto *</label>
+                  <select value={form.project_id} onChange={e => setForm(p => ({...p, project_id: e.target.value}))} className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:border-violet-500">
+                    <option value="">— selecione —</option>
+                    {projectsForForm.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1.5 block">Descrição / Prazo</label>
+                <input type="text" value={form.description} onChange={e => setForm(p => ({...p, description: e.target.value}))} placeholder="Ex: ATÉ DIA 05. Verificar todos os extratos..." className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500" />
+              </div>
+            </div>
+            <div className="flex gap-2 justify-end mt-5">
+              <button onClick={() => setShowForm(false)} className="text-sm text-zinc-500 px-4 py-2 rounded-xl hover:bg-zinc-100">Cancelar</button>
+              <button onClick={createRoutine} className="text-sm font-bold text-white px-5 py-2 rounded-xl" style={{ background: VL }}>Criar rotina</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Late Execution Modal ── */}
+      {lateModal && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={e => { if (e.target === e.currentTarget) setLateModal(null) }}>
+          <div className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl">
+            <div className="flex items-center gap-3 mb-2">
+              <span style={{ fontSize: 22 }}>⏰</span>
+              <h3 className="text-sm font-bold text-zinc-800">Registrar execução em atraso</h3>
+            </div>
+            <p className="text-xs text-zinc-500 mb-4 leading-relaxed">
+              Rotina: <strong>{lateModal.routine.title}</strong><br/>
+              Referência: <strong>{new Date(lateModal.refDate + 'T12:00').toLocaleDateString('pt-BR')}</strong> — não foi marcada no prazo.<br/>
+              Ao registrar, aparecerá em <strong style={{ color: AMBER }}>amarelo ⏰</strong> no calendário.
+            </p>
+            <div className="p-3 rounded-lg mb-4 text-xs" style={{ background: '#FFFBEB', border: '1px solid #FDE68A', color: '#92400E' }}>
+              💡 O registro preserva o histórico real — o dia de referência fica amarelo (feito tarde), não vermelho (não feito).
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1.5 block">Quem executou *</label>
+                <select value={lateWho} onChange={e => setLateWho(e.target.value)} className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:border-violet-500">
+                  <option value="">— selecione —</option>
+                  {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1.5 block">Data em que foi executada *</label>
+                <input type="date" value={lateDate} onChange={e => setLateDate(e.target.value)} className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500" />
+              </div>
+              <div>
+                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1.5 block">Observação (opcional)</label>
+                <input type="text" value={lateObs} onChange={e => setLateObs(e.target.value)} placeholder="Ex: cliente enviou dados com atraso" className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500" />
+              </div>
+            </div>
+            <div className="flex gap-2 justify-end mt-5">
+              <button onClick={() => setLateModal(null)} className="text-sm text-zinc-500 px-4 py-2 rounded-xl hover:bg-zinc-100">Cancelar</button>
+              <button onClick={saveLate} disabled={lateSaving || !lateWho || !lateDate}
+                className="text-sm font-bold text-white px-5 py-2.5 rounded-xl disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                style={{ background: AMBER }}>
+                {lateSaving ? 'Salvando…' : '⏰ Registrar atraso'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   )
 }
