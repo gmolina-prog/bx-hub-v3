@@ -526,7 +526,6 @@ export default function Intakes() {
             })}
           </div>
         </div>
-      )}
 
       {/* Form Novo Intake */}
       {showForm && (
