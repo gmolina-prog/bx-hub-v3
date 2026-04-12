@@ -85,9 +85,13 @@ export default function Portfolio() {
   }), [companies, projects, tasks])
 
   const filteredCompanies = useMemo(() => enrichedCompanies.filter(c => {
+    // Tab filters
+    if (activeTab === 'projetos' && c.projectCount === 0)          return false  // only companies with projects
+    if (activeTab === 'ativos'   && c.activeProjectCount === 0)    return false  // only companies with active projects
     if (activeTab === 'criticos' && c.criticality !== 'critico' && c.criticality !== 'alto') return false
-    if (activeTab === 'ativos' && c.activeProjectCount === 0) return false
+    // criticidade dropdown filter
     if (critFilter !== 'todos' && c.criticality !== critFilter) return false
+    // text search
     if (search.trim()) {
       const q = search.trim().toLowerCase()
       return (c.name || '').toLowerCase().includes(q) || (c.description || '').toLowerCase().includes(q)
@@ -110,8 +114,8 @@ export default function Portfolio() {
 
   const heroTabs = [
     { id: 'empresas', label: 'Empresas',  count: enrichedCompanies.length },
-    { id: 'projetos', label: 'Projetos',  count: totals.projects },
-    { id: 'ativos',   label: 'Ativos',    count: totals.activeProjects },
+    { id: 'projetos', label: 'C/ Projetos', count: enrichedCompanies.filter(c => c.projectCount > 0).length },
+    { id: 'ativos',   label: 'Ativos',    count: enrichedCompanies.filter(c => c.activeProjectCount > 0).length },
     { id: 'criticos', label: 'Críticos',  count: totals.critical + totals.high },
   ]
 
