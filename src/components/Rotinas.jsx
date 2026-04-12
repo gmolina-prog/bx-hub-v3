@@ -258,110 +258,7 @@ function ProgressBar({ done, total, height = 'h-1.5' }) {
         <div className={`${height} rounded-full transition-all duration-500`} style={{ width: `${pct}%`, background: color }} />
       </div>
       <span className="text-[10px] font-bold tabular-nums" style={{ color }}>{done}/{total}</span>
-      {/* ── Edit Routine Modal ── */}
-      {editRoutine && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={e => { if (e.target === e.currentTarget) setEditRoutine(null) }}>
-          <div className="bg-white rounded-2xl w-full max-w-lg p-6 shadow-2xl">
-            <div className="flex items-center justify-between mb-5">
-              <h2 className="text-base font-bold text-zinc-800">✏️ Editar Rotina</h2>
-              <button onClick={() => setEditRoutine(null)} className="p-1.5 rounded-lg hover:bg-zinc-100 text-zinc-400"><X className="w-5 h-5" /></button>
-            </div>
-            <div className="space-y-4">
-              <div>
-                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1.5 block">Título *</label>
-                <input type="text" value={editForm.title} onChange={e => setEditForm(p => ({...p, title: e.target.value}))} className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500" />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1.5 block">Frequência</label>
-                  <select value={editForm.frequency} onChange={e => setEditForm(p => ({...p, frequency: e.target.value}))} className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:border-violet-500">
-                    <option value="diaria">Diária</option>
-                    <option value="semanal">Semanal</option>
-                    <option value="mensal">Mensal</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1.5 block">Responsável</label>
-                  <select value={editForm.assigned_to} onChange={e => setEditForm(p => ({...p, assigned_to: e.target.value}))} className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:border-violet-500">
-                    <option value="">— nenhum —</option>
-                    {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
-                  </select>
-                </div>
-              </div>
-              <div>
-                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1.5 block">Projeto</label>
-                <select value={editForm.project_id} onChange={e => setEditForm(p => ({...p, project_id: e.target.value}))} className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:border-violet-500">
-                  <option value="">— sem projeto —</option>
-                  {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1.5 block">Descrição / Prazo</label>
-                <input type="text" value={editForm.description} onChange={e => setEditForm(p => ({...p, description: e.target.value}))} placeholder="Ex: ATÉ DIA 05." className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500" />
-              </div>
-            </div>
-            <div className="flex items-center justify-between mt-5">
-              <div className="flex gap-2">
-                <button onClick={() => { archive(editRoutine.id); setEditRoutine(null) }} className="text-xs text-zinc-400 hover:text-zinc-600 px-3 py-2 rounded-lg hover:bg-zinc-100">📦 Arquivar</button>
-                <button onClick={() => { const r = editRoutine; setEditRoutine(null); deleteRoutine(r) }} className="text-xs text-red-400 hover:text-red-600 px-3 py-2 rounded-lg hover:bg-red-50">🗑️ Excluir</button>
-              </div>
-              <div className="flex gap-2">
-                <button onClick={() => setEditRoutine(null)} className="text-sm text-zinc-500 px-4 py-2 rounded-xl hover:bg-zinc-100">Cancelar</button>
-                <button onClick={saveEdit} className="text-sm font-bold text-white px-5 py-2 rounded-xl" style={{ background: VL }}>Salvar</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
-    </div>
-  )
-}
-
-// Gráfico de histórico mensal para uma rotina
-function MonthlyHistoryChart({ routineId, frequency, completions }) {
-  const months = useMemo(() => {
-    const result = []
-    const now = new Date()
-    for (let i = 5; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
-      result.push(monthKey(d))
-    }
-    return result
-  }, [])
-
-  const data = useMemo(() => {
-    return months.map(mk => {
-      const relevant = completions.filter(c => {
-        const dateStr = c.reference_date || c.completed_at?.slice(0, 10) || ''
-        return c.routine_id === routineId && dateStr.startsWith(mk)
-      })
-      const executions = relevant.length
-      let target = 1 // mensal/semanal: 1 execução no mês é ok
-      if (frequency === 'semanal') target = 4
-      if (frequency === 'diaria') target = workDaysInMonth(mk)
-      const pct = target > 0 ? Math.min(100, Math.round(executions / target * 100)) : 0
-      return { mk, executions, target, pct }
-    })
-  }, [months, completions, routineId, frequency])
-
-  return (
-    <div className="mt-3 pt-3 border-t border-zinc-100">
-      <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-2 flex items-center gap-1">
-        <BarChart2 className="w-3 h-3" /> Histórico 6 meses
-      </div>
-      <div className="flex items-end gap-1 h-10">
-        {data.map(d => {
-          const color = d.pct === 100 ? GREEN : d.pct >= 60 ? AMBER : d.pct > 0 ? VL : '#E5E7EB'
-          const barH = d.pct > 0 ? Math.max(4, Math.round(d.pct / 100 * 40)) : 3
-          return (
-            <div key={d.mk} className="flex-1 flex flex-col items-center gap-0.5" title={`${monthLabel(d.mk)}: ${d.executions}/${d.target} (${d.pct}%)`}>
-              <div className="w-full rounded-t-sm transition-all" style={{ height: barH, background: color }} />
-              <span className="text-[8px] text-zinc-400 leading-none">{monthLabel(d.mk).split('/')[0]}</span>
-            </div>
-          )
-        })}
-      </div>
     </div>
   )
 }
@@ -1655,6 +1552,62 @@ export default function Rotinas() {
                 style={{ background: AMBER }}>
                 {lateSaving ? 'Salvando…' : '⏰ Registrar atraso'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Edit Routine Modal ── */}
+      {editRoutine && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={e => { if (e.target === e.currentTarget) setEditRoutine(null) }}>
+          <div className="bg-white rounded-2xl w-full max-w-lg p-6 shadow-2xl">
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-base font-bold text-zinc-800">✏️ Editar Rotina</h2>
+              <button onClick={() => setEditRoutine(null)} className="p-1.5 rounded-lg hover:bg-zinc-100 text-zinc-400"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1.5 block">Título *</label>
+                <input type="text" value={editForm.title} onChange={e => setEditForm(p => ({...p, title: e.target.value}))} className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1.5 block">Frequência</label>
+                  <select value={editForm.frequency} onChange={e => setEditForm(p => ({...p, frequency: e.target.value}))} className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:border-violet-500">
+                    <option value="diaria">Diária</option>
+                    <option value="semanal">Semanal</option>
+                    <option value="mensal">Mensal</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1.5 block">Responsável</label>
+                  <select value={editForm.assigned_to} onChange={e => setEditForm(p => ({...p, assigned_to: e.target.value}))} className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:border-violet-500">
+                    <option value="">— nenhum —</option>
+                    {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1.5 block">Projeto</label>
+                <select value={editForm.project_id} onChange={e => setEditForm(p => ({...p, project_id: e.target.value}))} className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:border-violet-500">
+                  <option value="">— sem projeto —</option>
+                  {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1.5 block">Descrição / Prazo</label>
+                <input type="text" value={editForm.description} onChange={e => setEditForm(p => ({...p, description: e.target.value}))} placeholder="Ex: ATÉ DIA 05." className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500" />
+              </div>
+            </div>
+            <div className="flex items-center justify-between mt-5">
+              <div className="flex gap-2">
+                <button onClick={() => { archive(editRoutine.id); setEditRoutine(null) }} className="text-xs text-zinc-400 hover:text-zinc-600 px-3 py-2 rounded-lg hover:bg-zinc-100">📦 Arquivar</button>
+                <button onClick={() => { const r = editRoutine; setEditRoutine(null); deleteRoutine(r) }} className="text-xs text-red-400 hover:text-red-600 px-3 py-2 rounded-lg hover:bg-red-50">🗑️ Excluir</button>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => setEditRoutine(null)} className="text-sm text-zinc-500 px-4 py-2 rounded-xl hover:bg-zinc-100">Cancelar</button>
+                <button onClick={saveEdit} className="text-sm font-bold text-white px-5 py-2 rounded-xl" style={{ background: VL }}>Salvar</button>
+              </div>
             </div>
           </div>
         </div>
