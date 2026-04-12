@@ -355,15 +355,16 @@ export default function Intakes() {
   return (
     <div className="p-6 max-w-[1600px] mx-auto">
       {/* Hero */}
-      <div className="bg-gradient-to-br from-zinc-800 to-zinc-900 rounded-2xl p-6 mb-6 text-white">
-        <div className="flex items-start justify-between mb-4 flex-wrap gap-4">
+      <div className="rounded-2xl mb-6 text-white" style={{ background: '#2D2E39', padding: 0 }}>
+        <div style={{ padding: '20px 24px 0' }}>
+        <div className="flex items-start justify-between mb-3 flex-wrap gap-4">
           <div>
-            <div className="text-xs font-bold uppercase tracking-wider text-violet-300 mb-1 flex items-center gap-2">
-              <Inbox className="w-3 h-3" />
-              Gestão de captação de demandas
+            <div style={{ fontSize: 9.5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.12em', color: '#818CF8', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 5 }}>
+              <Inbox style={{ width: 11, height: 11 }} />
+              Gestão de Captação de Demandas
             </div>
-            <h1 className="text-2xl font-bold mb-1">📥 Intakes</h1>
-            <p className="text-sm text-zinc-300">
+            <h1 className="text-[21px] font-bold mb-0.5">Intakes · Pipeline de Oportunidades</h1>
+            <p style={{ fontSize: 11.5, color: '#6B7280', marginBottom: 0 }}>
               {kpis.total} {kpis.total === 1 ? 'intake registrado' : 'intakes registrados'}
               {kpis.urgentes > 0 && ` · ${kpis.urgentes} urgente${kpis.urgentes > 1 ? 's' : ''}`}
             </p>
@@ -387,13 +388,46 @@ export default function Intakes() {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-4">
           <Kpi label="Total" value={kpis.total} icon={Inbox} accent="violet" />
           <Kpi label="Novos" value={kpis.novos} icon={Zap} accent="sky" />
           <Kpi label="Em análise" value={kpis.emAnalise} icon={Clock} accent="amber" />
           <Kpi label="Convertidos" value={kpis.convertidos} sub={`${kpis.conversionRate}% taxa`} icon={CheckCircle} accent="emerald" />
           <Kpi label="Valor estimado" value={formatCurrency(kpis.totalValue)} icon={DollarSign} accent="violet" />
         </div>
+
+        {/* Tabs */}
+        <div className="flex gap-1 overflow-x-auto">
+          {[
+            { id: 'all', label: 'Pipeline', icon: Target },
+            ...STATUSES
+          ].map(tab => {
+            const on = filterStatus === (tab.id === 'all' ? 'all' : tab.id)
+            const cnt = tab.id === 'all' ? intakes.length : (byStatus[tab.id] || []).length
+            const Icon = tab.icon || Target
+            return (
+              <button key={tab.id}
+                onClick={() => setFilterStatus(tab.id)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 5,
+                  padding: '9px 14px', fontSize: 12, fontWeight: on ? 600 : 500,
+                  borderRadius: '8px 8px 0 0', cursor: 'pointer', whiteSpace: 'nowrap',
+                  border: '1px solid transparent', borderBottom: 'none', outline: 'none',
+                  background: on ? 'white' : 'transparent',
+                  color: on ? '#5452C1' : '#6B7280',
+                  borderColor: on ? 'rgba(255,255,255,.12)' : 'transparent',
+                  transition: 'all .12s',
+                }}>
+                <Icon style={{ width: 12, height: 12 }} />
+                {tab.label}
+                <span style={{ fontSize: 9.5, fontWeight: 600, padding: '1px 5px', borderRadius: 99, background: on ? '#EEF2FF' : 'rgba(255,255,255,.1)', color: on ? '#5452C1' : '#9CA3AF' }}>
+                  {cnt}
+                </span>
+              </button>
+            )
+          })}
+        </div>
+        </div>{/* /inner padding */}
       </div>
 
       {successMsg && (
@@ -443,31 +477,52 @@ export default function Intakes() {
         </div>
       </div>
 
-      {/* Pipeline visual */}
-      {!loading && intakes.length > 0 && (
-        <div className="bg-white border border-zinc-200 rounded-xl p-5 mb-6">
-          <h2 className="text-sm font-bold text-zinc-800 mb-4 flex items-center gap-2">
+      {/* Pipeline Kanban */}
+      <div className="bg-white border border-zinc-200 rounded-xl p-4 mb-4">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-sm font-bold text-zinc-800 flex items-center gap-2">
             <Layers className="w-4 h-4 text-violet-600" />
             Pipeline de captação
           </h2>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-            {STATUSES.map(stage => {
-              const list = byStatus[stage.id] || []
-              const Icon = stage.icon
-              const colors = {
-                sky:     'bg-sky-50 border-sky-200 text-sky-700',
-                violet:  'bg-violet-50 border-violet-200 text-violet-700',
-                amber:   'bg-amber-50 border-amber-200 text-amber-800',
-                emerald: 'bg-emerald-50 border-emerald-200 text-emerald-700',
-                rose:    'bg-rose-50 border-rose-200 text-rose-700',
-              }
-              return (
-                <div key={stage.id} className={`${colors[stage.color]} border-2 rounded-xl p-4 text-center cursor-pointer hover:shadow-md transition-shadow`} onClick={() => setFilterStatus(stage.id)}>
-                  <Icon className="w-5 h-5 mx-auto mb-2" />
-                  <div className="text-[10px] font-bold uppercase tracking-wide">{stage.label}</div>
-                  <div className="text-3xl font-bold mt-1">{list.length}</div>
+          <span className="text-xs text-zinc-400">{intakes.length} intake{intakes.length !== 1 ? 's' : ''}</span>
+        </div>
+        <div className="flex gap-3 overflow-x-auto pb-1">
+          {STATUSES.map(stage => {
+            const list = byStatus[stage.id] || []
+            const stageColors = {
+              sky:     { header: '#F0F9FF', hborder: '#BAE6FD', dot: '#0EA5E9', text: '#0369A1', bodyBg: '#F0F9FF', border: '#BAE6FD', cardBorder: '#0EA5E9' },
+              violet:  { header: '#EEF2FF', hborder: '#DDD6FE', dot: '#818CF8', text: '#4338CA', bodyBg: '#F5F3FF', border: '#DDD6FE', cardBorder: '#6366F1' },
+              amber:   { header: '#FFFBEB', hborder: '#FDE68A', dot: '#EAB308', text: '#92400E', bodyBg: '#FEFCE8', border: '#FDE68A', cardBorder: '#F59E0B' },
+              emerald: { header: '#F0FDF4', hborder: '#BBF7D0', dot: '#22C55E', text: '#065F46', bodyBg: '#F0FDF4', border: '#BBF7D0', cardBorder: '#10B981' },
+              rose:    { header: '#FEF2F2', hborder: '#FECACA', dot: '#EF4444', text: '#991B1B', bodyBg: '#FEF9F9', border: '#FECACA', cardBorder: '#EF4444' },
+            }
+            const sc = stageColors[stage.color] || stageColors.sky
+            const Icon = stage.icon
+            return (
+              <div key={stage.id} style={{ flex: '0 0 170px', minWidth: 0 }}>
+                <div style={{ background: sc.header, border: `0.5px solid ${sc.hborder}`, borderRadius: '8px 8px 0 0', padding: '8px 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 500, color: sc.text }}>
+                    <span style={{ width: 7, height: 7, borderRadius: '50%', background: sc.dot, display: 'inline-block' }} />
+                    {stage.label}
+                  </span>
+                  <span style={{ fontSize: 9, background: 'white', border: `0.5px solid ${sc.hborder}`, borderRadius: 99, padding: '1px 5px', color: sc.text, fontWeight: 600 }}>{list.length}</span>
                 </div>
-              )
+                <div style={{ border: `0.5px solid ${sc.border}`, borderTop: 'none', borderRadius: '0 0 8px 8px', padding: 6, minHeight: 70, background: sc.bodyBg }}>
+                  {list.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '12px 0', fontSize: 10, color: '#9CA3AF' }}>Vazio</div>
+                  ) : list.slice(0,3).map(it => (
+                    <div key={it.id} style={{ background: 'white', borderRadius: 6, padding: '7px 8px', marginBottom: 4, borderLeft: `2px solid ${sc.cardBorder}`, fontSize: 10, cursor: 'pointer' }}
+                      onMouseEnter={e => e.currentTarget.style.boxShadow='0 2px 6px rgba(0,0,0,.08)'}
+                      onMouseLeave={e => e.currentTarget.style.boxShadow='none'}>
+                      <div style={{ fontWeight: 600, color: '#111827', marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 11 }}>{it.company_name || 'Sem nome'}</div>
+                      {it.estimated_value && <div style={{ color: sc.dot, fontSize: 10, fontWeight: 600 }}>{formatCurrency(it.estimated_value)}</div>}
+                      {it.urgency === 'critica' || it.urgency === 'alta' ? <span style={{ fontSize: 8.5, background: '#FEF2F2', color: '#EF4444', padding: '1px 5px', borderRadius: 99, fontWeight: 600 }}>⚡ Urgente</span> : null}
+                    </div>
+                  ))}
+                  {list.length > 3 && <div style={{ fontSize: 10, color: sc.dot, textAlign: 'center', padding: '3px 0' }}>+{list.length - 3} mais</div>}
+                </div>
+              </div>
+            )
             })}
           </div>
         </div>
