@@ -875,6 +875,36 @@ export default function Rotinas() {
             style={{ width: `${viewMode === 'today' ? compliance : monthComp}%`,
                      background: (viewMode === 'today' ? compliance : monthComp) >= 80 ? GREEN : (viewMode === 'today' ? compliance : monthComp) >= 50 ? AMBER : VL }} />
         </div>
+        {/* Tabs com contadores */}
+        <div className="flex gap-1 mt-4">
+          {[
+            { id: 'all',     label: 'Todas',    count: routines.length },
+            { id: 'diaria',  label: 'Diárias',  count: routines.filter(r => r.frequency === 'diaria').length },
+            { id: 'semanal', label: 'Semanais', count: routines.filter(r => r.frequency === 'semanal').length },
+            { id: 'mensal',  label: 'Mensais',  count: routines.filter(r => r.frequency === 'mensal').length },
+          ].map(tab => {
+            const on = filterFreq === (tab.id === 'all' ? 'all' : tab.id)
+            return (
+              <button key={tab.id}
+                onClick={() => setFilterFreq(tab.id === 'all' ? 'all' : tab.id)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 5, padding: '8px 13px',
+                  fontSize: 12, fontWeight: on ? 600 : 500, borderRadius: '8px 8px 0 0',
+                  cursor: 'pointer', whiteSpace: 'nowrap', outline: 'none',
+                  border: '1px solid transparent', borderBottom: 'none',
+                  background: on ? 'white' : 'transparent',
+                  color: on ? VL : '#6B7280',
+                  borderColor: on ? 'rgba(255,255,255,.12)' : 'transparent',
+                  transition: 'all .12s',
+                }}>
+                {tab.label}
+                <span style={{ fontSize: 9.5, fontWeight: 600, padding: '1px 5px', borderRadius: 99, background: on ? '#EEF2FF' : 'rgba(255,255,255,.1)', color: on ? VL : '#9CA3AF' }}>
+                  {tab.count}
+                </span>
+              </button>
+            )
+          })}
+        </div>
       </div>
 
       {/* Controls */}
@@ -996,15 +1026,36 @@ export default function Rotinas() {
           <RefreshCw className="w-5 h-5 mx-auto mb-2 animate-spin text-zinc-300" />Carregando…
         </div>
       ) : filtered.length === 0 ? (
-        <div className="bg-white border border-zinc-100 rounded-2xl p-14 text-center">
-          <BookOpen className="w-10 h-10 text-zinc-200 mx-auto mb-3" />
-          <div className="text-sm text-zinc-500 font-medium">Nenhuma rotina encontrada</div>
-          <div className="text-xs text-zinc-400 mt-1 mb-4">Crie uma rotina avulsa ou aplique um dos 7 templates pré-montados</div>
-          <button onClick={() => setShowTemplates(true)}
-            className="flex items-center gap-2 text-sm font-bold px-4 py-2 rounded-xl mx-auto hover:opacity-90"
-            style={{ background: VL, color: '#fff' }}>
-            <BookOpen className="w-4 h-4" /> Ver templates
-          </button>
+        <div className="bg-white border border-zinc-100 rounded-2xl p-6">
+          <div className="text-center mb-8">
+            <BookOpen className="w-10 h-10 text-zinc-200 mx-auto mb-3" />
+            <div className="text-sm font-semibold text-zinc-600 mb-1">Nenhuma rotina ativa</div>
+            <div className="text-xs text-zinc-400 mb-4">Aplique um template pré-montado ou crie uma rotina avulsa para começar</div>
+            <button onClick={() => setShowForm(v => !v)}
+              className="inline-flex items-center gap-2 text-sm font-bold px-4 py-2 rounded-xl hover:opacity-90 mr-2"
+              style={{ background: VL, color: '#fff' }}>
+              <Plus className="w-4 h-4" /> Nova rotina
+            </button>
+          </div>
+          <div className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-4 text-center">Templates pré-montados</div>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {TEMPLATE_LIBRARY.map(tpl => (
+              <button key={tpl.id} onClick={() => { setShowTemplates(true) }}
+                className="text-left p-4 rounded-xl border-2 border-zinc-100 hover:border-violet-300 hover:bg-violet-50 transition-all group"
+                style={{ borderLeftWidth: 3, borderLeftColor: tpl.color }}>
+                <div className="text-2xl mb-3">{tpl.icon}</div>
+                <div className="text-xs font-bold text-zinc-800 mb-1 leading-snug group-hover:text-violet-700">{tpl.label}</div>
+                <div className="text-[10px] text-zinc-400 leading-snug mb-3 line-clamp-2">{tpl.desc}</div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                    style={{ background: tpl.color + '18', color: tpl.color }}>
+                    {tpl.routines.length} rotinas
+                  </span>
+                  <span className="text-[10px] text-zinc-400 group-hover:text-violet-600 font-semibold">Aplicar →</span>
+                </div>
+              </button>
+            ))}
+          </div>
         </div>
       ) : (
         <div className="space-y-5">
