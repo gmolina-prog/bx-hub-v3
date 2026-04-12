@@ -480,7 +480,7 @@ export default function Produtividade() {
                 const p = u.profile
                 const initials = p.initials || (p.full_name || '?').split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase()
                 const avatarBg = p.avatar_color || '#5452C1'
-                const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : null
+                const medal = u.score > 0 ? (idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : null) : null
                 const scoreColor = u.score >= 100 ? '#10B981' : u.score >= 50 ? '#5452C1' : u.score > 0 ? '#6B7280' : '#EF4444'
                 const scoreBg   = u.score >= 100 ? '#ECFDF5' : u.score >= 50 ? '#EEF2FF' : u.score > 0 ? '#F4F5F8' : '#FEF2F2'
                 const maxScore = Math.max(...userScores.map(x => x.score), 1)
