@@ -519,152 +519,16 @@ export default function Cadastro() {
   return (
     <>
     {/* B-187: Modal de edição de empresa */}
+    {/* ── Modal Editar Empresa — usa NovaEmpresaModal completo (com IA) ── */}
     {editingCompany && (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
-        style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}
-        onClick={e => e.target === e.currentTarget && setEditingCompany(null)}>
-        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden"
-          style={{ maxHeight: '92vh', borderTop: '3px solid #5452C1' }}>
-          <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-100">
-            <div>
-              <h3 className="text-base font-bold text-zinc-800">Editar Empresa</h3>
-              <p className="text-[10px] text-zinc-400">{editingCompany.name}</p>
-            </div>
-            <button onClick={() => setEditingCompany(null)} className="text-zinc-400 hover:text-zinc-600"><X className="w-5 h-5" /></button>
-          </div>
-          <div className="overflow-y-auto px-6 py-5 space-y-4" style={{ maxHeight: 'calc(92vh - 140px)' }}>
-
-            {/* Identificação */}
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 block mb-1.5">Razão Social *</label>
-                <input className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
-                  value={editCompanyForm.name || ''} onChange={e => setEditCompanyForm(p => ({...p, name: e.target.value}))} />
-              </div>
-              <div>
-                <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 block mb-1.5">Nome Fantasia</label>
-                <input className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
-                  value={editCompanyForm.trading_name || ''} onChange={e => setEditCompanyForm(p => ({...p, trading_name: e.target.value}))} />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 block mb-1.5">CNPJ</label>
-                <input className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500 font-mono"
-                  value={editCompanyForm.cnpj || ''} onChange={e => setEditCompanyForm(p => ({...p, cnpj: e.target.value}))} />
-              </div>
-              <div>
-                <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 block mb-1.5">Website</label>
-                <input className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
-                  placeholder="https://"
-                  value={editCompanyForm.website || ''} onChange={e => setEditCompanyForm(p => ({...p, website: e.target.value}))} />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-3 gap-3">
-              <div>
-                <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 block mb-1.5">Segmento</label>
-                <select className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
-                  value={editCompanyForm.segment || ''} onChange={e => setEditCompanyForm(p => ({...p, segment: e.target.value}))}>
-                  <option value="">—</option>
-                  {['Financeiro','Indústria','Varejo / Distribuição','Serviços','Construção / Imobiliário','Saúde','Tecnologia','Educação','Alimentos / Bebidas','Agronegócio','Energia','Logística','Outros'].map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 block mb-1.5">Criticidade</label>
-                <select className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
-                  value={editCompanyForm.criticality || 'medio'} onChange={e => setEditCompanyForm(p => ({...p, criticality: e.target.value}))}>
-                  <option value="baixo">🟢 Baixo</option>
-                  <option value="medio">🟡 Médio</option>
-                  <option value="alto">🟠 Alto</option>
-                  <option value="critico">🔴 Crítico</option>
-                </select>
-              </div>
-              <div>
-                <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 block mb-1.5">Status</label>
-                <select className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
-                  value={editCompanyForm.status || 'ativo'} onChange={e => setEditCompanyForm(p => ({...p, status: e.target.value}))}>
-                  <option value="ativo">✅ Ativo</option>
-                  <option value="prospect">🔍 Prospect</option>
-                  <option value="inativo">⏸ Inativo</option>
-                  <option value="arquivado">📦 Arquivado</option>
-                </select>
-              </div>
-            </div>
-
-            {/* Endereço */}
-            <div className="border-t border-zinc-100 pt-4">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-3">Endereço</p>
-              <div className="grid grid-cols-4 gap-3">
-                <div className="col-span-3">
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 block mb-1.5">Logradouro</label>
-                  <input className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
-                    value={editCompanyForm.address || ''} onChange={e => setEditCompanyForm(p => ({...p, address: e.target.value}))} />
-                </div>
-                <div>
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 block mb-1.5">CEP</label>
-                  <input className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500 font-mono"
-                    value={editCompanyForm.zip_code || ''} onChange={e => setEditCompanyForm(p => ({...p, zip_code: e.target.value}))} />
-                </div>
-              </div>
-              <div className="grid grid-cols-4 gap-3 mt-3">
-                <div className="col-span-3">
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 block mb-1.5">Cidade</label>
-                  <input className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
-                    value={editCompanyForm.city || ''} onChange={e => setEditCompanyForm(p => ({...p, city: e.target.value}))} />
-                </div>
-                <div>
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 block mb-1.5">UF</label>
-                  <input className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
-                    maxLength={2} value={editCompanyForm.state || ''}
-                    onChange={e => setEditCompanyForm(p => ({...p, state: e.target.value.toUpperCase()}))} />
-                </div>
-              </div>
-            </div>
-
-            {/* Contato */}
-            <div className="border-t border-zinc-100 pt-4">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-3">Contato</p>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 block mb-1.5">Nome do contato</label>
-                  <input className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
-                    value={editCompanyForm.contact_name || ''} onChange={e => setEditCompanyForm(p => ({...p, contact_name: e.target.value}))} />
-                </div>
-                <div>
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 block mb-1.5">Telefone</label>
-                  <input className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
-                    value={editCompanyForm.contact_phone || ''} onChange={e => setEditCompanyForm(p => ({...p, contact_phone: e.target.value}))} />
-                </div>
-              </div>
-              <div className="mt-3">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 block mb-1.5">Email</label>
-                <input type="email" className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
-                  value={editCompanyForm.contact_email || ''} onChange={e => setEditCompanyForm(p => ({...p, contact_email: e.target.value}))} />
-              </div>
-            </div>
-
-            {/* Observações */}
-            <div className="border-t border-zinc-100 pt-4">
-              <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 block mb-1.5">Observações internas</label>
-              <textarea rows={3} className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500 resize-none"
-                value={editCompanyForm.notes || ''} onChange={e => setEditCompanyForm(p => ({...p, notes: e.target.value}))} />
-            </div>
-          </div>
-
-          {/* Footer */}
-          <div className="border-t border-zinc-100 px-6 py-4 flex gap-3 bg-white shrink-0">
-            <button onClick={() => setEditingCompany(null)}
-              className="flex-1 py-2.5 text-sm text-zinc-500 border border-zinc-200 rounded-xl hover:bg-zinc-50">Cancelar</button>
-            <button onClick={updateCompany} disabled={saving || !editCompanyForm.name?.trim()}
-              className="flex-1 py-2.5 text-sm font-bold text-white rounded-xl disabled:opacity-50"
-              style={{ background: '#5452C1' }}>
-              {saving ? 'Salvando…' : 'Salvar alterações'}
-            </button>
-          </div>
-        </div>
-      </div>
+      <NovaEmpresaModal
+        initialData={editingCompany}
+        onClose={() => setEditingCompany(null)}
+        onSave={(updated) => {
+          setCompanies(prev => prev.map(c => c.id === updated.id ? updated : c))
+          setEditingCompany(null)
+        }}
+      />
     )}
 
     {/* ── Modal Editar Colaborador ── */}
@@ -840,84 +704,20 @@ export default function Cadastro() {
     )}
 
 
-    {/* ── Modal Editar Projeto ── */}
+    {/* ── Modal Editar Projeto — usa NovoProjetoModal completo (com IA) ── */}
     {editingProject && (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
-        style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)' }}
-        onClick={e => e.target === e.currentTarget && setEditingProject(null)}>
-        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6">
-          <div className="flex items-center justify-between mb-5">
-            <h3 className="text-lg font-bold text-zinc-800">Editar Projeto</h3>
-            <button onClick={() => setEditingProject(null)} className="text-zinc-400 hover:text-zinc-600"><X className="w-5 h-5" /></button>
-          </div>
-          <div className="space-y-3">
-            <div>
-              <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 block mb-1">Nome do projeto *</label>
-              <input className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
-                value={editProjectForm.name || ''}
-                onChange={e => setEditProjectForm(p => ({ ...p, name: e.target.value }))} />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 block mb-1">Tipo</label>
-                <select className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
-                  value={editProjectForm.type || 'Diagnóstico'}
-                  onChange={e => setEditProjectForm(p => ({ ...p, type: e.target.value }))}>
-                  {['Diagnóstico','RJ','M&A','Reestruturação','Assessoria'].map(t => <option key={t} value={t}>{t}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 block mb-1">Status</label>
-                <select className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
-                  value={editProjectForm.status || 'Em andamento'}
-                  onChange={e => setEditProjectForm(p => ({ ...p, status: e.target.value }))}>
-                  {['Em andamento','Planejamento','Concluído','Pausado','Cancelado'].map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 block mb-1">Prazo</label>
-                <input type="date" className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
-                  value={editProjectForm.deadline || ''}
-                  onChange={e => setEditProjectForm(p => ({ ...p, deadline: e.target.value }))} />
-              </div>
-              <div>
-                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 block mb-1">Orçamento (R$)</label>
-                <input type="number" className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
-                  placeholder="0,00"
-                  value={editProjectForm.budget || ''}
-                  onChange={e => setEditProjectForm(p => ({ ...p, budget: e.target.value }))} />
-              </div>
-            </div>
-            <div>
-              <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 block mb-1">Empresa cliente</label>
-              <select className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
-                value={editProjectForm.company_id || ''}
-                onChange={e => setEditProjectForm(p => ({ ...p, company_id: e.target.value }))}>
-                <option value="">— nenhuma —</option>
-                {companies.map(co => <option key={co.id} value={co.id}>{co.name}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 block mb-1">Observações</label>
-              <textarea rows={2} className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500 resize-none"
-                value={editProjectForm.observacoes || ''}
-                onChange={e => setEditProjectForm(p => ({ ...p, observacoes: e.target.value }))} />
-            </div>
-          </div>
-          <div className="flex gap-3 mt-5">
-            <button onClick={() => setEditingProject(null)}
-              className="flex-1 py-2.5 text-sm text-zinc-500 border border-zinc-200 rounded-xl hover:bg-zinc-50">Cancelar</button>
-            <button onClick={saveProject} disabled={saving || !editProjectForm.name?.trim()}
-              className="flex-1 py-2.5 text-sm font-bold text-white rounded-xl disabled:opacity-50 hover:opacity-90 transition-opacity"
-              style={{ background: '#5452C1' }}>
-              {saving ? 'Salvando…' : 'Salvar alterações'}
-            </button>
-          </div>
-        </div>
-      </div>
+      <NovoProjetoModal
+        initialData={editingProject}
+        companies={companies}
+        profiles={profiles}
+        onClose={() => setEditingProject(null)}
+        onSave={(updated) => {
+          setProjects(prev => prev.map(p => p.id === updated.id ? updated : p))
+          setEditingProject(null)
+        }}
+      />
     )}
+
 
     <div className="p-6 max-w-[1600px] mx-auto">
       {/* Hero */}
