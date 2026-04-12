@@ -397,7 +397,7 @@ export default function Produtividade() {
                 </div>
               </div>
               <div className="text-6xl">
-                {myStats.rank === 1 ? '🏆' : myStats.rank === 2 ? '🥈' : myStats.rank === 3 ? '🥉' : '⭐'}
+                {myStats.score > 0 ? (myStats.rank === 1 ? '🏆' : myStats.rank === 2 ? '🥈' : myStats.rank === 3 ? '🥉' : '⭐') : '📊'}
               </div>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
