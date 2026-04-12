@@ -96,6 +96,16 @@ const PROJECT_TEMPLATES = {
   },
 }
 
+
+// Deterministic project color for Gantt bars
+const GANTT_COLORS = ['#F59E0B','#EF4444','#6366F1','#10B981','#EC4899','#8B5CF6','#3B82F6','#14B8A6','#F97316','#06B6D4']
+function ganttColor(id) {
+  if (!id) return '#5452C1'
+  let h = 0
+  for (const c of String(id)) h = (h << 5) - h + c.charCodeAt(0)
+  return GANTT_COLORS[Math.abs(h) % GANTT_COLORS.length]
+}
+
 export default function Timeline() {
   const { profile } = useData()
   usePageTitle('Projetos')
@@ -472,10 +482,10 @@ export default function Timeline() {
                     {months.map((m, i) => <div key={i} className="absolute top-0 bottom-0 border-l border-zinc-100" style={{ left: `${m.pct}%` }} />)}
                     <div className="absolute top-0 bottom-0 border-l border-violet-300 border-dashed z-10" style={{ left: `${Math.round((now - minDate) / 86400000 / totalDays * 100)}%` }} />
                     <div className="absolute h-7 rounded-lg overflow-hidden z-20 min-w-[60px]" style={{ left: `${left}%`, width: `${width}%` }}>
-                      <div className="absolute inset-0 rounded-lg opacity-90" style={{ background: CH }} />
-                      <div className="absolute inset-y-0 left-0 rounded-lg opacity-60" style={{ width: `${taskPct}%`, background: st.color }} />
-                      <div className="absolute inset-0 flex items-center px-2">
-                        <span className="text-white text-[10px] font-bold">{taskPct}%</span>
+                      <div className="absolute inset-0 rounded-lg" style={{ background: ganttColor(p.id), opacity: .85 }} />
+                      <div className="absolute inset-y-0 left-0 rounded-lg" style={{ width: `${taskPct >= 0 ? taskPct : 0}%`, background: 'rgba(255,255,255,.35)' }} />
+                      <div className="absolute inset-0 flex items-center px-2 gap-1.5">
+                        <span className="text-white text-[10px] font-bold">{taskPct >= 0 ? taskPct + '%' : '—'}</span>
                       </div>
                     </div>
                   </div>
