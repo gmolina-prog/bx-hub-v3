@@ -236,12 +236,37 @@ export default function Riscos() {
       <div className="flex gap-4">
         {/* Main content */}
         <div className="flex-1">
-          {/* Tabs */}
-          <div className="flex items-center gap-3 mb-4">
-            <div className="flex bg-white border border-zinc-200 rounded-lg overflow-hidden">
-              {[['matrix','Matriz 5×5'],['list','Lista']].map(([id,label]) => (
-                <button key={id} onClick={() => setTab(id)} className={`px-4 py-2 text-sm font-semibold transition-colors ${tab === id ? 'bg-zinc-800 text-white' : 'text-zinc-600 hover:bg-zinc-50'}`}>{label}</button>
-              ))}
+          {/* Tabs enriquecidas */}
+          <div className="flex items-center gap-3 mb-4 flex-wrap">
+            <div className="flex bg-zinc-100 rounded-lg p-1 gap-1">
+              {[
+                { id: 'matrix', label: 'Matriz 5×5', count: null },
+                { id: 'list',   label: 'Lista', count: filtered.length },
+                { id: 'critico', label: '🔴 Críticos', count: critical.length },
+                { id: 'alto',    label: '🟡 Altos', count: high.length },
+                { id: 'vencendo',label: '⏰ Vencendo', count: risks.filter(r => r.mitigation_due && new Date(r.mitigation_due) < new Date(Date.now() + 7*86400000) && r.status !== 'closed').length },
+                { id: 'closed',  label: '✅ Fechados', count: risks.filter(r => r.status === 'closed').length },
+              ].map(t => {
+                const on = tab === t.id
+                return (
+                  <button key={t.id} onClick={() => { setTab(t.id); if (['critico','alto','vencendo','closed'].includes(t.id)) setFilterStatus('all') }}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px',
+                      fontSize: 12, fontWeight: on ? 600 : 500, borderRadius: 7,
+                      cursor: 'pointer', whiteSpace: 'nowrap', outline: 'none', border: 'none',
+                      background: on ? '#2D2E39' : 'transparent',
+                      color: on ? 'white' : '#6B7280',
+                      transition: 'all .12s',
+                    }}>
+                    {t.label}
+                    {t.count !== null && (
+                      <span style={{ fontSize: 9.5, fontWeight: 600, padding: '1px 5px', borderRadius: 99, background: on ? 'rgba(255,255,255,.15)' : '#EAECF0', color: on ? 'white' : '#6B7280' }}>
+                        {t.count}
+                      </span>
+                    )}
+                  </button>
+                )
+              })}
             </div>
             <input
               type="text"
