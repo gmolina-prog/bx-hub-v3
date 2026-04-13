@@ -143,8 +143,14 @@ export function NovaEmpresaModal({ onClose, onSave, companies, initialData }) {
         contact_phone2:     '',
         website:            initialData.website         || '',
         powerbi_link:       initialData.powerbi_link    || '',
-        cnae: '', porte: '', socios: '', data_abertura: '',
-        situacao: '', regime_tributario: '', natureza_juridica: '', capital_social: '',
+        cnae:               initialData.cnae               || '',
+        porte:              initialData.porte              || '',
+        socios:             initialData.socios             || '',
+        data_abertura:      initialData.data_abertura      || '',
+        situacao:           initialData.situacao           || '',
+        regime_tributario:  initialData.regime_tributario  || '',
+        natureza_juridica:  initialData.natureza_juridica  || '',
+        capital_social:     initialData.capital_social     || '',
         ai_summary: aiSummary,
         notes:       initialData.about_me     || '',
         observations: cleanObs,
@@ -376,7 +382,17 @@ Responda APENAS com o perfil. Use exatamente esta estrutura:
         observations:   form.ai_summary
                           ? `🤖 PERFIL BX (IA):\n${form.ai_summary}${form.observations?.trim() ? '\n\n' + form.observations.trim() : ''}`
                           : (form.observations?.trim() || null),
-        powerbi_link:   form.powerbi_link?.trim() || null,
+        powerbi_link:        form.powerbi_link?.trim()        || null,
+        cnae:                form.cnae                         || null,
+        porte:               form.porte                        || null,
+        socios:              form.socios                       || null,
+        data_abertura:       form.data_abertura                || null,
+        situacao:            form.situacao                     || null,
+        regime_tributario:   form.regime_tributario            || null,
+        natureza_juridica:   form.natureza_juridica            || null,
+        capital_social:      form.capital_social
+                               ? Number(String(form.capital_social).replace(/[^\d.,]/g,'').replace(',','.'))
+                               : null,
       }
 
       let data
