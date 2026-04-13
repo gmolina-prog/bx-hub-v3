@@ -152,7 +152,7 @@ export function NovaEmpresaModal({ onClose, onSave, companies, initialData }) {
         natureza_juridica:  initialData.natureza_juridica  || '',
         capital_social:     initialData.capital_social     || '',
         ai_summary: aiSummary,
-        notes:       initialData.about_me     || '',
+        notes:       initialData.notes        || '',
         observations: cleanObs,
       }
     }
@@ -879,10 +879,6 @@ export function NovoColaboradorModal({ onClose, onSave, initialData }) {
 
   const [form, setForm] = useState(() => {
     if (initialData) {
-      const raw = initialData.notes || ''
-      const aiIdx = raw.indexOf('---\n🤖 BIO IA:\n')
-      const aiBio   = aiIdx > -1 ? raw.slice(aiIdx + '---\n🤖 BIO IA:\n'.length).trim() : ''
-      const cleanNotes = aiIdx > -1 ? raw.slice(0, aiIdx).trim() : raw.trim()
       return {
         full_name:   initialData.full_name   || '',
         email:       initialData.email       || '',
@@ -895,7 +891,7 @@ export function NovoColaboradorModal({ onClose, onSave, initialData }) {
         specialties: Array.isArray(initialData.specialties) ? initialData.specialties : [],
         entry_date:  initialData.entry_date  || '',
         notes:       cleanNotes,
-        ai_bio:      aiBio,
+        ai_bio:      initialData.about_me || '',
       }
     }
     return {
@@ -964,23 +960,19 @@ Responda APENAS com a bio estruturada. Use exatamente esta estrutura:
     }
     setSaving(true)
     try {
-      const notesContent = [
-        form.notes?.trim() || '',
-        form.linkedin     ? `🔗 LinkedIn: ${form.linkedin}` : '',
-        form.department   ? `🏢 Departamento: ${form.department}` : '',
-        form.specialties?.length ? `⭐ Especialidades: ${form.specialties.join(', ')}` : '',
-        form.entry_date   ? `📅 Início: ${form.entry_date}` : '',
-        form.ai_bio       ? `---\n🤖 BIO IA:\n${form.ai_bio}` : '',
-      ].filter(Boolean).join('\n\n').trim() || null
-
-      // Payload somente com colunas que existem na tabela profiles
+      // Payload com colunas dedicadas da tabela profiles
       const payload = {
-        full_name:  form.full_name.trim(),
-        role:       form.role,
-        cargo:      form.cargo      || null,
-        phone:      form.phone      || null,
-        cpf:        form.cpf?.replace(/\D/g,'') || null,
-        about_me:   notesContent,
+        full_name:   form.full_name.trim(),
+        role:        form.role,
+        cargo:       form.cargo        || null,
+        phone:       form.phone        || null,
+        cpf:         form.cpf?.replace(/\D/g,'') || null,
+        linkedin:    form.linkedin     || null,
+        department:  form.department   || null,
+        specialties: form.specialties?.length ? form.specialties : null,
+        entry_date:  form.entry_date   || null,
+        notes:       form.notes?.trim() || null,
+        about_me:    form.ai_bio       || null,
       }
       let data
       if (isEdit) {
