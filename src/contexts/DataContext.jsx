@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
+import { runHealthCheck } from '../lib/healthCheck'
 
 const DataContext = createContext(null)
 
@@ -98,6 +99,8 @@ export function DataProvider({ children }) {
   useEffect(() => {
     if (!profile) return
     loadUnread(profile)
+    // Rodar health check em background (1x por sessão)
+    runHealthCheck(profile).catch(() => {})
 
     // B-14: UM ÚNICO channel de notificações — no DataContext, não em Sidebar/Layout
     const ch = supabase.channel('global-notif-count')
