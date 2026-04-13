@@ -532,65 +532,16 @@ export default function Cadastro() {
     )}
 
     {/* ── Modal Editar Colaborador ── */}
+    {/* ── Modal Editar Colaborador — usa NovoColaboradorModal completo (com IA) ── */}
     {editingProfile && (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
-        style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}
-        onClick={e => e.target === e.currentTarget && setEditingProfile(null)}>
-        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
-          <div className="flex items-center justify-between mb-5">
-            <h3 className="text-lg font-bold text-zinc-800">Editar Colaborador</h3>
-            <button onClick={() => setEditingProfile(null)} className="text-zinc-400 hover:text-zinc-600"><X className="w-5 h-5" /></button>
-          </div>
-          <div className="space-y-3">
-            <div>
-              <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 block mb-1">Nome completo</label>
-              <input className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
-                value={editProfileForm.full_name || ''}
-                onChange={e => setEditProfileForm(p => ({ ...p, full_name: e.target.value }))} />
-            </div>
-            <div>
-              <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 block mb-1">Cargo / Função</label>
-              <input className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
-                value={editProfileForm.cargo || ''}
-                onChange={e => setEditProfileForm(p => ({ ...p, cargo: e.target.value }))} />
-            </div>
-            <div>
-              <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 block mb-1">Telefone</label>
-              <input className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
-                value={editProfileForm.phone || ''}
-                onChange={e => setEditProfileForm(p => ({ ...p, phone: e.target.value }))} />
-            </div>
-            <div>
-              <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 block mb-1">Role</label>
-              <select className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
-                value={editProfileForm.role || 'analyst'}
-                onChange={e => setEditProfileForm(p => ({ ...p, role: e.target.value }))}>
-                {ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 block mb-1">Localização padrão</label>
-              <select className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
-                value={editProfileForm.location || 'escritorio'}
-                onChange={e => setEditProfileForm(p => ({ ...p, location: e.target.value }))}>
-                <option value="escritorio">🏢 Escritório</option>
-                <option value="cliente">🤝 Cliente</option>
-                <option value="remoto">🏠 Remoto</option>
-                <option value="viagem">✈️ Viagem</option>
-              </select>
-            </div>
-          </div>
-          <div className="flex gap-3 mt-5">
-            <button onClick={() => setEditingProfile(null)}
-              className="flex-1 py-2.5 text-sm text-zinc-500 border border-zinc-200 rounded-xl hover:bg-zinc-50 transition-colors">Cancelar</button>
-            <button onClick={saveProfile} disabled={saving}
-              className="flex-1 py-2.5 text-sm font-bold text-white rounded-xl disabled:opacity-50 hover:opacity-90 transition-opacity"
-              style={{ background: '#5452C1' }}>
-              {saving ? 'Salvando…' : 'Salvar'}
-            </button>
-          </div>
-        </div>
-      </div>
+      <NovoColaboradorModal
+        initialData={editingProfile}
+        onClose={() => setEditingProfile(null)}
+        onSave={(updated) => {
+          setProfiles(prev => prev.map(p => p.id === updated.id ? updated : p))
+          setEditingProfile(null)
+        }}
+      />
     )}
 
     {/* ── Modal Editar Etiqueta ── */}
@@ -637,70 +588,16 @@ export default function Cadastro() {
     )}
 
     {/* ── Modal Editar Instituição ── */}
+    {/* ── Modal Editar Instituição — usa NovaInstituicaoModal completo (com IA) ── */}
     {editingInst && (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
-        style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}
-        onClick={e => e.target === e.currentTarget && setEditingInst(null)}>
-        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
-          <div className="flex items-center justify-between mb-5">
-            <h3 className="text-lg font-bold text-zinc-800">Editar Instituição</h3>
-            <button onClick={() => setEditingInst(null)} className="text-zinc-400 hover:text-zinc-600"><X className="w-5 h-5" /></button>
-          </div>
-          <div className="space-y-3">
-            <div>
-              <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 block mb-1">Nome</label>
-              <input className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
-                value={editInstForm.name || ''}
-                onChange={e => setEditInstForm(p => ({ ...p, name: e.target.value }))} />
-            </div>
-            <div>
-              <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 block mb-1">Tipo</label>
-              <select className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
-                value={editInstForm.type || ''}
-                onChange={e => setEditInstForm(p => ({ ...p, type: e.target.value }))}>
-                {['Banco Comercial','Banco de Investimento','FIDC','FII','Securitizadora','Factoring','Cooperativa de Crédito','Fundo de PE','Outro'].map(t => <option key={t} value={t}>{t}</option>)}
-              </select>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 block mb-1">Contato</label>
-                <input className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
-                  placeholder="Nome"
-                  value={editInstForm.contact_name || ''}
-                  onChange={e => setEditInstForm(p => ({ ...p, contact_name: e.target.value }))} />
-              </div>
-              <div>
-                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 block mb-1">Telefone</label>
-                <input className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
-                  placeholder="(11) 9..."
-                  value={editInstForm.contact_phone || ''}
-                  onChange={e => setEditInstForm(p => ({ ...p, contact_phone: e.target.value }))} />
-              </div>
-            </div>
-            <div>
-              <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 block mb-1">Email</label>
-              <input className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
-                value={editInstForm.contact_email || ''}
-                onChange={e => setEditInstForm(p => ({ ...p, contact_email: e.target.value }))} />
-            </div>
-            <div>
-              <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 block mb-1">Observações</label>
-              <textarea rows={2} className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500 resize-none"
-                value={editInstForm.notes || ''}
-                onChange={e => setEditInstForm(p => ({ ...p, notes: e.target.value }))} />
-            </div>
-          </div>
-          <div className="flex gap-3 mt-5">
-            <button onClick={() => setEditingInst(null)}
-              className="flex-1 py-2.5 text-sm text-zinc-500 border border-zinc-200 rounded-xl hover:bg-zinc-50">Cancelar</button>
-            <button onClick={saveInst} disabled={saving || !editInstForm.name?.trim()}
-              className="flex-1 py-2.5 text-sm font-bold text-white rounded-xl disabled:opacity-50"
-              style={{ background: '#5452C1' }}>
-              {saving ? 'Salvando…' : 'Salvar'}
-            </button>
-          </div>
-        </div>
-      </div>
+      <NovaInstituicaoModal
+        initialData={editingInst}
+        onClose={() => setEditingInst(null)}
+        onSave={(updated) => {
+          setInstitutions(prev => prev.map(i => i.id === updated.id ? updated : i))
+          setEditingInst(null)
+        }}
+      />
     )}
 
 
