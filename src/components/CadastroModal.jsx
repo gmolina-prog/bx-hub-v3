@@ -950,21 +950,22 @@ Responda APENAS com a bio estruturada. Use exatamente esta estrutura:
     try {
       const notesContent = [
         form.notes?.trim() || '',
-        form.linkedin ? `🔗 LinkedIn: ${form.linkedin}` : '',
-        form.ai_bio ? `---\n🤖 BIO IA:\n${form.ai_bio}` : '',
+        form.linkedin     ? `🔗 LinkedIn: ${form.linkedin}` : '',
+        form.department   ? `🏢 Departamento: ${form.department}` : '',
+        form.specialties?.length ? `⭐ Especialidades: ${form.specialties.join(', ')}` : '',
+        form.entry_date   ? `📅 Início: ${form.entry_date}` : '',
+        form.ai_bio       ? `---\n🤖 BIO IA:\n${form.ai_bio}` : '',
       ].filter(Boolean).join('\n\n').trim() || null
 
-      // Build payload carefully — only include columns that exist in profiles table
+      // Payload somente com colunas que existem na tabela profiles
       const payload = {
         full_name:  form.full_name.trim(),
         role:       form.role,
         cargo:      form.cargo      || null,
         phone:      form.phone      || null,
+        cpf:        form.cpf?.replace(/\D/g,'') || null,
         notes:      notesContent,
       }
-      // Only add optional columns if they have values (avoid NULL constraint issues)
-      if (form.department) payload.department = form.department
-      if (form.specialties?.length) payload.specialties = form.specialties
       let data
       if (isEdit) {
         // No .select().single() — RLS can block the read back even when UPDATE succeeds
