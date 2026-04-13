@@ -223,9 +223,9 @@ export function NovaEmpresaModal({ onClose, onSave, companies, initialData }) {
     if (!form.name) { toast.warning('Preencha o nome da empresa'); return }
     setLoadingAI(true)
     try {
-      const prompt = `Você é um analista sênior da BX Finance, escritório de advisory financeiro especializado em diagnóstico, recuperação judicial e M&A mid-market.
+      const prompt = `Você é um sócio da BX Finance com profunda experiência em advisory financeiro mid-market: diagnóstico financeiro, reestruturação operacional, RJ/RX, M&A e estruturação de dívida. A BX é reconhecida por análises cirúrgicas, linguagem direta e entrega de valor real para empresas em situações complexas.
 
-Gere um PERFIL BX FINANCE conciso e objetivo para esta empresa, em português do Brasil:
+Gere um PERFIL BX PROPRIETÁRIO desta empresa. Seja analítico, direto e use emojis para estruturar. Nada genérico — cada seção deve refletir o que você enxerga sobre este negócio específico com base nos dados fornecidos.
 
 DADOS DA EMPRESA:
 - Razão Social: ${form.name}
@@ -234,27 +234,35 @@ DADOS DA EMPRESA:
 - CNAE Principal: ${form.cnae || '—'}
 - Porte: ${form.porte || '—'}
 - Natureza Jurídica: ${form.natureza_juridica || '—'}
-- Capital Social: ${form.capital_social || '—'}
-- Situação: ${form.situacao || 'ATIVA'}
+- Capital Social: ${form.capital_social ? 'R$ ' + Number(form.capital_social).toLocaleString('pt-BR') : '—'}
+- Situação Receita: ${form.situacao || 'ATIVA'}
 - Cidade/UF: ${form.city || '—'}/${form.state || '—'}
 - Regime Tributário: ${form.regime_tributario || '—'}
 - Sócios: ${form.socios || '—'}
-- Data de Abertura: ${form.data_abertura || '—'}
+- Fundação: ${form.data_abertura || '—'}
 - Segmento BX: ${form.segment || '—'}
 
-Responda APENAS com o perfil estruturado, sem introdução:
+Responda APENAS com o perfil. Use exatamente esta estrutura:
 
-**PERFIL OPERACIONAL**
-[2-3 frases descrevendo o negócio e atividade principal]
+🏢 **PERFIL OPERACIONAL**
+[3-4 frases: o que faz de verdade, modelo de negócio, porte real, posicionamento no mercado e principais clientes/mercados atendidos]
 
-**INDICADORES DE RISCO**
-[Pontos de atenção: situação cadastral, porte, regime tributário, tempo de operação, capital social]
+📊 **LEITURA FINANCEIRA PRELIMINAR**
+[Com base no porte, CNAE, regime tributário e capital social — ciclo financeiro esperado, pressões de caixa típicas do setor, nível de endividamento provável, principais alavancas financeiras deste tipo de negócio]
 
-**SERVIÇOS BX APLICÁVEIS**
-[Diagnóstico Financeiro, Reestruturação, RJ/RX, M&A, Assessoria — quais fazem sentido e por quê]
+🚦 **SEMÁFORO BX**
+🔴 Riscos críticos: [pontos que podem complicar qualquer operação com este cliente]
+🟡 Pontos de atenção: [sinais que merecem investigação antes de avançar]
+🟢 Oportunidades: [o que esta empresa provavelmente precisa e que a BX pode entregar bem]
 
-**PRÓXIMOS PASSOS SUGERIDOS**
-[1-2 ações concretas para a equipe BX]`
+💼 **MANDATOS BX APLICÁVEIS**
+[Para cada serviço relevante — Diagnóstico, Reestruturação, RJ/RX, M&A, Captação — justifique com 1 frase de por quê e qual seria o gatilho de entrada]
+
+🎯 **ESTRATÉGIA DE ABORDAGEM BX**
+[Quem acionar primeiro na empresa (cargo/função), qual dor apresentar na abertura, qual ângulo de entrada usar, o que NÃO falar na primeira reunião]
+
+📅 **PRÓXIMOS PASSOS**
+[2-3 ações concretas e sequenciadas: o que fazer essa semana, o que preparar para o primeiro contato]`
 
       const text = await callClaude(prompt)
       setForm(p => ({ ...p, ai_summary: text }))
@@ -793,12 +801,36 @@ Responda APENAS com o perfil estruturado, sem introdução:
 }
 
 
-export function NovoColaboradorModal({ onClose, onSave }) {
+export function NovoColaboradorModal({ onClose, onSave, initialData }) {
   const { profile } = useData()
-  const [form, setForm] = useState({
-    full_name: '', email: '', role: 'analyst', cargo: '',
-    phone: '', cpf: '', linkedin: '', department: '',
-    specialties: [], entry_date: '', notes: '', ai_bio: '',
+  const isEdit = !!initialData
+
+  const [form, setForm] = useState(() => {
+    if (initialData) {
+      const raw = initialData.notes || ''
+      const aiIdx = raw.indexOf('---\n🤖 BIO IA:\n')
+      const aiBio   = aiIdx > -1 ? raw.slice(aiIdx + '---\n🤖 BIO IA:\n'.length).trim() : ''
+      const cleanNotes = aiIdx > -1 ? raw.slice(0, aiIdx).trim() : raw.trim()
+      return {
+        full_name:   initialData.full_name   || '',
+        email:       initialData.email       || '',
+        role:        initialData.role        || 'analyst',
+        cargo:       initialData.cargo       || '',
+        phone:       initialData.phone       || '',
+        cpf:         '',
+        linkedin:    initialData.linkedin    || '',
+        department:  initialData.department  || '',
+        specialties: Array.isArray(initialData.specialties) ? initialData.specialties : [],
+        entry_date:  initialData.entry_date  || '',
+        notes:       cleanNotes,
+        ai_bio:      aiBio,
+      }
+    }
+    return {
+      full_name: '', email: '', role: 'analyst', cargo: '',
+      phone: '', cpf: '', linkedin: '', department: '',
+      specialties: [], entry_date: '', notes: '', ai_bio: '',
+    }
   })
   const [newSpec,    setNewSpec]    = useState('')
   const [loadingAI,  setLoadingAI]  = useState(false)
@@ -808,16 +840,35 @@ export function NovoColaboradorModal({ onClose, onSave }) {
     if (!form.full_name) { toast.warning('Preencha o nome'); return }
     setLoadingAI(true)
     try {
-      const prompt = `Você é um especialista em RH da BX Finance.
-Gere uma bio profissional concisa (3-4 frases) para este colaborador:
+      const prompt = `Você é o head de pessoas da BX Finance, responsável por posicionar a equipe com excelência perante clientes, parceiros e o mercado financeiro. Sua missão é criar bios que transmitam credibilidade, expertise e o DNA da BX — direto, técnico e orientado a resultado.
 
-Nome: ${form.full_name}
-Cargo: ${form.cargo || 'não informado'}
-Role: ${ROLES.find(r => r.value === form.role)?.label || form.role}
-Especialidades: ${form.specialties.join(', ') || 'não informadas'}
-Departamento: ${form.department || 'não informado'}
+Gere uma BIO PROFISSIONAL COMPLETA para este colaborador da BX Finance. Use emojis para estruturar e dê personalidade ao texto — evite linguagem genérica de RH.
 
-Escreva em terceira pessoa, tom profissional e objetivo, adequado para apresentação a clientes e parceiros da BX Finance.`
+DADOS DO COLABORADOR:
+- Nome: ${form.full_name}
+- Cargo/Função: ${form.cargo || 'não informado'}
+- Nível: ${ROLES.find(r => r.value === form.role)?.label || form.role}
+- Departamento: ${form.department || 'não informado'}
+- Especialidades: ${form.specialties.join(', ') || 'não informadas'}
+- LinkedIn: ${form.linkedin || 'não informado'}
+${form.notes ? '- Contexto adicional: ' + form.notes : ''}
+
+Responda APENAS com a bio estruturada. Use exatamente esta estrutura:
+
+👤 **APRESENTAÇÃO**
+[2-3 frases em terceira pessoa descrevendo quem é, formação/background e o que faz de melhor na BX. Tom: confiante, técnico, sem clichês.]
+
+🎯 **ESPECIALIZAÇÃO BX**
+[Liste 3-5 áreas de atuação com profundidade. Ex: "Diagnóstico financeiro em empresas mid-market com faturamento entre R$ 50M-500M", "Modelagem financeira integrada (DRE/BP/FC)", "Relacionamento com credores em processos de RJ"]
+
+💡 **DIFERENCIAL**
+[1-2 frases sobre o que este profissional faz diferente — o que o torna valioso para o cliente da BX]
+
+📊 **CASES E RESULTADOS**
+[Se as especialidades permitirem inferir: exemplos de resultados típicos que este perfil entrega. Seja específico em números e impacto quando possível.]
+
+🤝 **PARA CLIENTES**
+[1 frase sobre como este profissional agrega valor na relação com o cliente — linguagem de pitch executivo]`
 
       const text = await callClaude(prompt)
       setForm(p => ({ ...p, ai_bio: text }))
@@ -836,22 +887,36 @@ Escreva em terceira pessoa, tom profissional e objetivo, adequado para apresenta
     }
     setSaving(true)
     try {
-      const { data, error } = await supabase.from('profiles').insert({
-        org_id:     profile.org_id,
-        full_name:  form.full_name.trim(),
-        email:      form.email.trim().toLowerCase(),
-        role:       form.role,
-        cargo:      form.cargo || null,
-        phone:      form.phone || null,
-        department: form.department || null,
-        notes:      form.ai_bio
-                      ? `${form.notes || ''}\n\n---\n🤖 BIO IA:\n${form.ai_bio}`.trim()
-                      : (form.notes?.trim() || null),
+      const payload = {
+        full_name:   form.full_name.trim(),
+        email:       form.email.trim().toLowerCase(),
+        role:        form.role,
+        cargo:       form.cargo       || null,
+        phone:       form.phone       || null,
+        department:  form.department  || null,
+        linkedin:    form.linkedin    || null,
+        notes:       form.ai_bio
+                       ? `${form.notes || ''}\n\n---\n🤖 BIO IA:\n${form.ai_bio}`.trim()
+                       : (form.notes?.trim() || null),
         specialties: form.specialties.length ? form.specialties : null,
-        avatar_color: ['#5452C1','#10B981','#F59E0B','#3B82F6','#8B5CF6','#EF4444'][Math.floor(Math.random()*6)],
-      }).select().single()
-      if (error) throw error
-      toast.success(`Colaborador "${form.full_name}" cadastrado ✓`)
+      }
+      let data
+      if (isEdit) {
+        const { data: upd, error } = await supabase.from('profiles').update(payload)
+          .eq('id', initialData.id).eq('org_id', profile.org_id).select().single()
+        if (error) throw error
+        data = upd
+        toast.success(`"${form.full_name}" atualizado ✓`)
+      } else {
+        const { data: ins, error } = await supabase.from('profiles').insert({
+          org_id: profile.org_id,
+          avatar_color: ['#5452C1','#10B981','#F59E0B','#3B82F6','#8B5CF6','#EF4444'][Math.floor(Math.random()*6)],
+          ...payload,
+        }).select().single()
+        if (error) throw error
+        data = ins
+        toast.success(`Colaborador "${form.full_name}" cadastrado ✓`)
+      }
       onSave(data)
     } catch (err) {
       toast.error('Erro: ' + err.message)
@@ -873,8 +938,8 @@ Escreva em terceira pessoa, tom profissional e objetivo, adequado para apresenta
               <User className="w-4 h-4 text-emerald-600" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-zinc-800">Novo Colaborador</h3>
-              <p className="text-[10px] text-zinc-400">Perfil completo + Bio profissional com IA</p>
+              <h3 className="text-base font-bold text-zinc-800">{isEdit ? `Editar — ${initialData.full_name}` : 'Novo Colaborador'}</h3>
+              <p className="text-[10px] text-zinc-400">{isEdit ? 'Edite o perfil completo com todos os campos' : 'Perfil completo + Bio profissional com IA'}</p>
             </div>
           </div>
           <button onClick={onClose} className="p-1.5 text-zinc-400 hover:text-zinc-700 rounded-lg"><X className="w-5 h-5" /></button>
@@ -991,7 +1056,7 @@ Escreva em terceira pessoa, tom profissional e objetivo, adequado para apresenta
           <button onClick={handleSave} disabled={saving || !form.full_name.trim() || !form.email.trim()}
             className="flex-1 py-2.5 text-sm font-bold text-white rounded-xl disabled:opacity-50 hover:opacity-90 flex items-center justify-center gap-2"
             style={{ background: '#10B981' }}>
-            {saving ? <><Loader2 className="w-4 h-4 animate-spin" />Salvando…</> : '+ Cadastrar Colaborador'}
+            {saving ? <><Loader2 className="w-4 h-4 animate-spin" />Salvando…</> : isEdit ? '💾 Salvar Alterações' : '+ Cadastrar Colaborador'}
           </button>
         </div>
       </div>
@@ -1043,29 +1108,39 @@ export function NovoProjetoModal({ onClose, onSave, companies, profiles, initial
     setLoadingAI(true)
     try {
       const empresa = companies.find(c => c.id === form.company_id)
-      const prompt = `Você é um sócio sênior da BX Finance, escritório de advisory especializado em diagnóstico financeiro, reestruturação e recuperação judicial.
+      const prompt = `Você é um sócio-fundador da BX Finance com mais de 15 anos estruturando mandatos de advisory financeiro mid-market. Você já liderou diagnósticos que revelaram situações críticas, reestruturações que salvaram empresas, processos de RJ que criaram valor real e M&As que transformaram trajetórias empresariais.
 
-Gere um ESCOPO EXECUTIVO para este projeto:
+Gere um ESCOPO BX PROPRIETÁRIO para este mandato. Seja técnico, direto e use emojis para estruturar. Cada seção deve refletir o que uma equipe sênior realmente faria — nada de escopo genérico de consultoria.
 
-TIPO: ${form.type}
-EMPRESA CLIENTE: ${empresa?.name || 'não selecionada'}${empresa?.segment ? ` (${empresa.segment})` : ''}${empresa?.notes ? `\nPerfil: ${empresa.notes.slice(0,300)}` : ''}
+TIPO DE MANDATO: ${form.type}
+EMPRESA CLIENTE: ${empresa?.name || 'a definir'}${empresa?.segment ? ` | ${empresa.segment}` : ''}${empresa?.city ? ` | ${empresa.city}/${empresa.state}` : ''}${empresa?.notes ? '\n📋 Perfil: ' + empresa.notes.slice(0,500) : ''}
+${form.observacoes ? '\n💬 Contexto: ' + form.observacoes : ''}
 
-Responda APENAS com o escopo estruturado:
+Responda APENAS com o escopo. Use exatamente esta estrutura:
 
-**OBJETIVO PRINCIPAL**
-[1-2 frases diretas]
+🎯 **OBJETIVO DO MANDATO**
+[1-2 frases cirúrgicas: o que a BX vai entregar de concreto? Qual transformação o cliente vai experimentar?]
 
-**ENTREGAS ESPERADAS**
-[Lista de 4-6 entregáveis concretos]
+🔍 **HIPÓTESES INICIAIS**
+[O que provavelmente vamos encontrar neste tipo de mandato? Quais são as dores mais comuns que este tipo de empresa/mandato revela? Seja específico.]
 
-**RISCOS PRINCIPAIS**
-[3-4 riscos relevantes para este tipo de mandato]
+🏗️ **ESCOPO TÉCNICO BX**
+[6-8 atividades com nomenclatura técnica correta: "Análise Fleuriet (NCG/CDG/ST)", "Modelagem de DRE gerencial por unidade de negócio", "Análise de covenants e inadimplência técnica", "Mapeamento de endividamento e perfil da dívida", etc.]
 
-**PRAZO ESTIMADO**
-[Duração típica em semanas/meses para este tipo]
+📦 **ENTREGAS BX**
+[5-7 produtos concretos com nome específico: "Relatório Executivo de Diagnóstico Financeiro", "Modelo financeiro integrado — 3 cenários (base/otimista/pessimista)", "Roadmap de reestruturação com cronograma de execução", etc.]
 
-**PREMISSAS**
-[2-3 premissas críticas para execução]`
+⚠️ **RISCOS E MITIGAÇÕES**
+[4-5 riscos reais deste mandato + ação de mitigação que a BX adota para cada um]
+
+⏱️ **CRONOGRAMA BX**
+[Fases com duração: Fase 1 — Onboarding e coleta de dados (X dias), Fase 2 — Análise e modelagem (X semanas), Fase 3 — Relatório e apresentação (X dias)]
+
+💰 **MÉTRICAS DE SUCESSO**
+[Como a BX e o cliente vão medir o êxito: KPIs específicos, marcos de entrega, indicadores de impacto]
+
+🤝 **EQUIPE BX SUGERIDA**
+[Papéis e responsabilidades: sócio (qual papel), analista sênior (o que faz), analista júnior (o que faz), estimativa de horas por fase]`
 
       const text = await callClaude(prompt)
       setForm(p => ({ ...p, ai_scope: text }))
@@ -1241,13 +1316,49 @@ Responda APENAS com o escopo estruturado:
 // ══════════════════════════════════════════════════════════════════════════════
 // MODAL NOVA INSTITUIÇÃO — com website scraping + IA + nível de relacionamento
 // ══════════════════════════════════════════════════════════════════════════════
-export function NovaInstituicaoModal({ onClose, onSave }) {
+export function NovaInstituicaoModal({ onClose, onSave, initialData }) {
   const { profile } = useData()
-  const [form, setForm] = useState({
-    name: '', type: 'Banco Comercial', website: '',
-    contact_name: '', contact_email: '', contact_phone: '',
-    linhas_operadas: [], nivel_relacionamento: 3,
-    notas_estrategicas: '', ai_profile: '', notes: '',
+  const isEdit = !!initialData
+
+  const [form, setForm] = useState(() => {
+    if (initialData) {
+      // Parse stored notes back into structured fields
+      const raw = initialData.notes || ''
+      const linhasMatch = raw.match(/Linhas: ([^\n]+)/)
+      const nivelMatch  = raw.match(/Nível BX: ([^\n]+)/)
+      const aiIdx       = raw.indexOf('---\n🤖 PERFIL IA:\n')
+      const linhas = linhasMatch ? linhasMatch[1].split(', ').filter(Boolean) : []
+      const nivelLabel = nivelMatch ? nivelMatch[1] : ''
+      const NIVEIS_MAP = {
+        'Sem relacionamento': 1, 'Contato inicial': 2,
+        'Relacionamento ativo': 3, 'Parceiro estratégico': 4, 'Parceiro premium': 5
+      }
+      const nivel = NIVEIS_MAP[nivelLabel] || 3
+      const aiProfile = aiIdx > -1 ? raw.slice(aiIdx + '---\n🤖 PERFIL IA:\n'.length).trim() : ''
+      // Clean notes: remove parsed sections
+      const cleanNotes = raw
+        .replace(/\nLinhas: [^\n]+/, '').replace(/\nNível BX: [^\n]+/, '')
+        .replace(/\n\n---\n🤖 PERFIL IA:[\s\S]*/, '').trim()
+      return {
+        name:               initialData.name          || '',
+        type:               initialData.type          || 'Banco Comercial',
+        website:            '',
+        contact_name:       initialData.contact_name  || '',
+        contact_email:      initialData.contact_email || '',
+        contact_phone:      initialData.contact_phone || '',
+        linhas_operadas:    linhas,
+        nivel_relacionamento: nivel,
+        notas_estrategicas: cleanNotes,
+        ai_profile:         aiProfile,
+        notes:              '',
+      }
+    }
+    return {
+      name: '', type: 'Banco Comercial', website: '',
+      contact_name: '', contact_email: '', contact_phone: '',
+      linhas_operadas: [], nivel_relacionamento: 3,
+      notas_estrategicas: '', ai_profile: '', notes: '',
+    }
   })
   const [loadingAI,  setLoadingAI]  = useState(false)
   const [saving,     setSaving]     = useState(false)
@@ -1280,31 +1391,42 @@ export function NovaInstituicaoModal({ onClose, onSave }) {
     if (!form.name) { toast.warning('Preencha o nome da instituição'); return }
     setLoadingAI(true)
     try {
-      const prompt = `Você é um analista sênior da BX Finance, especialista em estruturação de dívida e relacionamento bancário.
+      const prompt = `Você é o head de relacionamento bancário da BX Finance e um dos maiores especialistas do Brasil em crédito corporativo mid-market. Você já estruturou centenas de operações com bancos comerciais, FIDCs, fundos de crédito e gestoras, e conhece profundamente o apetite, os critérios reais e as pessoas de cada instituição.
 
-Gere um PERFIL ESTRATÉGICO desta instituição financeira para uso interno da equipe BX Finance:
+Gere um PERFIL ESTRATÉGICO COMPLETO desta instituição financeira para uso interno da BX. Este é um documento de inteligência — deve ser prático, específico e orientado a ação. Nada genérico.
 
-NOME: ${form.name}
+INSTITUIÇÃO: ${form.name}
 TIPO: ${form.type}
 WEBSITE: ${form.website || 'não informado'}
-LINHAS OPERADAS: ${form.linhas_operadas.join(', ') || 'não informadas'}
+LINHAS MAPEADAS: ${form.linhas_operadas.join(', ') || 'não informadas ainda'}
+NÍVEL DE RELACIONAMENTO ATUAL: ${NIVEIS.find(n => n.v === form.nivel_relacionamento)?.label || '—'}
+${form.notas_estrategicas ? 'NOTAS DA EQUIPE BX: ' + form.notas_estrategicas : ''}
 
-Responda APENAS com o perfil estruturado, sem introdução:
+Responda APENAS com o perfil. Use exatamente esta estrutura com emojis BX:
 
-**PERFIL DA INSTITUIÇÃO**
-[2-3 frases sobre o posicionamento, foco de mercado e público-alvo]
+🏦 **POSICIONAMENTO DA INSTITUIÇÃO**
+[3-4 frases: quem são realmente, nicho de mercado específico, apetite de crédito atual, diferencial competitivo e onde se posicionam vis-à-vis concorrentes diretos no mid-market]
 
-**LINHAS E PRODUTOS RELEVANTES PARA BX**
-[Lista das 4-6 linhas mais relevantes para clientes em distress ou reestruturação, com características: prazo típico, garantias exigidas, ticket mínimo]
+💳 **LINHAS E PRODUTOS — ANÁLISE BX**
+[Para cada linha relevante para clientes BX: nome da linha, ticket mínimo/máximo, prazo típico, garantias exigidas, taxa de referência (CDI+, IPCA+, etc.), público ideal desta linha, quão acessível é para empresas em reestruturação]
 
-**CRITÉRIOS DE APROVAÇÃO**
-[O que esta instituição tipicamente exige: rating, EBITDA, garantias, tempo de operação]
+📋 **CRITÉRIOS DE CRÉDITO REAIS**
+[O que esta instituição realmente exige — não o que está no site, mas o que aprovam na prática: rating mínimo, cobertura de garantia, EBITDA mínimo, receita bruta, tempo de operação, histórico bancário, setores preferenciais, setores absolutamente evitados]
 
-**TÁTICAS DE RELACIONAMENTO**
-[Como a BX deve se posicionar nesta instituição: quem acionar, quando acionar, como apresentar clientes]
+🤝 **TÁTICAS DE RELACIONAMENTO BX**
+[Quem acionar (área específica, cargo típico do interlocutor), como se apresentar, qual ângulo usar para introduzir clientes BX, o que NUNCA falar na primeira reunião, como construir e acelerar o relacionamento, frequência ideal de contato]
 
-**ALERTAS**
-[Pontos de atenção: restrições, setores que evitam, condições desfavoráveis]`
+⚡ **VELOCIDADE E PROCESSO**
+[Quanto tempo leva do primeiro contato até a aprovação? Quais são os gargalos reais do processo interno? Quais documentos pedem cedo? Como a BX pode acelerar?]
+
+💡 **CASES IDEAIS PARA ESTA INSTITUIÇÃO**
+[Que tipo de empresa e situação esta instituição mais gosta de receber? Descreva o cliente perfeito para apresentar aqui — segmento, porte, garantias, momento da empresa]
+
+⚠️ **ALERTAS INTERNOS BX**
+[Restrições setoriais confirmadas, situações que já geraram problemas, condições que encarecem muito a operação, quando definitivamente NÃO apresentar um cliente aqui]
+
+🌡️ **APETITE DE MERCADO ATUAL**
+[Como esta instituição está se comportando no ciclo atual de crédito: expandindo ou restringindo, setores em foco, postura geral, temperatura para empresas em distress ou reestruturação]`
 
       const text = await callClaude(prompt)
       setForm(p => ({ ...p, ai_profile: text }))
@@ -1321,25 +1443,36 @@ Responda APENAS com o perfil estruturado, sem introdução:
     setSaving(true)
     try {
       const notesComposed = [
-        form.notes,
+        form.notas_estrategicas?.trim() || form.notes?.trim() || '',
         form.linhas_operadas.length ? `Linhas: ${form.linhas_operadas.join(', ')}` : '',
         form.nivel_relacionamento ? `Nível BX: ${NIVEIS.find(n => n.v === form.nivel_relacionamento)?.label}` : '',
         form.ai_profile ? `---\n🤖 PERFIL IA:\n${form.ai_profile}` : '',
       ].filter(Boolean).join('\n\n').trim()
 
-      const { data, error } = await supabase.from('institutions').insert({
-        org_id:         profile.org_id,
-        name:           form.name.trim(),
-        type:           form.type,
-        contact_name:   form.contact_name.trim() || null,
-        contact_email:  form.contact_email.trim() || null,
-        contact_phone:  form.contact_phone || null,
-        notes:          notesComposed || null,
-        is_active:      true,
-        // campos extras em notes pois schema não tem colunas extras
-      }).select().single()
-      if (error) throw error
-      toast.success(`Instituição "${form.name}" cadastrada ✓`)
+      const payload = {
+        name:          form.name.trim(),
+        type:          form.type,
+        contact_name:  form.contact_name.trim()  || null,
+        contact_email: form.contact_email.trim() || null,
+        contact_phone: form.contact_phone        || null,
+        notes:         notesComposed             || null,
+      }
+
+      let data
+      if (isEdit) {
+        const { data: upd, error } = await supabase.from('institutions').update(payload)
+          .eq('id', initialData.id).eq('org_id', profile.org_id).select().single()
+        if (error) throw error
+        data = upd
+        toast.success(`Instituição "${form.name}" atualizada ✓`)
+      } else {
+        const { data: ins, error } = await supabase.from('institutions').insert({
+          org_id: profile.org_id, is_active: true, ...payload,
+        }).select().single()
+        if (error) throw error
+        data = ins
+        toast.success(`Instituição "${form.name}" cadastrada ✓`)
+      }
       onSave(data)
     } catch (err) {
       toast.error('Erro: ' + err.message)
@@ -1364,7 +1497,7 @@ Responda APENAS com o perfil estruturado, sem introdução:
               <span className="text-lg">🏦</span>
             </div>
             <div>
-              <h3 className="text-base font-bold text-zinc-800">Nova Instituição Financeira</h3>
+              <h3 className="text-base font-bold text-zinc-800">{isEdit ? `Editar — ${initialData.name}` : 'Nova Instituição Financeira'}</h3>
               <p className="text-[10px] text-zinc-400">Perfil estratégico com IA + Nível de relacionamento BX</p>
             </div>
           </div>
@@ -1526,7 +1659,7 @@ Responda APENAS com o perfil estruturado, sem introdução:
           <button onClick={handleSave} disabled={saving || !form.name.trim()}
             className="flex-1 py-2.5 text-sm font-bold text-white rounded-xl disabled:opacity-50 hover:opacity-90 flex items-center justify-center gap-2"
             style={{ background: '#3B82F6' }}>
-            {saving ? <><Loader2 className="w-4 h-4 animate-spin" />Salvando…</> : '+ Cadastrar Instituição'}
+            {saving ? <><Loader2 className="w-4 h-4 animate-spin" />Salvando…</> : isEdit ? '💾 Salvar Alterações' : '+ Cadastrar Instituição'}
           </button>
         </div>
       </div>
