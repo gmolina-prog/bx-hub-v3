@@ -240,6 +240,9 @@ export default function Intakes() {
       next_contact_date: intake.next_contact_date || '',
       next_step: intake.next_step || '',
       notes: intake.notes || '',
+      type: intake.type || 'diagnostico',
+      urgency: intake.urgency || 'media',
+      business_model: intake.business_model || '',
     })
     setEditingIntake(true)
   }
@@ -261,6 +264,9 @@ export default function Intakes() {
         next_contact_date: editForm.next_contact_date || null,
         next_step: editForm.next_step?.trim() || null,
         notes: editForm.notes?.trim() || null,
+        type: editForm.type || null,
+        urgency: editForm.urgency || 'media',
+        business_model: editForm.business_model?.trim() || null,
       }
       const { error: uErr } = await supabase
         .from('intakes')
@@ -752,12 +758,26 @@ export default function Intakes() {
                     <input className="px-3 py-2 text-sm border border-zinc-200 rounded-lg focus:outline-none focus:border-violet-500"
                       placeholder="Telefone" value={editForm.phone}
                       onChange={e => setEditForm(p => ({...p, phone: e.target.value}))} />
+                    {/* Tipo de serviço — estava faltando no edit */}
+                    <select value={editForm.type} onChange={e => setEditForm(p => ({...p, type: e.target.value}))}
+                      className="px-3 py-2 text-sm border border-zinc-200 rounded-lg bg-white focus:outline-none focus:border-violet-500">
+                      {INTAKE_TYPES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+                    </select>
+                    {/* Urgência — estava faltando no edit */}
+                    <select value={editForm.urgency} onChange={e => setEditForm(p => ({...p, urgency: e.target.value}))}
+                      className="px-3 py-2 text-sm border border-zinc-200 rounded-lg bg-white focus:outline-none focus:border-violet-500">
+                      {URGENCIES.map(u => <option key={u.id} value={u.id}>{u.label}</option>)}
+                    </select>
                     <input type="number" className="px-3 py-2 text-sm border border-zinc-200 rounded-lg focus:outline-none focus:border-violet-500"
                       placeholder="Valor estimado" value={editForm.estimated_value}
                       onChange={e => setEditForm(p => ({...p, estimated_value: e.target.value}))} />
                     <input type="date" className="px-3 py-2 text-sm border border-zinc-200 rounded-lg focus:outline-none focus:border-violet-500"
                       placeholder="Próximo contato" value={editForm.next_contact_date}
                       onChange={e => setEditForm(p => ({...p, next_contact_date: e.target.value}))} />
+                    {/* Modelo de negócio — estava faltando no edit */}
+                    <input className="col-span-2 px-3 py-2 text-sm border border-zinc-200 rounded-lg focus:outline-none focus:border-violet-500"
+                      placeholder="Modelo de negócio" value={editForm.business_model}
+                      onChange={e => setEditForm(p => ({...p, business_model: e.target.value}))} />
                     <input className="col-span-2 px-3 py-2 text-sm border border-zinc-200 rounded-lg focus:outline-none focus:border-violet-500"
                       placeholder="Próximo passo" value={editForm.next_step}
                       onChange={e => setEditForm(p => ({...p, next_step: e.target.value}))} />
