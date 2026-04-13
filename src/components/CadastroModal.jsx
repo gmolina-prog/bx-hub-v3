@@ -97,6 +97,7 @@ export function NovaEmpresaModal({ onClose, onSave, companies, initialData }) {
         contact_phone:      initialData.contact_phone   || '',
         contact_phone2:     '',
         website:            initialData.website         || '',
+        powerbi_link:       initialData.powerbi_link    || '',
         cnae: '', porte: '', socios: '', data_abertura: '',
         situacao: '', regime_tributario: '', natureza_juridica: '', capital_social: '',
         ai_summary: aiSummary,
@@ -110,7 +111,7 @@ export function NovaEmpresaModal({ onClose, onSave, companies, initialData }) {
       zip_code: '', address: '', address_number: '', address_complement: '',
       neighborhood: '', city: '', state: '',
       contact_name: '', contact_role: '', contact_email: '', contact_phone: '',
-      contact_phone2: '', website: '',
+      contact_phone2: '', website: '', powerbi_link: '',
       cnae: '', porte: '', socios: '', data_abertura: '',
       situacao: '', regime_tributario: '', natureza_juridica: '',
       capital_social: '',
@@ -330,7 +331,7 @@ Responda APENAS com o perfil. Use exatamente esta estrutura:
         observations:   form.ai_summary
                           ? `🤖 PERFIL BX (IA):\n${form.ai_summary}${form.observations?.trim() ? '\n\n' + form.observations.trim() : ''}`
                           : (form.observations?.trim() || null),
-        powerbi_link:   null,
+        powerbi_link:   form.powerbi_link?.trim() || null,
       }
 
       let data
@@ -498,6 +499,16 @@ Responda APENAS com o perfil. Use exatamente esta estrutura:
                 <label className={LabelCls}>Website</label>
                 <input className={InputCls} placeholder="https://www.empresa.com.br"
                   value={form.website} onChange={e => f('website', e.target.value)} />
+              </div>
+
+              {/* Power BI */}
+              <div>
+                <label className={LabelCls}>🔗 Link Power BI / Dashboard</label>
+                <input className={InputCls} placeholder="https://app.powerbi.com/... ou qualquer URL de dashboard"
+                  value={form.powerbi_link} onChange={e => f('powerbi_link', e.target.value)} />
+                <p style={{ fontSize: 11, color: '#9CA3AF', marginTop: 4 }}>
+                  Cole o link de incorporação (embed) do Power BI. Ficará disponível no módulo BI.
+                </p>
               </div>
 
               {/* Preview dados Receita */}
