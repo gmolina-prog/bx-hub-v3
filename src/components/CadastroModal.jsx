@@ -887,6 +887,12 @@ Responda APENAS com a bio estruturada. Use exatamente esta estrutura:
     }
     setSaving(true)
     try {
+      const notesContent = [
+        form.notes?.trim() || '',
+        form.linkedin ? `🔗 LinkedIn: ${form.linkedin}` : '',
+        form.ai_bio ? `---\n🤖 BIO IA:\n${form.ai_bio}` : '',
+      ].filter(Boolean).join('\n\n').trim() || null
+
       const payload = {
         full_name:   form.full_name.trim(),
         email:       form.email.trim().toLowerCase(),
@@ -894,10 +900,7 @@ Responda APENAS com a bio estruturada. Use exatamente esta estrutura:
         cargo:       form.cargo       || null,
         phone:       form.phone       || null,
         department:  form.department  || null,
-        linkedin:    form.linkedin    || null,
-        notes:       form.ai_bio
-                       ? `${form.notes || ''}\n\n---\n🤖 BIO IA:\n${form.ai_bio}`.trim()
-                       : (form.notes?.trim() || null),
+        notes:       notesContent,
         specialties: form.specialties.length ? form.specialties : null,
       }
       let data
