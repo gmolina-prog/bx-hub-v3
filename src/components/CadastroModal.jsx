@@ -38,30 +38,72 @@ async function fetchCNPJ(cnpj) {
 }
 
 // ─── AI via Claude API ─────────────────────────────────────────────────────────
-async function callClaude(prompt) {
+async function callClaude(prompt, useWebSearch = false) {
   const apiKey = import.meta.env.VITE_ANTHROPIC_KEY || ''
   if (!apiKey) throw new Error('Chave da API não configurada. Adicione VITE_ANTHROPIC_KEY nas variáveis de ambiente do Vercel.')
-  const r = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-      'anthropic-dangerous-direct-browser-access': 'true',
-    },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 1000,
-      messages: [{ role: 'user', content: prompt }],
-    }),
-  })
-  if (!r.ok) {
-    const err = await r.json().catch(() => ({}))
-    throw new Error(err?.error?.message || `Erro ${r.status} na API`)
+
+  const body = {
+    model: 'claude-sonnet-4-6',
+    max_tokens: 4000,
+    messages: [{ role: 'user', content: prompt }],
   }
-  const d = await r.json()
-  return d.content?.[0]?.text || ''
+
+  if (useWebSearch) {
+    body.tools = [{ type: 'web_search_20250305', name: 'web_search' }]
+  }
+
+  // Loop agentic: continua enquanto houver tool_use (buscas web)
+  let messages = body.messages
+  let finalText = ''
+  const MAX_TURNS = 8
+
+  for (let turn = 0; turn < MAX_TURNS; turn++) {
+    const r = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body: JSON.stringify({ ...body, messages }),
+    })
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}))
+      throw new Error(err?.error?.message || `Erro ${r.status} na API`)
+    }
+    const d = await r.json()
+
+    // Coletar texto parcial
+    const textBlocks = d.content?.filter(b => b.type === 'text') || []
+    if (textBlocks.length) finalText = textBlocks.map(b => b.text).join('')
+
+    // Se parou (end_turn ou sem tool_use) — retornar
+    if (d.stop_reason === 'end_turn' || !d.content?.some(b => b.type === 'tool_use')) {
+      break
+    }
+
+    // Processar tool_use: adicionar resultado das buscas para próxima iteração
+    const toolUseBlocks = d.content.filter(b => b.type === 'tool_use')
+    messages = [
+      ...messages,
+      { role: 'assistant', content: d.content },
+      {
+        role: 'user',
+        content: toolUseBlocks.map(tu => ({
+          type: 'tool_result',
+          tool_use_id: tu.id,
+          content: tu.input?.query
+            ? `Buscando: "${tu.input.query}" — resultados incorporados automaticamente pelo sistema.`
+            : 'Busca processada.',
+        })),
+      },
+    ]
+  }
+
+  return finalText
 }
+
 
 // ══════════════════════════════════════════════════════════════════════════════
 // MODAL NOVA EMPRESA
@@ -226,7 +268,7 @@ export function NovaEmpresaModal({ onClose, onSave, companies, initialData }) {
     try {
       const prompt = `Você é um sócio da BX Finance com profunda experiência em advisory financeiro mid-market: diagnóstico financeiro, reestruturação operacional, RJ/RX, M&A e estruturação de dívida. A BX é reconhecida por análises cirúrgicas, linguagem direta e entrega de valor real para empresas em situações complexas.
 
-Gere um PERFIL BX PROPRIETÁRIO desta empresa. Seja analítico, direto e use emojis para estruturar. Nada genérico — cada seção deve refletir o que você enxerga sobre este negócio específico com base nos dados fornecidos.
+IMPORTANTE: Use a busca web para pesquisar esta empresa ANTES de escrever. Busque pelo nome, CNPJ e notícias recentes.\n\nGere um PERFIL BX PROPRIETÁRIO desta empresa. Seja analítico, direto e use emojis. Cada seção deve usar dados reais encontrados na web + dados cadastrais abaixo.
 
 DADOS DA EMPRESA:
 - Razão Social: ${form.name}
@@ -242,10 +284,10 @@ DADOS DA EMPRESA:
 - Sócios: ${form.socios || '—'}
 - Fundação: ${form.data_abertura || '—'}
 - Segmento BX: ${form.segment || '—'}
-
+- Website: ${form.website || '—'}\n
 Responda APENAS com o perfil. Use exatamente esta estrutura:
 
-🏢 **PERFIL OPERACIONAL**
+🔍 **INTELIGÊNCIA DE MERCADO** *(pesquisa web)*\n[O que você encontrou sobre a empresa online: notícias, menções em mídia, situação aparente, presença digital. Cite as fontes. Se nada relevante foi encontrado, informe.]\n\n🏢 **PERFIL OPERACIONAL**
 [3-4 frases: o que faz de verdade, modelo de negócio, porte real, posicionamento no mercado e principais clientes/mercados atendidos]
 
 📊 **LEITURA FINANCEIRA PRELIMINAR**
@@ -265,7 +307,7 @@ Responda APENAS com o perfil. Use exatamente esta estrutura:
 📅 **PRÓXIMOS PASSOS**
 [2-3 ações concretas e sequenciadas: o que fazer essa semana, o que preparar para o primeiro contato]`
 
-      const text = await callClaude(prompt)
+      const text = await callClaude(prompt, true)
       setForm(p => ({ ...p, ai_summary: text }))
       toast.success('Perfil BX gerado ✓')
     } catch (err) {
@@ -1133,7 +1175,7 @@ export function NovoProjetoModal({ onClose, onSave, companies, profiles, initial
       const empresa = companies.find(c => c.id === form.company_id)
       const prompt = `Você é um sócio-fundador da BX Finance com mais de 15 anos estruturando mandatos de advisory financeiro mid-market. Você já liderou diagnósticos que revelaram situações críticas, reestruturações que salvaram empresas, processos de RJ que criaram valor real e M&As que transformaram trajetórias empresariais.
 
-Gere um ESCOPO BX PROPRIETÁRIO para este mandato. Seja técnico, direto e use emojis para estruturar. Cada seção deve refletir o que uma equipe sênior realmente faria — nada de escopo genérico de consultoria.
+IMPORTANTE: Use a busca web para pesquisar a empresa cliente e o contexto de mercado ANTES de escrever o escopo.\n\nGere um ESCOPO BX PROPRIETÁRIO para este mandato. Seja técnico, direto e use emojis. Cada seção deve refletir o que uma equipe sênior realmente faria — nada de escopo genérico de consultoria.
 
 TIPO DE MANDATO: ${form.type}
 EMPRESA CLIENTE: ${empresa?.name || 'a definir'}${empresa?.segment ? ` | ${empresa.segment}` : ''}${empresa?.city ? ` | ${empresa.city}/${empresa.state}` : ''}${empresa?.notes ? '\n📋 Perfil: ' + empresa.notes.slice(0,500) : ''}
@@ -1165,7 +1207,7 @@ Responda APENAS com o escopo. Use exatamente esta estrutura:
 🤝 **EQUIPE BX SUGERIDA**
 [Papéis e responsabilidades: sócio (qual papel), analista sênior (o que faz), analista júnior (o que faz), estimativa de horas por fase]`
 
-      const text = await callClaude(prompt)
+      const text = await callClaude(prompt, true)
       setForm(p => ({ ...p, ai_scope: text }))
       // Sugerir nome se não preenchido
       if (!form.name && empresa) {
@@ -1451,7 +1493,7 @@ Responda APENAS com o perfil. Use exatamente esta estrutura com emojis BX:
 🌡️ **APETITE DE MERCADO ATUAL**
 [Como esta instituição está se comportando no ciclo atual de crédito: expandindo ou restringindo, setores em foco, postura geral, temperatura para empresas em distress ou reestruturação]`
 
-      const text = await callClaude(prompt)
+      const text = await callClaude(prompt, true)
       setForm(p => ({ ...p, ai_profile: text }))
       toast.success('Perfil estratégico gerado ✓')
     } catch (err) {
