@@ -368,16 +368,16 @@ function RenameModal({ channel, onSave, onClose }) {
 }
 
 // ─── New Channel Modal ────────────────────────────────────────────────────────
-function NewChannelModal({ profile, projects, onCreated, onClose }) {
+function NewChannelModal({ profile, projects, companies, onCreated, onClose }) {
   const [name,setName]=useState(''); const [desc,setDesc]=useState('')
-  const [projectId,setProjectId]=useState(''); const [icon,setIcon]=useState('💬')
+  const [projectId,setProjectId]=useState(''); const [companyId,setCompanyId]=useState(''); const [icon,setIcon]=useState('💬')
   const [saving,setSaving]=useState(false)
   const ICONS=['💬','📁','🎯','🔥','⚡','🏢','📊','🤝','💡','⚠️','✅','🧠']
   async function create() {
     if(!name.trim()) return; setSaving(true)
     const {data,error}=await supabase.from('chat_channels').insert({
       org_id:profile.org_id, name:name.trim(), description:desc.trim()||null,
-      icon, project_id:projectId||null, is_general:false, is_archived:false, type:'channel'
+      icon, project_id:projectId||null, company_id:companyId||null, is_general:false, is_archived:false, type:'channel'
     }).select().single()
     if(error){toast.error('Erro: '+error.message);setSaving(false);return}
     if(data) onCreated(data); setSaving(false)
@@ -417,6 +417,14 @@ function NewChannelModal({ profile, projects, onCreated, onClose }) {
               value={projectId} onChange={e=>setProjectId(e.target.value)}>
               <option value="">— nenhum —</option>
               {projects.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1 block">Empresa vinculada</label>
+            <select className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+              value={companyId} onChange={e=>{setCompanyId(e.target.value);if(e.target.value)setProjectId('')}}>
+              <option value="">— nenhuma —</option>
+              {(companies||[]).map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>
           <div className="flex gap-3 pt-2">
@@ -617,6 +625,7 @@ export default function Chat() {
   const [messages, setMessages] = useState([])
   const [profiles, setProfilesList] = useState([])
   const [projects, setProjects] = useState([])
+  const [companies, setCompanies] = useState([])
   const [todayCheckins, setTodayCheckins] = useState([])
   const [unreadByChannel, setUnreadByChannel] = useState({})
   const [markedUnread, setMarkedUnread] = useState(new Set()) // local only
@@ -661,8 +670,9 @@ export default function Chat() {
       supabase.from('chat_channels').select('*').eq('org_id', profile.org_id).order('created_at'),
       supabase.from('profiles').select('id,full_name,initials,avatar_color,role').eq('org_id', profile.org_id).order('full_name'),
       supabase.from('projects').select('id,name,status').eq('org_id', profile.org_id).order('name'),
+      supabase.from('companies').select('id,name').eq('org_id', profile.org_id).is('deleted_at', null).order('name'),
       supabase.from('check_ins').select('user_id,status').eq('org_id', profile.org_id).eq('date', today).is('check_out_time', null),
-    ]).then(([chR, profR, projR, ciR]) => {
+    ]).then(([chR, profR, projR, compR, ciR]) => {
       const chs = chR.status==='fulfilled'&&!chR.value.error ? chR.value.data||[] : []
       const FIXED = [
         { name:'# Público',  icon:'💬', description:'Canal geral da equipe' },
@@ -682,6 +692,7 @@ export default function Chat() {
       } else { doSet(chs) }
       if(profR.status==='fulfilled'&&!profR.value.error) setProfilesList(profR.value.data||[])
       if(projR.status==='fulfilled'&&!projR.value.error) setProjects(projR.value.data||[])
+      if(compR.status==='fulfilled'&&!compR.value.error) setCompanies(compR.value.data||[])
       if(ciR.status==='fulfilled'&&!ciR.value.error) setTodayCheckins(ciR.value.data||[])
     })
   }, [profile])
@@ -1028,6 +1039,79 @@ export default function Chat() {
     setGeneratingSummary(false)
   }
 
+  // ── IA: Organizar conversa do canal no formato BX ─────────────────────────
+  const [organizingChannel, setOrganizingChannel] = useState(false)
+  async function organizarCanalIA(channel) {
+    if (organizingChannel) return
+    setOrganizingChannel(true)
+    try {
+      const { data: msgs } = await supabase
+        .from('chat_messages').select('content,sender_id,created_at')
+        .eq('org_id', profile.org_id).eq('channel_id', channel.id)
+        .eq('is_scheduled', false).order('created_at').limit(100)
+      if (!msgs || msgs.length < 3) {
+        toast.warning('Poucas mensagens para organizar (mínimo 3)')
+        setOrganizingChannel(false); return
+      }
+      const transcript = msgs.map(m =>
+        `[${new Date(m.created_at).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}] ${profMap[m.sender_id]?.full_name || 'Alguém'}: ${m.content}`
+      ).join('\n')
+
+      const resp = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': import.meta.env.VITE_ANTHROPIC_KEY || '',
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true',
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514', max_tokens: 1200,
+          messages: [{ role: 'user', content: `Você é o assistente interno da BX Finance, escritório de advisory financeiro mid-market. Sua missão é organizar conversas de equipe no padrão BX — direto, técnico e orientado a ação.
+
+Analise esta conversa do canal "#${channel.name}" e reorganize-a no padrão BX. Use emojis para estruturar, seja objetivo e elimine ruído.
+
+CONVERSA:
+${transcript}
+
+Responda APENAS com o documento organizado, no seguinte formato:
+
+📋 **CONTEXTO DO TÓPICO**
+[O que está sendo discutido — 2-3 frases contextualizando o assunto para alguém que não participou]
+
+🎯 **DECISÕES TOMADAS**
+[Decisões claras que emergiram — se não houver, escreva "Nenhuma decisão definitiva ainda"]
+
+📦 **ENTREGÁVEIS IDENTIFICADOS**
+[O que precisa ser produzido, entregue ou resolvido — com responsável se mencionado]
+
+⚡ **ACTION ITEMS**
+[Lista: • Responsável → Ação → Prazo (se mencionado) — se não houver, escreva "Sem action items definidos"]
+
+❓ **PONTOS EM ABERTO**
+[Questões que ainda precisam de resposta, decisão ou investigação]
+
+📅 **PRÓXIMOS PASSOS BX**
+[Sequência sugerida de ações para avançar o tópico]` }]
+        })
+      })
+      const d = await resp.json()
+      const organized = d.content?.[0]?.text || 'Não foi possível organizar.'
+      await supabase.from('chat_messages').insert({
+        org_id: profile.org_id, channel_id: channel.id, sender_id: profile.id,
+        content: `🤖 **ORGANIZAÇÃO BX — IA**\n\n${organized}`,
+        mentions: [], reactions: {}, read_by: [profile.id], is_scheduled: false, scheduled_for: null,
+        is_pinned: false,
+      })
+      toast.success('Conversa organizada no formato BX ✓')
+    } catch (err) {
+      toast.error('Erro na IA: ' + err.message)
+      console.error('[Organizar IA]', err)
+    }
+    setOrganizingChannel(false)
+  }
+
+
   // ── @mention input ──
   function handleInput(e) {
     const val=e.target.value; setInput(val)
@@ -1291,6 +1375,14 @@ export default function Chat() {
                   {generatingSummary?'Gerando…':'Resumo IA'}
                 </button>
               )}
+              {activeChannel&&!activeChannel.is_general&&!activeChannel.is_archived&&(
+                <button onClick={()=>organizarCanalIA(activeChannel)} disabled={organizingChannel}
+                  title="Organizar conversa no padrão BX com IA"
+                  className="flex items-center gap-1 px-2 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg hover:bg-emerald-100 disabled:opacity-50">
+                  <Sparkles className="w-3 h-3"/>
+                  {organizingChannel?'Organizando…':'✨ Organizar BX'}
+                </button>
+              )}
               {pinnedMessages.length>0&&(
                 <button onClick={()=>setShowPinned(p=>!p)}
                   className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold ${showPinned?'bg-amber-100 text-amber-700':'text-zinc-500 hover:bg-zinc-100'}`}>
@@ -1506,7 +1598,7 @@ export default function Chat() {
 
       {/* Modals */}
       {showNewChannel&&(
-        <NewChannelModal profile={profile} projects={projects}
+        <NewChannelModal profile={profile} projects={projects} companies={companies}
           onCreated={ch=>{setChannels(prev=>[...prev,ch]);setActiveChannel(ch);setShowNewChannel(false)}}
           onClose={()=>setShowNewChannel(false)}/>
       )}
