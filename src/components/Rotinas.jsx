@@ -292,6 +292,7 @@ export default function Rotinas() {
 
   // Late modal state
   const [lateModal, setLateModal] = useState(null)  // { routine, refDate, freq } | null
+  const [confirmHelp, setConfirmHelp] = useState(null) // rotina para confirmar ajuda de colega
   const [lateWho,   setLateWho]   = useState('')
   const [lateDate,  setLateDate]  = useState('')
   const [lateObs,   setLateObs]   = useState('')
@@ -419,12 +420,12 @@ export default function Rotinas() {
   const compMap = Object.fromEntries(companies.map(c => [c.id, c]))
 
   // ── Toggle ───────────────────────────────────────────────────────────────
-  async function toggle(r) {
+  async function toggle(r, override = false) {
     // Controle de acesso: só assigned_to ou owner/gerente pode marcar
     const isLeaderRole = ['owner','gerente'].includes(profile?.role?.toLowerCase())
     const isAssigned   = r.assigned_to === profile?.id
-    if (!isLeaderRole && !isAssigned) {
-      toast.warning('Apenas o responsável pela rotina pode marcá-la como feita.')
+    if (!isLeaderRole && !isAssigned && !override) {
+      setConfirmHelp(r)  // mostra modal de confirmação em vez de bloquear
       return
     }
     const ref  = getReference(r.frequency)
@@ -1604,6 +1605,36 @@ export default function Rotinas() {
       )}
 
       {/* ── Late Execution Modal ── */}
+      {/* ── Modal confirmação ajuda de colega ── */}
+      {confirmHelp && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: 'rgba(10,10,16,0.6)', backdropFilter: 'blur(4px)' }}
+          onClick={() => setConfirmHelp(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm"
+            onClick={e => e.stopPropagation()}>
+            <div className="text-center mb-4">
+              <div style={{ fontSize: 32, marginBottom: 8 }}>🤝</div>
+              <h3 className="text-base font-bold text-zinc-800">Ajudar o colega?</h3>
+              <p className="text-sm text-zinc-500 mt-2">
+                Esta rotina está atribuída a <b>{profilesList?.find(p => p.id === confirmHelp.assigned_to)?.full_name?.split(' ')[0] || 'outro membro'}</b>.
+                Você quer registrar a execução no lugar dele?
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => setConfirmHelp(null)}
+                className="flex-1 px-4 py-2 text-sm text-zinc-500 border border-zinc-200 rounded-xl hover:bg-zinc-50">
+                Cancelar
+              </button>
+              <button onClick={() => { const r = confirmHelp; setConfirmHelp(null); toggle(r, true) }}
+                className="flex-1 px-4 py-2 text-sm font-bold text-white rounded-xl"
+                style={{ background: '#5452C1' }}>
+                Sim, registrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {lateModal && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={e => { if (e.target === e.currentTarget) setLateModal(null) }}>
           <div className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl">
