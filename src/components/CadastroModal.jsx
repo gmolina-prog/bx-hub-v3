@@ -893,23 +893,25 @@ Responda APENAS com a bio estruturada. Use exatamente esta estrutura:
         form.ai_bio ? `---\n🤖 BIO IA:\n${form.ai_bio}` : '',
       ].filter(Boolean).join('\n\n').trim() || null
 
-      // NOTE: email is NOT updated in edit mode — it's the auth identifier
-      // email is only set on initial INSERT via the create flow
+      // Build payload carefully — only include columns that exist in profiles table
       const payload = {
-        full_name:   form.full_name.trim(),
-        role:        form.role,
-        cargo:       form.cargo       || null,
-        phone:       form.phone       || null,
-        department:  form.department  || null,
-        notes:       notesContent,
-        specialties: form.specialties.length ? form.specialties : null,
+        full_name:  form.full_name.trim(),
+        role:       form.role,
+        cargo:      form.cargo      || null,
+        phone:      form.phone      || null,
+        notes:      notesContent,
       }
+      // Only add optional columns if they have values (avoid NULL constraint issues)
+      if (form.department) payload.department = form.department
+      if (form.specialties?.length) payload.specialties = form.specialties
       let data
       if (isEdit) {
-        const { data: upd, error } = await supabase.from('profiles').update(payload)
-          .eq('id', initialData.id).eq('org_id', profile.org_id).select().single()
+        // No .select().single() — RLS can block the read back even when UPDATE succeeds
+        const { error } = await supabase.from('profiles').update(payload)
+          .eq('id', initialData.id).eq('org_id', profile.org_id)
         if (error) throw error
-        data = upd
+        // Return merged object since we can't read it back
+        data = { ...initialData, ...payload }
         toast.success(`"${form.full_name}" atualizado ✓`)
       } else {
         const { data: ins, error } = await supabase.from('profiles').insert({
