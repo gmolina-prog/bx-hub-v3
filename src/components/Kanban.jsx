@@ -231,7 +231,7 @@ function TaskModal({ task, projects, profiles, allTasks, onClose, onSave, onDele
   function toggleSubtask(i) { setSubtasks(prev => prev.map((s,j) => j===i ? {...s,done:!s.done} : s)) }
   function addSubtask() {
     if (!newSubtask.trim()) return
-    setSubtasks(prev => [...prev, { text: newSubtask.trim(), done: false }])
+    setSubtasks(prev => [...prev, { id: Date.now().toString(), text: newSubtask.trim(), done: false, assigned_to: null, due_date: null }])
     setNewSubtask('')
   }
   function removeSubtask(i) { setSubtasks(prev => prev.filter((_,j) => j!==i)) }
@@ -379,15 +379,29 @@ function TaskModal({ task, projects, profiles, allTasks, onClose, onSave, onDele
               {/* Items */}
               <div className="space-y-0.5 mb-3">
                 {subtasks.map((s,i) => (
-                  <div key={i} className="flex items-start gap-2 group py-1.5 rounded-lg hover:bg-white/70 px-1 -mx-1">
-                    <button onClick={() => toggleSubtask(i)}
-                      className="w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 mt-0.5 transition-all"
-                      style={s.done ? {background:accentColor,borderColor:accentColor} : {borderColor:'#D1D5DB',background:'white'}}>
-                      {s.done && <Check className="w-2.5 h-2.5 text-white" strokeWidth={3} />}
-                    </button>
-                    <span className={`text-xs flex-1 leading-snug select-none ${s.done?'line-through text-zinc-400':'text-zinc-700'}`}>{s.text}</span>
-                    <button onClick={() => removeSubtask(i)}
-                      className="opacity-0 group-hover:opacity-100 w-4 h-4 flex items-center justify-center text-zinc-300 hover:text-red-500 shrink-0 text-sm leading-none">×</button>
+                  <div key={i} className="flex flex-col gap-0.5 group py-1.5 rounded-lg hover:bg-white/70 px-1 -mx-1">
+                    <div className="flex items-start gap-2">
+                      <button onClick={() => toggleSubtask(i)}
+                        className="w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 mt-0.5 transition-all"
+                        style={s.done ? {background:accentColor,borderColor:accentColor} : {borderColor:'#D1D5DB',background:'white'}}>
+                        {s.done && <Check className="w-2.5 h-2.5 text-white" strokeWidth={3} />}
+                      </button>
+                      <span className={`text-xs flex-1 leading-snug select-none ${s.done?'line-through text-zinc-400':'text-zinc-700'}`}>{s.text}</span>
+                      <button onClick={() => removeSubtask(i)}
+                        className="opacity-0 group-hover:opacity-100 w-4 h-4 flex items-center justify-center text-zinc-300 hover:text-red-500 shrink-0 text-sm leading-none">×</button>
+                    </div>
+                    {/* Responsável + Prazo por subtarefa */}
+                    <div className="flex items-center gap-2 pl-6">
+                      <select className="text-[10px] text-zinc-400 border border-zinc-100 rounded px-1 py-0.5 bg-transparent focus:outline-none focus:border-violet-400 cursor-pointer"
+                        value={s.assigned_to || ''}
+                        onChange={e => setSubtasks(prev => prev.map((st,idx) => idx===i ? {...st, assigned_to: e.target.value||null} : st))}>
+                        <option value="">+ Responsável</option>
+                        {profilesList.map(p => <option key={p.id} value={p.id}>{p.full_name?.split(' ')[0]}</option>)}
+                      </select>
+                      <input type="date" className="text-[10px] text-zinc-400 border border-zinc-100 rounded px-1 py-0.5 bg-transparent focus:outline-none focus:border-violet-400 cursor-pointer"
+                        value={s.due_date || ''}
+                        onChange={e => setSubtasks(prev => prev.map((st,idx) => idx===i ? {...st, due_date: e.target.value||null} : st))} />
+                    </div>
                   </div>
                 ))}
                 {subtasks.length === 0 && <p className="text-xs text-zinc-400 italic py-1">Sem itens ainda.</p>}

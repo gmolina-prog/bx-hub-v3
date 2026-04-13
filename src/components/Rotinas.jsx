@@ -420,6 +420,13 @@ export default function Rotinas() {
 
   // ── Toggle ───────────────────────────────────────────────────────────────
   async function toggle(r) {
+    // Controle de acesso: só assigned_to ou owner/gerente pode marcar
+    const isLeaderRole = ['owner','gerente'].includes(profile?.role?.toLowerCase())
+    const isAssigned   = r.assigned_to === profile?.id
+    if (!isLeaderRole && !isAssigned) {
+      toast.warning('Apenas o responsável pela rotina pode marcá-la como feita.')
+      return
+    }
     const ref  = getReference(r.frequency)
     const done = getCompletionsInCycle(r.id, r.frequency).length > 0
     setSaving(r.id)
