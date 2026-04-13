@@ -19,10 +19,22 @@ export function DataProvider({ children }) {
   async function loadProfile(user) {
     if (!user) { setProfile(null); return }
     try {
-      const { data, error } = await supabase
-        .from('profiles').select('*').eq('id', user.id).single()
-      if (error) throw error
-      setProfile(data)
+      // Tenta pelo id (caminho normal — auth.uid() === profiles.id)
+      const { data: byId, error: e1 } = await supabase
+        .from('profiles').select('*').eq('id', user.id).maybeSingle()
+
+      if (byId) { setProfile(byId); return }
+
+      // Fallback: busca por email (cobre caso de UUID mismatch em profiles inseridos manualmente)
+      if (user.email) {
+        const { data: byEmail, error: e2 } = await supabase
+          .from('profiles').select('*').eq('email', user.email).maybeSingle()
+        if (byEmail) { setProfile(byEmail); return }
+        if (e2) throw e2
+      }
+
+      if (e1) throw e1
+      setProfile(null)
     } catch (err) {
       console.error('[DataContext] profile:', err.message)
       setProfile(null)

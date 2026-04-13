@@ -93,7 +93,7 @@ export default function Dashboard() {
       supabase.from('profiles').select('id,full_name,initials,avatar_color,role,cargo').eq('org_id', profile.org_id).order('full_name'),
       supabase.from('routines').select('id,is_active,frequency').eq('org_id', profile.org_id).eq('is_active', true),
       supabase.from('activity_log').select('id,actor_id,entity_type,action,metadata,created_at,module').eq('org_id', profile.org_id).order('created_at', { ascending: false }).limit(10),
-      supabase.from('risks').select('id,name,status,probability,impact,owner_id,project_id,mitigation_due').eq('org_id', profile.org_id).neq('status','closed').limit(50),
+      supabase.from('risks').select('id,name,status,probability,impact,owner_id,project_id').eq('org_id', profile.org_id).neq('status','closed').limit(50),
       supabase.from('companies').select('id,name,status,criticality').eq('org_id', profile.org_id).eq('status','ativo').limit(50),
       supabase.from('expense_reports').select('id,status,total_amount,submitted_by,period_start,period_end,title').eq('org_id', profile.org_id),
     ])
@@ -292,7 +292,16 @@ export default function Dashboard() {
   }
 
   if (loading) return <div className="p-6 text-center text-sm text-zinc-400">Carregando…</div>
-  if (!data) return null
+  if (!data) return (
+    <div className="p-8 flex flex-col items-center justify-center gap-4 text-center">
+      <div style={{ fontSize: 32 }}>⚠️</div>
+      <div style={{ fontFamily: 'Montserrat,sans-serif', fontWeight: 600, color: '#2D2E39' }}>Erro ao carregar o Dashboard</div>
+      <div style={{ fontSize: 13, color: '#6B7280' }}>Não foi possível buscar os dados. Verifique a conexão ou recarregue.</div>
+      <button onClick={() => window.location.reload()} style={{ background: '#5452C1', color: '#fff', border: 'none', borderRadius: 6, padding: '8px 20px', fontFamily: 'Montserrat,sans-serif', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>
+        Recarregar
+      </button>
+    </div>
+  )
 
   const { todo, doing, done, overdue, pipeTotal, pipeWeighted, activeProjs, profiles, checkins, ciByStatus, memberLoadArr, recentActivity, health, statusIcon, statusText, pipeStages, firstName, ciPct, dueSoon = [], actLog = [] } = data
   const gr = greeting()
