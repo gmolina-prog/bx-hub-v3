@@ -893,9 +893,10 @@ Responda APENAS com a bio estruturada. Use exatamente esta estrutura:
         form.ai_bio ? `---\n🤖 BIO IA:\n${form.ai_bio}` : '',
       ].filter(Boolean).join('\n\n').trim() || null
 
+      // NOTE: email is NOT updated in edit mode — it's the auth identifier
+      // email is only set on initial INSERT via the create flow
       const payload = {
         full_name:   form.full_name.trim(),
-        email:       form.email.trim().toLowerCase(),
         role:        form.role,
         cargo:       form.cargo       || null,
         phone:       form.phone       || null,
@@ -913,6 +914,7 @@ Responda APENAS com a bio estruturada. Use exatamente esta estrutura:
       } else {
         const { data: ins, error } = await supabase.from('profiles').insert({
           org_id: profile.org_id,
+          email:  form.email.trim().toLowerCase(),
           avatar_color: ['#5452C1','#10B981','#F59E0B','#3B82F6','#8B5CF6','#EF4444'][Math.floor(Math.random()*6)],
           ...payload,
         }).select().single()
