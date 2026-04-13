@@ -146,7 +146,7 @@ export function NovaEmpresaModal({ onClose, onSave, companies, initialData }) {
         cnae: '', porte: '', socios: '', data_abertura: '',
         situacao: '', regime_tributario: '', natureza_juridica: '', capital_social: '',
         ai_summary: aiSummary,
-        notes:       initialData.notes        || '',
+        notes:       initialData.about_me     || '',
         observations: cleanObs,
       }
     }
@@ -964,7 +964,7 @@ Responda APENAS com a bio estruturada. Use exatamente esta estrutura:
         cargo:      form.cargo      || null,
         phone:      form.phone      || null,
         cpf:        form.cpf?.replace(/\D/g,'') || null,
-        notes:      notesContent,
+        about_me:   notesContent,
       }
       let data
       if (isEdit) {
