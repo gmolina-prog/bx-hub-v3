@@ -467,13 +467,25 @@ function TaskModal({ task, projects, profiles, allTasks, onClose, onSave, onDele
               ) : loadingComments ? (
                 <div className="text-xs text-zinc-400 py-4">Carregando…</div>
               ) : comments.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full text-center py-8">
-                  <div className="w-10 h-10 rounded-2xl bg-zinc-100 flex items-center justify-center mb-2">
-                    <MessageSquare className="w-5 h-5 text-zinc-300" />
+                <div className="flex flex-col h-full">
+                  {/* Descrição destacada quando não há comentários */}
+                  {form.description?.trim() && (
+                    <div className="mb-4 p-4 bg-zinc-50 border border-zinc-100 rounded-xl">
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <div className="w-1.5 h-1.5 rounded-full bg-violet-400" />
+                        <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Descrição</span>
+                      </div>
+                      <p className="text-sm text-zinc-700 leading-relaxed whitespace-pre-wrap">{form.description}</p>
+                    </div>
+                  )}
+                  <div className="flex flex-col items-center justify-center flex-1 text-center py-6">
+                    <div className="w-10 h-10 rounded-2xl bg-zinc-100 flex items-center justify-center mb-2">
+                      <MessageSquare className="w-5 h-5 text-zinc-300" />
+                    </div>
+                    <p className="text-xs text-zinc-400">Sem comentários ainda.</p>
+                    <button onClick={() => commentInputRef.current?.focus()}
+                      className="mt-2 text-xs font-semibold hover:underline" style={{color:VL}}>Iniciar discussão</button>
                   </div>
-                  <p className="text-xs text-zinc-400">Sem comentários ainda.</p>
-                  <button onClick={() => commentInputRef.current?.focus()}
-                    className="mt-2 text-xs font-semibold hover:underline" style={{color:VL}}>Iniciar discussão</button>
                 </div>
               ) : (
                 <div className="space-y-4">
