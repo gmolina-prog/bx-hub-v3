@@ -38,72 +38,75 @@ async function fetchCNPJ(cnpj) {
 }
 
 // ─── AI via Claude API ─────────────────────────────────────────────────────────
+async function sleep(ms) { return new Promise(r => setTimeout(r, ms)) }
+
 async function callClaude(prompt, useWebSearch = false) {
   const apiKey = import.meta.env.VITE_ANTHROPIC_KEY || ''
   if (!apiKey) throw new Error('Chave da API não configurada. Adicione VITE_ANTHROPIC_KEY nas variáveis de ambiente do Vercel.')
 
-  const body = {
+  const baseBody = {
     model: 'claude-sonnet-4-6',
     max_tokens: 4000,
     messages: [{ role: 'user', content: prompt }],
   }
-
   if (useWebSearch) {
-    body.tools = [{ type: 'web_search_20250305', name: 'web_search' }]
+    baseBody.tools = [{ type: 'web_search_20250305', name: 'web_search' }]
+  }
+
+  // Chamada única com retry automático em overload (backoff: 4s, 8s, 12s, 16s)
+  async function fetchWithRetry(payload, maxRetries = 4) {
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      if (attempt > 0) await sleep(Math.min(4000 * attempt, 16000))
+      const r = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true',
+        },
+        body: JSON.stringify(payload),
+      })
+      if (r.ok) return r.json()
+      const err = await r.json().catch(() => ({}))
+      const isOverload = err?.error?.type === 'overloaded_error' || r.status === 529
+      if (isOverload && attempt < maxRetries) continue
+      // Fallback sem web search se overload persistir
+      if (isOverload && useWebSearch) {
+        const fallback = { ...payload }; delete fallback.tools
+        const r2 = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+          body: JSON.stringify(fallback),
+        })
+        if (r2.ok) return r2.json()
+      }
+      throw new Error(err?.error?.message || `Erro ${r.status} na API`)
+    }
   }
 
   // Loop agentic: continua enquanto houver tool_use (buscas web)
-  let messages = body.messages
+  let messages = baseBody.messages
   let finalText = ''
   const MAX_TURNS = 8
 
   for (let turn = 0; turn < MAX_TURNS; turn++) {
-    const r = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true',
-      },
-      body: JSON.stringify({ ...body, messages }),
-    })
-    if (!r.ok) {
-      const err = await r.json().catch(() => ({}))
-      throw new Error(err?.error?.message || `Erro ${r.status} na API`)
-    }
-    const d = await r.json()
-
-    // Coletar texto parcial
+    const d = await fetchWithRetry({ ...baseBody, messages })
     const textBlocks = d.content?.filter(b => b.type === 'text') || []
     if (textBlocks.length) finalText = textBlocks.map(b => b.text).join('')
-
-    // Se parou (end_turn ou sem tool_use) — retornar
-    if (d.stop_reason === 'end_turn' || !d.content?.some(b => b.type === 'tool_use')) {
-      break
-    }
-
-    // Processar tool_use: adicionar resultado das buscas para próxima iteração
+    if (d.stop_reason === 'end_turn' || !d.content?.some(b => b.type === 'tool_use')) break
     const toolUseBlocks = d.content.filter(b => b.type === 'tool_use')
     messages = [
       ...messages,
       { role: 'assistant', content: d.content },
-      {
-        role: 'user',
-        content: toolUseBlocks.map(tu => ({
-          type: 'tool_result',
-          tool_use_id: tu.id,
-          content: tu.input?.query
-            ? `Buscando: "${tu.input.query}" — resultados incorporados automaticamente pelo sistema.`
-            : 'Busca processada.',
-        })),
-      },
+      { role: 'user', content: toolUseBlocks.map(tu => ({
+        type: 'tool_result', tool_use_id: tu.id,
+        content: tu.input?.query ? `Buscando: "${tu.input.query}" — resultados incorporados.` : 'Busca processada.',
+      }))},
     ]
   }
-
   return finalText
 }
-
 
 // ══════════════════════════════════════════════════════════════════════════════
 // MODAL NOVA EMPRESA
