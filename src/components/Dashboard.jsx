@@ -239,6 +239,15 @@ export default function Dashboard() {
         let lat, lng
         if (ci.latitude && ci.longitude) {
           lat = parseFloat(ci.latitude); lng = parseFloat(ci.longitude)
+          // Offset pequeno se outra pessoa já está nessa coordenada exata
+          const OVERLAP_THRESHOLD = 0.0003
+          const clash = positioned.filter(p => Math.abs(p[0] - lat) < OVERLAP_THRESHOLD && Math.abs(p[1] - lng) < OVERLAP_THRESHOLD).length
+          if (clash > 0) {
+            const angle = (clash * 137.5 * Math.PI) / 180 // espiral dourada — distribui bem
+            const dist = 0.0005 * (1 + Math.floor(clash / 6))
+            lat += Math.cos(angle) * dist
+            lng += Math.sin(angle) * dist
+          }
         } else {
           const [dLat, dLng] = deterministicOffset(ci.user_id, 0.004)
           lat = office[0] + dLat; lng = office[1] + dLng
@@ -468,9 +477,9 @@ export default function Dashboard() {
             {profiles.length - checkins.length > 0 && (
               <div className="mt-2 text-center text-xs text-zinc-400 bg-zinc-50 rounded-lg py-2">{profiles.length - checkins.length} sem check-in</div>
             )}
-            {/* Lista de membros com avatar */}
-            <div className="mt-4 space-y-2">
-              {profiles.slice(0, 6).map(p => {
+            {/* Lista de membros com avatar — todos, com scroll */}
+            <div className="mt-4 space-y-2 overflow-y-auto" style={{ maxHeight: 220 }}>
+              {profiles.map(p => {
                 const ci = checkins.find(c => c.user_id === p.id)
                 const s = ci ? (ci.status || '').toLowerCase() : null
                 const t = s ? CHECKIN_TYPES[s] : null
@@ -482,6 +491,11 @@ export default function Dashboard() {
                       {p.initials || p.full_name?.slice(0, 2).toUpperCase()}
                     </div>
                     <span className="text-xs text-zinc-700 flex-1 truncate">{p.full_name?.split(' ')[0]}</span>
+                    {t && ci?.client_name && (
+                      <span className="text-[10px] text-zinc-400 truncate max-w-[70px]" title={ci.client_name}>
+                        {ci.client_name.split(' ')[0]}
+                      </span>
+                    )}
                     <span className="text-sm">{t ? t.icon : '⚪'}</span>
                   </div>
                 )
