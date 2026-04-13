@@ -881,8 +881,13 @@ Responda APENAS com a bio estruturada. Use exatamente esta estrutura:
   }
 
   async function handleSave() {
-    if (!form.full_name.trim() || !form.email.trim()) {
-      toast.warning('Nome e email são obrigatórios')
+    if (!form.full_name.trim()) {
+      toast.warning('Nome é obrigatório')
+      return
+    }
+    // email required only on create, not edit (email is auth identifier, not updated)
+    if (!isEdit && !form.email.trim()) {
+      toast.warning('Email é obrigatório para novo colaborador')
       return
     }
     setSaving(true)
