@@ -1065,7 +1065,7 @@ Responda APENAS com a bio estruturada. Use exatamente esta estrutura:
 
         <div className="shrink-0 border-t border-zinc-100 px-6 py-4 flex gap-3 bg-white">
           <button onClick={onClose} className="flex-1 py-2.5 text-sm text-zinc-500 border border-zinc-200 rounded-xl hover:bg-zinc-50">Cancelar</button>
-          <button onClick={handleSave} disabled={saving || !form.full_name.trim() || !form.email.trim()}
+          <button onClick={handleSave} disabled={saving || !form.full_name.trim() || (!isEdit && !form.email.trim())}
             className="flex-1 py-2.5 text-sm font-bold text-white rounded-xl disabled:opacity-50 hover:opacity-90 flex items-center justify-center gap-2"
             style={{ background: '#10B981' }}>
             {saving ? <><Loader2 className="w-4 h-4 animate-spin" />Salvando…</> : isEdit ? '💾 Salvar Alterações' : '+ Cadastrar Colaborador'}
