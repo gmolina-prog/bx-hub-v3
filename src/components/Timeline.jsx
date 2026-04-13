@@ -240,19 +240,21 @@ export default function Timeline() {
   const [savingProj, setSavingProj] = useState(false)
 
   const load = useCallback(async () => {
-    if (!profile) return
+    if (!profile) { setLoading(false); return }
     setLoading(true)
-    const [projR, compR, profR, taskR] = await Promise.allSettled([
-      supabase.from('projects').select('*').eq('org_id', profile.org_id).order('deadline', { ascending: true, nullsFirst: false }),
-      supabase.from('companies').select('id,name,color').eq('org_id', profile.org_id),
-      supabase.from('profiles').select('id,full_name,initials').eq('org_id', profile.org_id).order('full_name'),
-      supabase.from('tasks').select('id,column_id,project_id,due_date,created_at').eq('org_id', profile.org_id).is('deleted_at', null),
-    ])
-    if (projR.status === 'fulfilled' && !projR.value.error) setProjects(projR.value.data || [])
-    if (compR.status === 'fulfilled' && !compR.value.error) setCompanies(compR.value.data || [])
-    if (profR.status === 'fulfilled' && !profR.value.error) setProfilesList(profR.value.data || [])
-    if (taskR.status === 'fulfilled' && !taskR.value.error) setTasks(taskR.value.data || [])
-    setLoading(false)
+    try {
+      const [projR, compR, profR, taskR] = await Promise.allSettled([
+        supabase.from('projects').select('*').eq('org_id', profile.org_id).order('deadline', { ascending: true, nullsFirst: false }),
+        supabase.from('companies').select('id,name,color').eq('org_id', profile.org_id),
+        supabase.from('profiles').select('id,full_name,initials').eq('org_id', profile.org_id).order('full_name'),
+        supabase.from('tasks').select('id,column_id,project_id,due_date,created_at').eq('org_id', profile.org_id).is('deleted_at', null),
+      ])
+      if (projR.status === 'fulfilled' && !projR.value.error) setProjects(projR.value.data || [])
+      if (compR.status === 'fulfilled' && !compR.value.error) setCompanies(compR.value.data || [])
+      if (profR.status === 'fulfilled' && !profR.value.error) setProfilesList(profR.value.data || [])
+      if (taskR.status === 'fulfilled' && !taskR.value.error) setTasks(taskR.value.data || [])
+    } catch (err) { console.error('[Timeline] load:', err.message) }
+    finally { setLoading(false) }
   }, [profile])
 
   useEscapeKey(() => { setShowNewProject(false); setEditingProject(null) }, showNewProject || !!editingProject)

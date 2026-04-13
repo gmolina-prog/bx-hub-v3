@@ -44,8 +44,7 @@ export default function Configuracoes() {
   const [notifSystem, setNotifSystem] = useState(false)
 
   useEffect(() => {
-    if (!profile) return
-    setFullName(profile.full_name || '')
+    if (!profile) return  // Configuracoes não tem loading state próprio — OK manter return simples
     setInitials(profile.initials || '')
     setEmail(profile.email || '')
     setAvatarColor(profile.avatar_color || VL)

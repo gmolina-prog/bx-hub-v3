@@ -256,17 +256,19 @@ export default function Notas() {
   useEscapeKey(() => setShowNew(false), showNew)
 
   const load = useCallback(async () => {
-    if (!profile) return
+    if (!profile) { setLoading(false); return }
     setLoading(true)
-    const [notesR, projR, compR] = await Promise.allSettled([
-      supabase.from('notes').select('*').eq('org_id', profile.org_id).neq('status', 'archived').order('pinned', { ascending: false }).order('updated_at', { ascending: false }).limit(200),
-      supabase.from('projects').select('id,name').eq('org_id', profile.org_id).order('name'),
-      supabase.from('companies').select('id,name').eq('org_id', profile.org_id).order('name'),
-    ])
-    if (notesR.status === 'fulfilled' && !notesR.value.error) setNotes(notesR.value.data || [])
-    if (projR.status === 'fulfilled' && !projR.value.error) setProjects(projR.value.data || [])
-    if (compR.status === 'fulfilled' && !compR.value.error) setCompanies(compR.value.data || [])
-    setLoading(false)
+    try {
+      const [notesR, projR, compR] = await Promise.allSettled([
+        supabase.from('notes').select('*').eq('org_id', profile.org_id).neq('status', 'archived').order('pinned', { ascending: false }).order('updated_at', { ascending: false }).limit(200),
+        supabase.from('projects').select('id,name').eq('org_id', profile.org_id).order('name'),
+        supabase.from('companies').select('id,name').eq('org_id', profile.org_id).order('name'),
+      ])
+      if (notesR.status === 'fulfilled' && !notesR.value.error) setNotes(notesR.value.data || [])
+      if (projR.status === 'fulfilled' && !projR.value.error) setProjects(projR.value.data || [])
+      if (compR.status === 'fulfilled' && !compR.value.error) setCompanies(compR.value.data || [])
+    } catch (err) { console.error('[Notas] load:', err.message) }
+    finally { setLoading(false) }
   }, [profile])
 
   useEffect(() => { load() }, [load])

@@ -33,7 +33,7 @@ export default function Avisos() {
   const [form, setForm]         = useState({ title: '', message: '', type: 'info', pinned: false })
 
   const load = useCallback(async () => {
-    if (!profile) return
+    if (!profile) { setLoading(false); return }
     setLoading(true)
     try {
       const { data, error } = await supabase

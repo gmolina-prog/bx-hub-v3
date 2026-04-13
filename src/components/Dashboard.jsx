@@ -81,8 +81,9 @@ export default function Dashboard() {
   }
 
   const load = useCallback(async () => {
-    if (!profile) return
+    if (!profile) { setLoading(false); return }
     setLoading(true)
+    try {
     const today = new Date().toISOString().split('T')[0]
     const [tasksR, pipeR, projR, ciR, profR, routR, actR, risksR, compR, expR] = await Promise.allSettled([
       supabase.from('tasks').select('id,column_id,priority,assigned_to,due_date,title,project_id,updated_at').eq('org_id', profile.org_id).is('deleted_at', null).limit(500),
@@ -189,7 +190,8 @@ export default function Dashboard() {
     const firstName = profile.full_name?.split(' ')[0] || 'Gabriel'
 
     setData({ tasks, pipeline, projects, checkins, profiles, routines, todo, doing, done, overdue, doneWeek, pipeTotal, pipeWeighted, activeProjs, profMap, ciByStatus, memberLoadArr, recentActivity, health, statusIcon, statusText, pipeStages, firstName, ciPct, dueSoon, actLog, expenses, expAReceber, expAprovado, expPago, expRecebido, expPendente })
-    setLoading(false)
+    } catch (err) { console.error('[Dashboard] load:', err.message) }
+    finally { setLoading(false) }
   }, [profile])
 
   useEffect(() => { load() }, [load])

@@ -312,22 +312,24 @@ export default function Rotinas() {
 
   // ── Load ────────────────────────────────────────────────────────────────
   const load = useCallback(async () => {
-    if (!profile) return
+    if (!profile) { setLoading(false); return }
     setLoading(true)
-    const since = new Date(Date.now() - 180 * 86400000).toISOString().split('T')[0]
-    const [routR, compR, projR, profR, coR] = await Promise.allSettled([
-      supabase.from('routines').select('*').eq('org_id', profile.org_id).eq('is_active', true).is('deleted_at', null).order('title'),
-      supabase.from('routine_completions').select('*').eq('org_id', profile.org_id).gte('reference_date', since).limit(2000),
-      supabase.from('projects').select('id,name,company_id,status').eq('org_id', profile.org_id).order('name'),
-      supabase.from('profiles').select('id,full_name,initials,avatar_color').eq('org_id', profile.org_id).order('full_name'),
-      supabase.from('companies').select('id,name').eq('org_id', profile.org_id).order('name'),
-    ])
-    if (routR.status === 'fulfilled' && !routR.value.error) { setRoutines(routR.value.data || []); if (!histRoutine && routR.value.data?.length) { setHistRoutine(routR.value.data[0]); setHistProj(routR.value.data[0].project_id) } }
-    if (compR.status === 'fulfilled' && !compR.value.error) setCompletions(compR.value.data || [])
-    if (projR.status === 'fulfilled' && !projR.value.error) setProjects(projR.value.data || [])
-    if (profR.status === 'fulfilled' && !profR.value.error) setProfilesList(profR.value.data || [])
-    if (coR.status  === 'fulfilled' && !coR.value.error)   setCompanies(coR.value.data || [])
-    setLoading(false)
+    try {
+      const since = new Date(Date.now() - 180 * 86400000).toISOString().split('T')[0]
+      const [routR, compR, projR, profR, coR] = await Promise.allSettled([
+        supabase.from('routines').select('*').eq('org_id', profile.org_id).eq('is_active', true).is('deleted_at', null).order('title'),
+        supabase.from('routine_completions').select('*').eq('org_id', profile.org_id).gte('reference_date', since).limit(2000),
+        supabase.from('projects').select('id,name,company_id,status').eq('org_id', profile.org_id).order('name'),
+        supabase.from('profiles').select('id,full_name,initials,avatar_color').eq('org_id', profile.org_id).order('full_name'),
+        supabase.from('companies').select('id,name').eq('org_id', profile.org_id).order('name'),
+      ])
+      if (routR.status === 'fulfilled' && !routR.value.error) { setRoutines(routR.value.data || []); if (!histRoutine && routR.value.data?.length) { setHistRoutine(routR.value.data[0]); setHistProj(routR.value.data[0].project_id) } }
+      if (compR.status === 'fulfilled' && !compR.value.error) setCompletions(compR.value.data || [])
+      if (projR.status === 'fulfilled' && !projR.value.error) setProjects(projR.value.data || [])
+      if (profR.status === 'fulfilled' && !profR.value.error) setProfilesList(profR.value.data || [])
+      if (coR.status  === 'fulfilled' && !coR.value.error)   setCompanies(coR.value.data || [])
+    } catch (err) { console.error('[Rotinas] load:', err.message) }
+    finally { setLoading(false) }
   }, [profile])
   useEffect(() => { load() }, [load])
 

@@ -58,20 +58,22 @@ export default function Riscos() {
   const [tab, setTab] = useState('matrix') // matrix | list
 
   const load = useCallback(async () => {
-    if (!profile) return
+    if (!profile) { setLoading(false); return }
     setLoading(true)
-    const [risksR, projR, profR] = await Promise.allSettled([
-      supabase.from('risks').select('*').eq('org_id', profile.org_id).order('created_at', { ascending: false }).limit(200),
-      supabase.from('projects').select('id,name').eq('org_id', profile.org_id).order('name'),
-      supabase.from('profiles').select('id,full_name').eq('org_id', profile.org_id).order('full_name'),
-    ])
-    if (risksR.status === 'fulfilled') {
-      if (risksR.value.error?.code === '42P01') { setTableError(true); setLoading(false); return }
-      setRisks(risksR.value.data || [])
-    }
-    if (projR.status === 'fulfilled' && !projR.value.error) setProjects(projR.value.data || [])
-    if (profR.status === 'fulfilled' && !profR.value.error) setProfiles(profR.value.data || [])
-    setLoading(false)
+    try {
+      const [risksR, projR, profR] = await Promise.allSettled([
+        supabase.from('risks').select('*').eq('org_id', profile.org_id).order('created_at', { ascending: false }).limit(200),
+        supabase.from('projects').select('id,name').eq('org_id', profile.org_id).order('name'),
+        supabase.from('profiles').select('id,full_name').eq('org_id', profile.org_id).order('full_name'),
+      ])
+      if (risksR.status === 'fulfilled') {
+        if (risksR.value.error?.code === '42P01') { setTableError(true); return }
+        setRisks(risksR.value.data || [])
+      }
+      if (projR.status === 'fulfilled' && !projR.value.error) setProjects(projR.value.data || [])
+      if (profR.status === 'fulfilled' && !profR.value.error) setProfiles(profR.value.data || [])
+    } catch (err) { console.error('[Riscos] load:', err.message) }
+    finally { setLoading(false) }
   }, [profile])
 
   useEscapeKey(() => { setSelected(null); setIsNew(false) }, !!(selected))

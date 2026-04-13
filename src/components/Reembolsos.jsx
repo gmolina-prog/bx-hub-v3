@@ -1040,17 +1040,19 @@ export default function Reembolsos() {
   const isLeader = isLeaderRole(profile?.role)
 
   const load = useCallback(async () => {
-    if (!profile) return
+    if (!profile) { setLoading(false); return }
     setLoading(true)
-    const [repR, profR, projR] = await Promise.allSettled([
-      supabase.from('expense_reports').select('*').eq('org_id', profile.org_id).order('created_at', { ascending: false }),
-      supabase.from('profiles').select('id,full_name,initials,avatar_color,role').eq('org_id', profile.org_id).order('full_name'),
-      supabase.from('projects').select('id,name,status').eq('org_id', profile.org_id).order('name'),
-    ])
-    if (repR.status === 'fulfilled' && !repR.value.error) setReports(repR.value.data || [])
-    if (profR.status === 'fulfilled' && !profR.value.error) setProfilesList(profR.value.data || [])
-    if (projR.status === 'fulfilled' && !projR.value.error) setProjects(projR.value.data || [])
-    setLoading(false)
+    try {
+      const [repR, profR, projR] = await Promise.allSettled([
+        supabase.from('expense_reports').select('*').eq('org_id', profile.org_id).order('created_at', { ascending: false }),
+        supabase.from('profiles').select('id,full_name,initials,avatar_color,role').eq('org_id', profile.org_id).order('full_name'),
+        supabase.from('projects').select('id,name,status').eq('org_id', profile.org_id).order('name'),
+      ])
+      if (repR.status === 'fulfilled' && !repR.value.error) setReports(repR.value.data || [])
+      if (profR.status === 'fulfilled' && !profR.value.error) setProfilesList(profR.value.data || [])
+      if (projR.status === 'fulfilled' && !projR.value.error) setProjects(projR.value.data || [])
+    } catch (err) { console.error('[Reembolsos] load:', err.message) }
+    finally { setLoading(false) }
   }, [profile])
 
   useEffect(() => { load() }, [load])

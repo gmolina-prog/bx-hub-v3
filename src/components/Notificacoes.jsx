@@ -49,19 +49,20 @@ export default function Notificacoes() {
   const [acting, setActing] = useState(false)
 
   const load = useCallback(async () => {
-    if (!profile) return
+    if (!profile) { setLoading(false); return }
     setLoading(true)
-    const { data } = await supabase.from('notifications').select('*').eq('org_id', profile.org_id).eq('user_id', profile.id).order('created_at', { ascending: false }).limit(100)
-    // Deduplicar: manter só a notificação mais recente por entity_id+type
-    const raw = data || []
-    const seen = new Map()
-    const deduped = []
-    for (const n of raw) {
-      const key = `${n.entity_id || n.id}-${n.type || 'default'}`
-      if (!seen.has(key)) { seen.set(key, true); deduped.push(n) }
-    }
-    setNotifs(deduped)
-    setLoading(false)
+    try {
+      const { data } = await supabase.from('notifications').select('*').eq('org_id', profile.org_id).eq('user_id', profile.id).order('created_at', { ascending: false }).limit(100)
+      const raw = data || []
+      const seen = new Map()
+      const deduped = []
+      for (const n of raw) {
+        const key = `${n.entity_id || n.id}-${n.type || 'default'}`
+        if (!seen.has(key)) { seen.set(key, true); deduped.push(n) }
+      }
+      setNotifs(deduped)
+    } catch (err) { console.error('[Notificacoes] load:', err.message) }
+    finally { setLoading(false) }
   }, [profile])
 
   useEffect(() => { load() }, [load])

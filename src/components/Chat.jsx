@@ -664,7 +664,7 @@ export default function Chat() {
 
   // ── Load ──
   useEffect(() => {
-    if (!profile) return
+    if (!profile) { setLoading(false); return }
     const today = new Date().toISOString().split('T')[0]
     Promise.allSettled([
       supabase.from('chat_channels').select('*').eq('org_id', profile.org_id).order('created_at'),
