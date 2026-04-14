@@ -513,12 +513,22 @@ export default function Layout({ children }) {
       } catch (_) { /* silent */ }
     }
 
-    // Apenas PrintScreen / Cmd+Shift+3/4/5 — métodos blur/focus/visibilitychange
-    // removidos pois disparavam falso-positivo em qualquer troca de aba
+    // Detector de screenshot — Mac e Windows
+    // Métodos blur/focus/visibilitychange removidos (falso-positivo em troca de aba)
     function handleKeyDown(e) {
-      if (e.key === 'PrintScreen' || e.key === 'Print') logScreenshot('PrintScreen')
-      if ((e.metaKey || e.ctrlKey) && e.shiftKey && ['3','4','5'].includes(e.key)) {
-        logScreenshot('MacOS screenshot')
+      // Windows: PrintScreen / Alt+PrintScreen / Win+PrintScreen / Win+Shift+S
+      if (e.key === 'PrintScreen') {
+        if (e.altKey)  logScreenshot('Windows Alt+PrintScreen')
+        else if (e.metaKey || e.key === 'Meta') logScreenshot('Windows Win+PrintScreen')
+        else           logScreenshot('PrintScreen')
+      }
+      // Windows Snipping Tool: Win+Shift+S
+      if (e.shiftKey && e.key === 'S' && (e.metaKey || e.getModifierState?.('OS'))) {
+        logScreenshot('Windows Snipping Tool')
+      }
+      // macOS: Cmd+Shift+3 / Cmd+Shift+4 / Cmd+Shift+5
+      if (e.metaKey && e.shiftKey && ['3','4','5'].includes(e.key)) {
+        logScreenshot('MacOS Cmd+Shift+' + e.key)
       }
     }
 
