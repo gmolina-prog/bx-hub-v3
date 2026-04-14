@@ -241,6 +241,8 @@ export default function Notas() {
   const [companies, setCompanies] = useState([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('all')
+  const [archivedNotes, setArchivedNotes] = useState([])
+  const [loadingArchived, setLoadingArchived] = useState(false)
   const [projectFilter, setProjectFilter] = useState(null)
   const [companyFilter, setCompanyFilter] = useState(null)
   const [search, setSearch] = useState('')
@@ -336,6 +338,28 @@ export default function Notas() {
     await supabase.from('notes').update({ status: 'archived' }).eq('id', id).eq('org_id', profile.org_id)
     setNotes(prev => prev.filter(n => n.id !== id))
     setSelectedId(null)
+    toast.success('Nota arquivada')
+  }
+
+  async function restoreNote(id) {
+    await supabase.from('notes').update({ status: 'draft' }).eq('id', id).eq('org_id', profile.org_id)
+    setArchivedNotes(prev => prev.filter(n => n.id !== id))
+    setSelectedId(null)
+    await load()
+    toast.success('Nota restaurada ✓')
+  }
+
+  async function loadArchived() {
+    if (!profile) return
+    setLoadingArchived(true)
+    try {
+      const { data } = await supabase.from('notes').select('*')
+        .eq('org_id', profile.org_id).eq('status', 'archived')
+        .order('updated_at', { ascending: false }).limit(200)
+      setArchivedNotes(data || [])
+    } finally {
+      setLoadingArchived(false)
+    }
   }
 
   async function togglePin(id) {
@@ -352,6 +376,7 @@ export default function Notas() {
 
   function setTabFilter(id) {
     setFilter(id); setProjectFilter(null); setCompanyFilter(null)
+    if (id === 'archived') loadArchived()
   }
 
   // ── KPI counts
@@ -364,11 +389,12 @@ export default function Notas() {
   ]
 
   const heroTabs = [
-    { id: 'all',     icon: '📝', label: 'Todas',    count: notes.length },
-    { id: 'meeting', icon: '🎙️', label: 'Reuniões', count: notes.filter(n => n.type === 'meeting').length },
-    { id: 'ata',     icon: '📋', label: 'Atas',     count: notes.filter(n => n.type === 'ata').length },
-    { id: 'idea',    icon: '💡', label: 'Ideias',   count: notes.filter(n => n.type === 'idea').length },
-    { id: 'pinned',  icon: '📌', label: 'Fixadas',  count: notes.filter(n => n.pinned).length },
+    { id: 'all',      icon: '📝', label: 'Todas',      count: notes.length },
+    { id: 'meeting',  icon: '🎙️', label: 'Reuniões',   count: notes.filter(n => n.type === 'meeting').length },
+    { id: 'ata',      icon: '📋', label: 'Atas',       count: notes.filter(n => n.type === 'ata').length },
+    { id: 'idea',     icon: '💡', label: 'Ideias',     count: notes.filter(n => n.type === 'idea').length },
+    { id: 'pinned',   icon: '📌', label: 'Fixadas',    count: notes.filter(n => n.pinned).length },
+    { id: 'archived', icon: '🗄️', label: 'Arquivadas', count: archivedNotes.length },
   ]
 
   return (
@@ -651,10 +677,17 @@ export default function Notas() {
                         📌
                       </button>
                       <span style={{ fontSize: 11, color: '#9CA3AF' }}>{saveStatus}</span>
-                      <button onClick={() => archiveNote(selected.id)}
-                        style={{ fontSize: 11, padding: '3px 9px', borderRadius: 6, border: '1px solid #FECACA', background: 'white', color: '#EF4444', cursor: 'pointer', fontFamily: 'inherit' }}>
-                        🗑️ Arquivar
-                      </button>
+                      {selected.status === 'archived' ? (
+                        <button onClick={() => restoreNote(selected.id)}
+                          style={{ display:'flex',alignItems:'center',gap:5,padding:'7px 14px',borderRadius:8,background:'#10B981',color:'white',border:'none',fontSize:12,fontWeight:600,cursor:'pointer' }}>
+                          ↩️ Restaurar
+                        </button>
+                      ) : (
+                        <button onClick={() => archiveNote(selected.id)}
+                          style={{ fontSize: 11, padding: '3px 9px', borderRadius: 6, border: '1px solid #FECACA', background: 'white', color: '#EF4444', cursor: 'pointer', fontFamily: 'inherit' }}>
+                          🗑️ Arquivar
+                        </button>
+                      )}
                     </div>
                   </div>
 
