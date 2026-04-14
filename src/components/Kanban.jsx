@@ -396,7 +396,7 @@ function TaskModal({ task, projects, profiles, allTasks, onClose, onSave, onDele
                         value={s.assigned_to || ''}
                         onChange={e => setSubtasks(prev => prev.map((st,idx) => idx===i ? {...st, assigned_to: e.target.value||null} : st))}>
                         <option value="">+ Responsável</option>
-                        {profilesList.map(p => <option key={p.id} value={p.id}>{p.full_name?.split(' ')[0]}</option>)}
+                        {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name?.split(' ')[0]}</option>)}
                       </select>
                       <input type="date" className="text-[10px] text-zinc-400 border border-zinc-100 rounded px-1 py-0.5 bg-transparent focus:outline-none focus:border-violet-400 cursor-pointer"
                         value={s.due_date || ''}
