@@ -69,10 +69,28 @@ async function callClaude(prompt, useWebSearch = false) {
       })
       if (r.ok) return r.json()
       const err = await r.json().catch(() => ({}))
-      const isOverload = err?.error?.type === 'overloaded_error' || r.status === 529
+      const errType     = err?.error?.type || ''
+      const isOverload  = errType === 'overloaded_error' || r.status === 529
+      const isRateLimit = errType === 'rate_limit_error' || r.status === 429
+
+      // Overload: retry com backoff normal
       if (isOverload && attempt < maxRetries) continue
-      // Fallback sem web search se overload persistir
-      if (isOverload && useWebSearch) {
+
+      // Rate limit: fallback imediato sem web search (menos tokens/chamada)
+      if (isRateLimit && useWebSearch) {
+        await sleep(5000)
+        const fallback = { ...payload }; delete fallback.tools
+        const r2 = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+          body: JSON.stringify(fallback),
+        })
+        if (r2.ok) return r2.json()
+      }
+      if (isRateLimit && attempt < maxRetries) { await sleep(20000); continue }
+
+      // Fallback sem web search se overload ou rate limit persistir
+      if ((isOverload || isRateLimit) && useWebSearch) {
         const fallback = { ...payload }; delete fallback.tools
         const r2 = await fetch('https://api.anthropic.com/v1/messages', {
           method: 'POST',
