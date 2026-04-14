@@ -513,42 +513,18 @@ export default function Layout({ children }) {
       } catch (_) { /* silent */ }
     }
 
-    // Método 1: tecla PrintScreen
+    // Apenas PrintScreen / Cmd+Shift+3/4/5 — métodos blur/focus/visibilitychange
+    // removidos pois disparavam falso-positivo em qualquer troca de aba
     function handleKeyDown(e) {
       if (e.key === 'PrintScreen' || e.key === 'Print') logScreenshot('PrintScreen')
-      // Cmd+Shift+3/4/5 no macOS
-      if ((e.metaKey || e.ctrlKey) && e.shiftKey && ['3','4','5','s'].includes(e.key)) {
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && ['3','4','5'].includes(e.key)) {
         logScreenshot('MacOS screenshot')
       }
     }
 
-    // Método 2: blur repentino (ferramentas de captura externas)
-    function handleBlur() { lastBlur = Date.now() }
-    function handleFocus() {
-      if (Date.now() - lastBlur < 1200 && lastBlur > 0) {
-        logScreenshot('blur+focus')
-      }
-      lastBlur = 0
-    }
-
-    // Método 3: visibilitychange
-    function handleVisibility() {
-      if (document.visibilityState === 'hidden') lastBlur = Date.now()
-      if (document.visibilityState === 'visible' && Date.now() - lastBlur < 1200 && lastBlur > 0) {
-        logScreenshot('visibilitychange')
-        lastBlur = 0
-      }
-    }
-
     window.addEventListener('keydown', handleKeyDown)
-    window.addEventListener('blur', handleBlur)
-    window.addEventListener('focus', handleFocus)
-    document.addEventListener('visibilitychange', handleVisibility)
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
-      window.removeEventListener('blur', handleBlur)
-      window.removeEventListener('focus', handleFocus)
-      document.removeEventListener('visibilitychange', handleVisibility)
     }
   }, [profile])
 
