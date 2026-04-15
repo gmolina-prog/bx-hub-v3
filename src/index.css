@@ -4,6 +4,11 @@
 
 :root {
   font-family: 'Montserrat', system-ui, -apple-system, sans-serif;
+  /* Safe areas para iPhone (notch + home bar) */
+  --sat: env(safe-area-inset-top);
+  --sar: env(safe-area-inset-right);
+  --sab: env(safe-area-inset-bottom);
+  --sal: env(safe-area-inset-left);
 }
 
 html, body, #root {
@@ -11,9 +16,37 @@ html, body, #root {
   margin: 0;
 }
 
+/* PWA standalone — altura real sem barra do browser */
+@media (display-mode: standalone) {
+  html, body, #root {
+    height: 100dvh;
+  }
+}
+
 body {
   background: #F2F2F2;
   color: #2D2E39;
+  /* Previne bounce scroll no iOS */
+  overscroll-behavior: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Safe area no header (notch iPhone) */
+.pwa-header {
+  padding-top: max(0px, env(safe-area-inset-top));
+  padding-left: max(0px, env(safe-area-inset-left));
+  padding-right: max(0px, env(safe-area-inset-right));
+}
+
+/* Safe area no conteúdo principal */
+.pwa-main {
+  padding-bottom: max(0px, env(safe-area-inset-bottom));
+}
+
+/* Safe area na sidebar */
+.pwa-sidebar {
+  padding-top: max(0px, env(safe-area-inset-top));
+  padding-bottom: max(0px, env(safe-area-inset-bottom));
 }
 
 .scrollbar-thin::-webkit-scrollbar { width: 6px; height: 6px; }

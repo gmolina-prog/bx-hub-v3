@@ -570,25 +570,27 @@ export default function Layout({ children }) {
   }
   const pageTitle = PAGE_TITLES[location.pathname] || 'BX Hub'
 
-  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth >= 768)
 
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="flex overflow-hidden" style={{height:"100dvh"}}>
       {/* Overlay mobile */}
-      {!sidebarOpen && (
+      {sidebarOpen && (
         <div className="fixed inset-0 z-20 bg-black/40 md:hidden"
           onClick={() => setSidebarOpen(false)} />
       )}
 
       {/* Sidebar com transição */}
-      <div className={`shrink-0 transition-all duration-300 overflow-hidden ${sidebarOpen ? 'w-56' : 'w-0'} md:w-56`} style={{ height: '100vh' }}>
-        <Sidebar />
+      <div className={`shrink-0 transition-all duration-300 overflow-hidden fixed md:relative z-30 ${sidebarOpen ? 'w-56' : 'w-0'} md:w-56`} style={{ height: '100dvh' }}>
+        <div className="pwa-sidebar h-full">
+          <Sidebar />
+        </div>
       </div>
 
       <div className="flex-1 flex flex-col overflow-hidden">
 
         {/* ── TOP HEADER ── */}
-        <header ref={headerRef} className="h-14 flex items-center justify-between px-5 border-b border-zinc-200 bg-white shrink-0 relative z-30">
+        <header ref={headerRef} className="pwa-header flex items-center justify-between px-5 border-b border-zinc-200 bg-white shrink-0 relative z-30" style={{minHeight: "3.5rem"}}>
           {/* Left: hamburger + page title */}
           <div className="flex items-center gap-3">
             <button onClick={() => setSidebarOpen(s => !s)}
@@ -691,7 +693,7 @@ export default function Layout({ children }) {
         </header>
 
         {/* ── PAGE CONTENT ── */}
-        <main className="flex-1 overflow-y-auto bg-[#F2F2F2]">
+        <main className="pwa-main flex-1 overflow-y-auto bg-[#F2F2F2]">
           {/* Busca Global Ctrl+K */}
         {searchOpen && <GlobalSearch onClose={() => setSearchOpen(false)} />}
         {children}
