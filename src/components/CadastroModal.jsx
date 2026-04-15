@@ -908,7 +908,7 @@ export function NovoColaboradorModal({ onClose, onSave, initialData }) {
         department:  initialData.department  || '',
         specialties: Array.isArray(initialData.specialties) ? initialData.specialties : [],
         entry_date:  initialData.entry_date  || '',
-        notes:       cleanNotes,
+        notes:       initialData.notes || '',
         ai_bio:      initialData.about_me || '',
       }
     }
