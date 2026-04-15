@@ -1616,7 +1616,7 @@ export default function Rotinas() {
               <div style={{ fontSize: 32, marginBottom: 8 }}>🤝</div>
               <h3 className="text-base font-bold text-zinc-800">Ajudar o colega?</h3>
               <p className="text-sm text-zinc-500 mt-2">
-                Esta rotina está atribuída a <b>{profilesList?.find(p => p.id === confirmHelp.assigned_to)?.full_name?.split(' ')[0] || 'outro membro'}</b>.
+                Esta rotina está atribuída a <b>{profiles?.find(p => p.id === confirmHelp.assigned_to)?.full_name?.split(' ')[0] || 'outro membro'}</b>.
                 Você quer registrar a execução no lugar dele?
               </p>
             </div>
