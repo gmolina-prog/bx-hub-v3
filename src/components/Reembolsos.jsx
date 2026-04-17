@@ -1393,6 +1393,18 @@ export default function Reembolsos() {
                             </div>
                           )
                         })()}
+
+                        {/* Botão Excluir — só rascunho ou rejeitado */}
+                        {(report.status === 'rascunho' || report.status === 'rejeitado') && (
+                          <div className="border-t border-zinc-100 px-3 py-2">
+                            <button
+                              onClick={e => { e.stopPropagation(); deleteReport(report.id) }}
+                              className="w-full flex items-center justify-center gap-1.5 py-1.5 text-[10px] font-semibold text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors">
+                              <Trash2 className="w-3 h-3" />
+                              Excluir relatório
+                            </button>
+                          </div>
+                        )}
                       </div>
                     )
                   })}
