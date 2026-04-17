@@ -577,6 +577,14 @@ function ExpenseModal({ report, profiles, projects, onClose, onSave, onDelete, o
                   <X className="w-4 h-4" />
                 </button>
               )}
+              {/* Excluir — só rascunho ou rejeitado */}
+              {['rascunho','rejeitado'].includes(report.status) && (
+                <button onClick={() => onDelete(report.id)} title="Excluir relatório"
+                  className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-red-500 hover:text-red-700 hover:bg-red-50 border border-red-200 hover:border-red-300 rounded-xl transition-colors">
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Excluir
+                </button>
+              )}
               <button onClick={onClose}
                 className="w-9 h-9 flex items-center justify-center rounded-xl text-zinc-400 hover:text-zinc-700 border border-zinc-200 transition-colors">
                 <X className="w-5 h-5" />
