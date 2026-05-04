@@ -1,5 +1,5 @@
-import React, { useState, useRef } from 'react'
-import { X, Search, Sparkles, Loader2, Building2, User, FolderOpen, AlertCircle, CheckCircle, ChevronDown, ChevronUp, Archive, RotateCcw, AlertTriangle, Flag } from 'lucide-react'
+import React, { useState, useRef, useEffect } from 'react'
+import { X, Search, Sparkles, Loader2, Building2, User, FolderOpen, AlertCircle, CheckCircle, ChevronDown, ChevronUp, Archive, RotateCcw, AlertTriangle, Flag, Users, ArrowRight } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useData } from '../contexts/DataContext'
 import { toast } from './Toast'
@@ -1281,6 +1281,94 @@ export function NovoProjetoModal({ onClose, onSave, companies, profiles, initial
     setShowFinalizeModal(true)
   }
 
+  // ─── TROCA DE CONSULTOR ─────────────────────────────────────────────────
+  const [showSwapModal, setShowSwapModal] = useState(false)
+  const [swapping, setSwapping] = useState(false)
+  const [swapFromUser, setSwapFromUser] = useState('')
+  const [swapToUser, setSwapToUser] = useState('')
+  const [swapIncludeTasks, setSwapIncludeTasks] = useState(false)
+  const [swapPreview, setSwapPreview] = useState(null)
+  const [loadingSwapPreview, setLoadingSwapPreview] = useState(false)
+
+  function openSwapModal() {
+    if (!isOwner) {
+      toast.warning('Apenas sócios podem trocar consultor')
+      return
+    }
+    setSwapFromUser('')
+    setSwapToUser('')
+    setSwapIncludeTasks(false)
+    setSwapPreview(null)
+    setShowSwapModal(true)
+  }
+
+  async function loadSwapPreview() {
+    if (!initialData?.id || !swapFromUser || !swapToUser) {
+      setSwapPreview(null)
+      return
+    }
+    if (swapFromUser === swapToUser) {
+      setSwapPreview(null)
+      return
+    }
+    setLoadingSwapPreview(true)
+    try {
+      const { data, error } = await supabase.rpc('preview_swap_consultant', {
+        p_project_id: initialData.id,
+        p_from_user: swapFromUser,
+        p_to_user: swapToUser,
+      })
+      if (error) throw error
+      setSwapPreview(data)
+    } catch (err) {
+      setSwapPreview(null)
+      toast.error('Erro ao calcular preview: ' + (err.message || 'desconhecido'))
+    } finally {
+      setLoadingSwapPreview(false)
+    }
+  }
+
+  // Recarregar preview quando origem ou destino mudam
+  useEffect(() => {
+    loadSwapPreview()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [swapFromUser, swapToUser])
+
+  async function handleSwapConsultant() {
+    if (!initialData?.id) return
+    if (!swapFromUser || !swapToUser) {
+      toast.warning('Selecione consultor de origem e destino')
+      return
+    }
+    if (swapFromUser === swapToUser) {
+      toast.warning('Origem e destino não podem ser a mesma pessoa')
+      return
+    }
+    setSwapping(true)
+    try {
+      const { data, error } = await supabase.rpc('swap_consultant_in_project', {
+        p_project_id: initialData.id,
+        p_from_user: swapFromUser,
+        p_to_user: swapToUser,
+        p_include_tasks: swapIncludeTasks,
+      })
+      if (error) throw error
+      const parts = []
+      if (data?.routines_arquivadas) parts.push(`${data.routines_arquivadas} rotinas duplicadas arquivadas`)
+      if (data?.routines_reatribuidas) parts.push(`${data.routines_reatribuidas} rotinas reatribuídas`)
+      if (data?.tasks_reatribuidas) parts.push(`${data.tasks_reatribuidas} tarefas reatribuídas`)
+      const msg = parts.length ? parts.join(', ') : 'sem alterações'
+      toast.success(`Consultor trocado ✓ ${data?.from} → ${data?.to}: ${msg}`)
+      setShowSwapModal(false)
+      onSave?.()
+      onClose()
+    } catch (err) {
+      toast.error('Erro ao trocar consultor: ' + (err.message || 'desconhecido'))
+    } finally {
+      setSwapping(false)
+    }
+  }
+
   async function gerarEscopoIA() {
     if (!form.type) { toast.warning('Selecione o tipo de projeto'); return }
     setLoadingAI(true)
@@ -1487,14 +1575,24 @@ Responda APENAS com o escopo. Use exatamente esta estrutura:
               </div>
 
               {!isArchived ? (
-                <button
-                  onClick={openFinalizeModal}
-                  disabled={!isOwner}
-                  className="w-full flex items-center justify-center gap-2 py-2.5 text-xs font-bold rounded-xl border-2 border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-rose-50 transition-colors"
-                  title={isOwner ? 'Finalizar este projeto e arquivar todas as suas dependências' : 'Apenas sócios podem finalizar projetos'}>
-                  <Flag className="w-3.5 h-3.5" />
-                  🏁 Finalizar Projeto
-                </button>
+                <div className="space-y-2">
+                  <button
+                    onClick={openSwapModal}
+                    disabled={!isOwner}
+                    className="w-full flex items-center justify-center gap-2 py-2.5 text-xs font-bold rounded-xl border-2 border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-amber-50 transition-colors"
+                    title={isOwner ? 'Trocar consultor responsável neste projeto (rotinas e tarefas)' : 'Apenas sócios podem trocar consultor'}>
+                    <Users className="w-3.5 h-3.5" />
+                    🔄 Trocar Consultor
+                  </button>
+                  <button
+                    onClick={openFinalizeModal}
+                    disabled={!isOwner}
+                    className="w-full flex items-center justify-center gap-2 py-2.5 text-xs font-bold rounded-xl border-2 border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-rose-50 transition-colors"
+                    title={isOwner ? 'Finalizar este projeto e arquivar todas as suas dependências' : 'Apenas sócios podem finalizar projetos'}>
+                    <Flag className="w-3.5 h-3.5" />
+                    🏁 Finalizar Projeto
+                  </button>
+                </div>
               ) : (
                 <div className="space-y-2">
                   <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
@@ -1613,6 +1711,137 @@ Responda APENAS com o escopo. Use exatamente esta estrutura:
                 className="flex-1 py-2.5 text-sm font-bold text-white rounded-xl disabled:opacity-50 hover:opacity-90 flex items-center justify-center gap-2"
                 style={{ background: '#DC2626' }}>
                 {finalizing ? <><Loader2 className="w-4 h-4 animate-spin" />Finalizando…</> : <>🏁 Finalizar e Arquivar</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE TROCA DE CONSULTOR */}
+      {showSwapModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4"
+          style={{ background: 'rgba(10,10,16,0.75)', backdropFilter: 'blur(8px)' }}
+          onClick={e => e.target === e.currentTarget && !swapping && setShowSwapModal(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full flex flex-col overflow-hidden"
+            style={{ maxWidth: 560, borderTop: '3px solid #D97706' }}>
+            <div className="px-6 py-4 border-b border-zinc-100">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center bg-amber-50">
+                  <Users className="w-4 h-4 text-amber-700" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-zinc-800">Trocar Consultor</h3>
+                  <p className="text-[10px] text-zinc-400">{initialData?.name}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="px-6 py-5 space-y-4">
+              <div className="grid grid-cols-[1fr_auto_1fr] gap-3 items-end">
+                <div>
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 block mb-1.5">
+                    De (sai do projeto)
+                  </label>
+                  <select
+                    className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-amber-500"
+                    value={swapFromUser}
+                    onChange={e => setSwapFromUser(e.target.value)}>
+                    <option value="">— selecione —</option>
+                    {(profiles || []).filter(p => p.is_active !== false).map(p => (
+                      <option key={p.id} value={p.id}>{p.full_name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="pb-3">
+                  <ArrowRight className="w-5 h-5 text-amber-600" />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 block mb-1.5">
+                    Para (assume o projeto)
+                  </label>
+                  <select
+                    className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-amber-500"
+                    value={swapToUser}
+                    onChange={e => setSwapToUser(e.target.value)}>
+                    <option value="">— selecione —</option>
+                    {(profiles || []).filter(p => p.is_active !== false && p.id !== swapFromUser).map(p => (
+                      <option key={p.id} value={p.id}>{p.full_name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* PREVIEW DO QUE VAI ACONTECER */}
+              {swapFromUser && swapToUser && swapFromUser !== swapToUser && (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5">
+                  <div className="flex items-start gap-2 mb-2">
+                    <AlertCircle className="w-4 h-4 text-amber-700 mt-0.5 shrink-0" />
+                    <div className="text-xs text-amber-900 font-semibold">
+                      Preview da troca
+                    </div>
+                  </div>
+                  {loadingSwapPreview ? (
+                    <div className="ml-6 text-xs text-amber-700 flex items-center gap-2">
+                      <Loader2 className="w-3 h-3 animate-spin" /> Calculando…
+                    </div>
+                  ) : swapPreview ? (
+                    <div className="ml-6 space-y-1 text-xs text-amber-900">
+                      <div>
+                        • <strong>{swapPreview.routines_arquivar || 0}</strong> rotinas duplicadas serão arquivadas
+                        {(swapPreview.routines_arquivar || 0) > 0 && (
+                          <span className="text-amber-700 text-[10px]"> (destino já tem essas rotinas)</span>
+                        )}
+                      </div>
+                      <div>
+                        • <strong>{swapPreview.routines_reatribuir || 0}</strong> rotinas serão reatribuídas ao destino
+                      </div>
+                      <div className="text-amber-700 text-[10px] pt-1">
+                        Tarefas Kanban do origem em aberto: <strong>{swapPreview.tasks_origem_abertas || 0}</strong>
+                        {(swapPreview.tasks_destino_abertas || 0) > 0 && ` · Destino já tem ${swapPreview.tasks_destino_abertas} tarefa(s)`}
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              )}
+
+              {/* CHECKBOX TAREFAS KANBAN */}
+              {swapFromUser && swapToUser && swapFromUser !== swapToUser && (swapPreview?.tasks_origem_abertas || 0) > 0 && (
+                <label className="flex items-start gap-2.5 cursor-pointer p-3 border border-zinc-200 rounded-xl hover:bg-zinc-50">
+                  <input
+                    type="checkbox"
+                    checked={swapIncludeTasks}
+                    onChange={e => setSwapIncludeTasks(e.target.checked)}
+                    className="mt-0.5 w-4 h-4 accent-amber-600"
+                  />
+                  <div className="flex-1">
+                    <div className="text-xs font-bold text-zinc-800">
+                      Reatribuir também as {swapPreview.tasks_origem_abertas} tarefas Kanban abertas
+                    </div>
+                    <div className="text-[10px] text-zinc-500 mt-0.5">
+                      Por padrão, as tarefas Kanban permanecem com o consultor de origem. Marque para transferi-las junto.
+                    </div>
+                  </div>
+                </label>
+              )}
+
+              <div className="text-[10px] text-zinc-400">
+                ✓ Operação reversível: rotinas arquivadas podem ser restauradas individualmente em Rotinas → Arquivadas.
+              </div>
+            </div>
+
+            <div className="border-t border-zinc-100 px-6 py-4 flex gap-3 bg-white">
+              <button
+                onClick={() => setShowSwapModal(false)}
+                disabled={swapping}
+                className="flex-1 py-2.5 text-sm text-zinc-500 border border-zinc-200 rounded-xl hover:bg-zinc-50 disabled:opacity-50">
+                Cancelar
+              </button>
+              <button
+                onClick={handleSwapConsultant}
+                disabled={swapping || !swapFromUser || !swapToUser || swapFromUser === swapToUser || !swapPreview}
+                className="flex-1 py-2.5 text-sm font-bold text-white rounded-xl disabled:opacity-50 hover:opacity-90 flex items-center justify-center gap-2"
+                style={{ background: '#D97706' }}>
+                {swapping ? <><Loader2 className="w-4 h-4 animate-spin" />Trocando…</> : <>🔄 Confirmar Troca</>}
               </button>
             </div>
           </div>
