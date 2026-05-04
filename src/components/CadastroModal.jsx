@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react'
-import { X, Search, Sparkles, Loader2, Building2, User, FolderOpen, AlertCircle, CheckCircle, ChevronDown, ChevronUp } from 'lucide-react'
+import { X, Search, Sparkles, Loader2, Building2, User, FolderOpen, AlertCircle, CheckCircle, ChevronDown, ChevronUp, Archive, RotateCcw, AlertTriangle, Flag } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useData } from '../contexts/DataContext'
 import { toast } from './Toast'
@@ -1197,6 +1197,89 @@ export function NovoProjetoModal({ onClose, onSave, companies, profiles, initial
   })
   const [loadingAI, setLoadingAI] = useState(false)
   const [saving,    setSaving]    = useState(false)
+  const [showFinalizeModal, setShowFinalizeModal] = useState(false)
+  const [finalizing, setFinalizing] = useState(false)
+  const [finalizeReason, setFinalizeReason] = useState('')
+  const [cascadePreview, setCascadePreview] = useState(null)
+  const [unarchiving, setUnarchiving] = useState(false)
+
+  const isOwner = profile?.role === 'owner'
+  const isArchived = !!initialData?.is_archived
+
+  // Carregar contadores de cascata quando abrir modal de finalização
+  async function loadCascadePreview() {
+    if (!initialData?.id) return
+    try {
+      const [t, r, c, e] = await Promise.all([
+        supabase.from('tasks').select('id', { count: 'exact', head: true }).eq('project_id', initialData.id).eq('is_archived', false),
+        supabase.from('routines').select('id', { count: 'exact', head: true }).eq('project_id', initialData.id).eq('is_archived', false),
+        supabase.from('chat_channels').select('id', { count: 'exact', head: true }).eq('project_id', initialData.id).eq('is_archived', false),
+        supabase.from('expense_reports').select('id', { count: 'exact', head: true }).eq('project_id', initialData.id).eq('is_archived', false),
+      ])
+      setCascadePreview({
+        tasks: t.count || 0,
+        routines: r.count || 0,
+        chats: c.count || 0,
+        expenses: e.count || 0,
+      })
+    } catch (err) {
+      setCascadePreview({ tasks: 0, routines: 0, chats: 0, expenses: 0 })
+    }
+  }
+
+  async function handleFinalizeProject() {
+    if (!initialData?.id) return
+    if (!finalizeReason || finalizeReason.trim().length < 3) {
+      toast.warning('Informe o motivo da finalização (mínimo 3 caracteres)')
+      return
+    }
+    setFinalizing(true)
+    try {
+      const { data, error } = await supabase.rpc('archive_project_cascade', {
+        p_project_id: initialData.id,
+        p_reason: finalizeReason.trim(),
+      })
+      if (error) throw error
+      const c = data?.cascade || {}
+      toast.success(`Projeto finalizado ✓ Arquivados: ${c.tasks||0} tarefas, ${c.routines||0} rotinas, ${c.chats||0} chats, ${c.expenses||0} reembolsos`)
+      setShowFinalizeModal(false)
+      onSave?.()
+      onClose()
+    } catch (err) {
+      toast.error('Erro ao finalizar: ' + (err.message || 'desconhecido'))
+    } finally {
+      setFinalizing(false)
+    }
+  }
+
+  async function handleUnarchive() {
+    if (!initialData?.id) return
+    if (!confirm('Desarquivar este projeto e restaurar todas as suas tarefas, rotinas, chats e reembolsos?')) return
+    setUnarchiving(true)
+    try {
+      const { error } = await supabase.rpc('unarchive_project_cascade', {
+        p_project_id: initialData.id,
+      })
+      if (error) throw error
+      toast.success('Projeto desarquivado ✓ Itens restaurados')
+      onSave?.()
+      onClose()
+    } catch (err) {
+      toast.error('Erro ao desarquivar: ' + (err.message || 'desconhecido'))
+    } finally {
+      setUnarchiving(false)
+    }
+  }
+
+  function openFinalizeModal() {
+    if (!isOwner) {
+      toast.warning('Apenas sócios podem finalizar projetos')
+      return
+    }
+    setFinalizeReason('')
+    loadCascadePreview()
+    setShowFinalizeModal(true)
+  }
 
   async function gerarEscopoIA() {
     if (!form.type) { toast.warning('Selecione o tipo de projeto'); return }
@@ -1393,6 +1476,56 @@ Responda APENAS com o escopo. Use exatamente esta estrutura:
             <textarea rows={2} className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-violet-500 resize-none"
               value={form.observacoes} onChange={e => setForm(p => ({ ...p, observacoes: e.target.value }))} />
           </div>
+
+          {/* ZONA DE AÇÕES SENSÍVEIS — apenas em edição */}
+          {isEdit && (
+            <div className="border-t-2 border-dashed border-rose-200 pt-4 mt-2">
+              <div className="flex items-center gap-2 mb-3">
+                <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
+                <span className="text-[10px] font-bold uppercase tracking-wider text-rose-700">Ações sensíveis</span>
+                {!isOwner && <span className="text-[10px] text-zinc-400 ml-auto">Restrito a sócios</span>}
+              </div>
+
+              {!isArchived ? (
+                <button
+                  onClick={openFinalizeModal}
+                  disabled={!isOwner}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 text-xs font-bold rounded-xl border-2 border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-rose-50 transition-colors"
+                  title={isOwner ? 'Finalizar este projeto e arquivar todas as suas dependências' : 'Apenas sócios podem finalizar projetos'}>
+                  <Flag className="w-3.5 h-3.5" />
+                  🏁 Finalizar Projeto
+                </button>
+              ) : (
+                <div className="space-y-2">
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
+                    <div className="flex items-start gap-2">
+                      <Archive className="w-3.5 h-3.5 text-amber-700 mt-0.5 shrink-0" />
+                      <div className="text-xs text-amber-900">
+                        <div className="font-bold mb-1">Projeto arquivado</div>
+                        {initialData?.archived_reason && (
+                          <div className="text-amber-800 mb-1">
+                            <span className="font-semibold">Motivo:</span> {initialData.archived_reason}
+                          </div>
+                        )}
+                        {initialData?.archived_at && (
+                          <div className="text-amber-700 text-[10px]">
+                            Em {new Date(initialData.archived_at).toLocaleString('pt-BR')}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={handleUnarchive}
+                    disabled={!isOwner || unarchiving}
+                    className="w-full flex items-center justify-center gap-2 py-2.5 text-xs font-bold rounded-xl border border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 disabled:opacity-40">
+                    {unarchiving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCcw className="w-3.5 h-3.5" />}
+                    {unarchiving ? 'Restaurando…' : 'Desarquivar e restaurar dependências'}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="shrink-0 border-t border-zinc-100 px-6 py-4 flex gap-3 bg-white">
@@ -1404,6 +1537,87 @@ Responda APENAS com o escopo. Use exatamente esta estrutura:
           </button>
         </div>
       </div>
+
+      {/* MODAL DE CONFIRMAÇÃO DE FINALIZAÇÃO */}
+      {showFinalizeModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4"
+          style={{ background: 'rgba(10,10,16,0.75)', backdropFilter: 'blur(8px)' }}
+          onClick={e => e.target === e.currentTarget && !finalizing && setShowFinalizeModal(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full flex flex-col overflow-hidden"
+            style={{ maxWidth: 520, borderTop: '3px solid #DC2626' }}>
+            <div className="px-6 py-4 border-b border-zinc-100">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center bg-rose-50">
+                  <Flag className="w-4 h-4 text-rose-600" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-zinc-800">Finalizar Projeto</h3>
+                  <p className="text-[10px] text-zinc-400">{initialData?.name}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="px-6 py-5 space-y-4">
+              <div className="bg-rose-50 border border-rose-200 rounded-xl p-3.5">
+                <div className="flex items-start gap-2 mb-2">
+                  <AlertTriangle className="w-4 h-4 text-rose-600 mt-0.5 shrink-0" />
+                  <div className="text-xs text-rose-900 font-semibold">
+                    Esta ação arquivará o projeto e todas as suas dependências em cascata.
+                  </div>
+                </div>
+                {cascadePreview ? (
+                  <div className="ml-6 space-y-1 text-xs text-rose-800">
+                    <div>• <strong>{cascadePreview.tasks}</strong> tarefas no Kanban</div>
+                    <div>• <strong>{cascadePreview.routines}</strong> rotinas ativas</div>
+                    <div>• <strong>{cascadePreview.chats}</strong> canais de chat</div>
+                    <div>• <strong>{cascadePreview.expenses}</strong> reembolsos</div>
+                  </div>
+                ) : (
+                  <div className="ml-6 text-xs text-rose-700 flex items-center gap-2">
+                    <Loader2 className="w-3 h-3 animate-spin" /> Carregando contadores…
+                  </div>
+                )}
+                <div className="mt-2 text-[10px] text-rose-700 ml-6">
+                  ✓ Tudo pode ser restaurado depois clicando em "Desarquivar".
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 block mb-1.5">
+                  Motivo da finalização *
+                </label>
+                <textarea
+                  rows={3}
+                  className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-rose-500 resize-none"
+                  placeholder="ex: Mandato concluído conforme escopo. Diagnóstico entregue em 23/04/2026, recomendações aceitas pelo cliente."
+                  value={finalizeReason}
+                  onChange={e => setFinalizeReason(e.target.value)}
+                  autoFocus
+                />
+                <div className="text-[10px] text-zinc-400 mt-1">
+                  Ficará registrado e visível na aba "Arquivados".
+                </div>
+              </div>
+            </div>
+
+            <div className="border-t border-zinc-100 px-6 py-4 flex gap-3 bg-white">
+              <button
+                onClick={() => setShowFinalizeModal(false)}
+                disabled={finalizing}
+                className="flex-1 py-2.5 text-sm text-zinc-500 border border-zinc-200 rounded-xl hover:bg-zinc-50 disabled:opacity-50">
+                Cancelar
+              </button>
+              <button
+                onClick={handleFinalizeProject}
+                disabled={finalizing || finalizeReason.trim().length < 3}
+                className="flex-1 py-2.5 text-sm font-bold text-white rounded-xl disabled:opacity-50 hover:opacity-90 flex items-center justify-center gap-2"
+                style={{ background: '#DC2626' }}>
+                {finalizing ? <><Loader2 className="w-4 h-4 animate-spin" />Finalizando…</> : <>🏁 Finalizar e Arquivar</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

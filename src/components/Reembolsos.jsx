@@ -1054,7 +1054,7 @@ export default function Reembolsos() {
       const [repR, profR, projR] = await Promise.allSettled([
         supabase.from('expense_reports').select('*').eq('org_id', profile.org_id).order('created_at', { ascending: false }),
         supabase.from('profiles').select('id,full_name,initials,avatar_color,role').eq('org_id', profile.org_id).order('full_name'),
-        supabase.from('projects').select('id,name,status').eq('org_id', profile.org_id).order('name'),
+        supabase.from('projects').select('id,name,status').eq('org_id', profile.org_id).eq('is_archived', false).order('name'),
       ])
       if (repR.status === 'fulfilled' && !repR.value.error) setReports(repR.value.data || [])
       if (profR.status === 'fulfilled' && !profR.value.error) setProfilesList(profR.value.data || [])

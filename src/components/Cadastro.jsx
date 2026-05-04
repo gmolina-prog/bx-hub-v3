@@ -303,6 +303,8 @@ export default function Cadastro() {
     const activeCompanies = companies.filter(c => c.status !== 'arquivado').length
     const archivedCompanies = companies.filter(c => c.status === 'arquivado').length
     const criticalCompanies = companies.filter(c => c.criticality === 'critico' || c.criticality === 'alto').length
+    const activeProjects = projects.filter(p => !p.is_archived).length
+    const archivedProjects = projects.filter(p => p.is_archived).length
     return {
       companies: companies.length,
       activeCompanies,
@@ -310,7 +312,9 @@ export default function Cadastro() {
       criticalCompanies,
       profiles: profiles.length,
       labels: labels.length,
-      projects: projects.length,
+      projects: activeProjects,
+      archivedProjects,
+      archivedTotal: archivedCompanies + archivedProjects,
       institutions: institutions.length,
     }
   }, [companies, profiles, labels, projects, institutions])
@@ -450,6 +454,14 @@ export default function Cadastro() {
     if (error) { toast.error('Erro: ' + error.message); return }
     setProjects(prev => prev.filter(p => p.id !== id))
     toast.success('Projeto excluído')
+  }
+
+  async function unarchiveProject(id) {
+    if (!await confirm('Desarquivar este projeto? Todas as tarefas, rotinas, chats e reembolsos arquivados serão restaurados.', { confirmLabel: 'Desarquivar' })) return
+    const { error } = await supabase.rpc('unarchive_project_cascade', { p_project_id: id })
+    if (error) { toast.error('Erro: ' + error.message); return }
+    await loadTable('projects', setProjects)
+    toast.success('Projeto desarquivado e dependências restauradas ✓')
   }
 
   // ── Excluir colaborador ──
@@ -601,7 +613,7 @@ export default function Cadastro() {
     )}
 
 
-    {/* ── Modal Editar Projeto — usa NovoProjetoModal completo (com IA) ── */}
+    {/* ── Modal Editar Projeto — usa NovoProjetoModal completo (com IA + Finalizar) ── */}
     {editingProject && (
       <NovoProjetoModal
         initialData={editingProject}
@@ -609,7 +621,12 @@ export default function Cadastro() {
         profiles={profiles}
         onClose={() => setEditingProject(null)}
         onSave={(updated) => {
-          setProjects(prev => prev.map(p => p.id === updated.id ? updated : p))
+          if (updated && updated.id) {
+            setProjects(prev => prev.map(p => p.id === updated.id ? updated : p))
+          } else {
+            // Após finalizar/desarquivar: recarregar do banco
+            loadTable('projects', setProjects)
+          }
           setEditingProject(null)
         }}
       />
@@ -689,7 +706,7 @@ export default function Cadastro() {
               tab.id === 'labels' ? kpis.labels :
               tab.id === 'projects' ? kpis.projects :
               tab.id === 'institutions' ? kpis.institutions :
-              tab.id === 'archived' ? kpis.archivedCompanies :
+              tab.id === 'archived' ? kpis.archivedTotal :
               0
             )
             return (
@@ -1128,7 +1145,7 @@ export default function Cadastro() {
         <>
           {loading ? (
             <LoadingState />
-          ) : projects.length === 0 ? (
+          ) : projects.filter(p => !p.is_archived).length === 0 ? (
             <div className="text-center py-16">
               <Briefcase className="w-12 h-12 text-zinc-200 mx-auto mb-3" />
               <p className="text-sm font-semibold text-zinc-500 mb-1">Nenhum projeto cadastrado</p>
@@ -1150,7 +1167,7 @@ export default function Cadastro() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-zinc-100">
-                  {projects.map(p => (
+                  {projects.filter(p => !p.is_archived).map(p => (
                     <tr key={p.id} className="hover:bg-violet-50 transition-colors">
                       <td className="px-4 py-3 font-bold text-zinc-800">{p.name || p.title || '—'}</td>
                       <td className="px-4 py-3 text-zinc-600">{p.type || p.project_type || '—'}</td>
@@ -1227,33 +1244,95 @@ export default function Cadastro() {
         </>
       )}
 
-      {/* ============== TAB: ARQUIVADOS (NOVA) ============== */}
+      {/* ============== TAB: ARQUIVADOS ============== */}
       {activeTab === 'archived' && (
         <>
           {loading ? (
             <LoadingState />
-          ) : kpis.archivedCompanies === 0 ? (
+          ) : kpis.archivedTotal === 0 ? (
             <EmptyState
               icon={Archive}
               title="Nenhum item arquivado"
               message="Empresas, projetos e cadastros arquivados aparecerão aqui. Você pode restaurá-los a qualquer momento."
             />
           ) : (
-            <div className="bg-white border border-zinc-200 rounded-xl p-5">
-              <h3 className="text-sm font-bold text-zinc-800 mb-4">Empresas arquivadas</h3>
-              <div className="space-y-2">
-                {companies.filter(c => c.status === 'arquivado').map(c => (
-                  <div key={c.id} className="flex items-center justify-between p-3 bg-zinc-50 rounded-lg">
-                    <div>
-                      <div className="font-bold text-zinc-700">{c.name}</div>
-                      <div className="text-xs text-zinc-500">{c.cnpj}</div>
-                    </div>
-                    <button className="text-xs font-bold text-violet-700 hover:bg-violet-50 px-3 py-1.5 rounded">
-                      Restaurar
-                    </button>
+            <div className="space-y-5">
+              {/* PROJETOS ARQUIVADOS */}
+              {kpis.archivedProjects > 0 && (
+                <div className="bg-white border border-zinc-200 rounded-xl p-5">
+                  <div className="flex items-center gap-2 mb-4">
+                    <Briefcase className="w-4 h-4 text-amber-600" />
+                    <h3 className="text-sm font-bold text-zinc-800">Projetos finalizados</h3>
+                    <span className="text-xs text-zinc-400">({kpis.archivedProjects})</span>
                   </div>
-                ))}
-              </div>
+                  <div className="space-y-2">
+                    {projects.filter(p => p.is_archived).map(p => {
+                      const empresa = companies.find(c => c.id === p.company_id)
+                      return (
+                        <div key={p.id} className="flex items-start justify-between p-3 bg-zinc-50 rounded-lg border border-zinc-100">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="font-bold text-zinc-700">{p.name}</span>
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 uppercase tracking-wide">
+                                {p.type || '—'}
+                              </span>
+                            </div>
+                            {empresa && <div className="text-xs text-zinc-500 mb-1">{empresa.name}</div>}
+                            {p.archived_reason && (
+                              <div className="text-xs text-zinc-600 mt-1">
+                                <span className="font-semibold text-zinc-700">Motivo:</span> {p.archived_reason}
+                              </div>
+                            )}
+                            {p.archived_at && (
+                              <div className="text-[10px] text-zinc-400 mt-1">
+                                Finalizado em {new Date(p.archived_at).toLocaleString('pt-BR')}
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex gap-1 shrink-0 ml-3">
+                            <button
+                              onClick={() => openEditProject(p)}
+                              className="text-xs font-semibold text-zinc-600 hover:bg-zinc-100 px-3 py-1.5 rounded">
+                              Ver detalhes
+                            </button>
+                            {isLeaderRole(profile?.role) && (
+                              <button
+                                onClick={() => unarchiveProject(p.id)}
+                                className="text-xs font-bold text-emerald-700 hover:bg-emerald-50 px-3 py-1.5 rounded border border-emerald-200">
+                                ↻ Desarquivar
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* EMPRESAS ARQUIVADAS */}
+              {kpis.archivedCompanies > 0 && (
+                <div className="bg-white border border-zinc-200 rounded-xl p-5">
+                  <div className="flex items-center gap-2 mb-4">
+                    <Building2 className="w-4 h-4 text-violet-600" />
+                    <h3 className="text-sm font-bold text-zinc-800">Empresas arquivadas</h3>
+                    <span className="text-xs text-zinc-400">({kpis.archivedCompanies})</span>
+                  </div>
+                  <div className="space-y-2">
+                    {companies.filter(c => c.status === 'arquivado').map(c => (
+                      <div key={c.id} className="flex items-center justify-between p-3 bg-zinc-50 rounded-lg">
+                        <div>
+                          <div className="font-bold text-zinc-700">{c.name}</div>
+                          <div className="text-xs text-zinc-500">{c.cnpj}</div>
+                        </div>
+                        <button className="text-xs font-bold text-violet-700 hover:bg-violet-50 px-3 py-1.5 rounded">
+                          Restaurar
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </>

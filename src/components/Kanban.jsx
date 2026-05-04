@@ -766,7 +766,7 @@ export default function Kanban() {
     try {
       const [tasksR, projR, profR] = await Promise.allSettled([
         supabase.from('tasks').select('*').eq('org_id', profile.org_id).is('deleted_at', null).eq('is_archived', false).order('created_at', { ascending: false }).limit(500),
-        supabase.from('projects').select('id,name').eq('org_id', profile.org_id).order('name'),
+        supabase.from('projects').select('id,name').eq('org_id', profile.org_id).eq('is_archived', false).order('name'),
         supabase.from('profiles').select('id,full_name,initials,avatar_color').eq('org_id', profile.org_id).order('full_name'),
       ])
       if (tasksR.status === 'fulfilled' && !tasksR.value.error) setTasks(tasksR.value.data || [])

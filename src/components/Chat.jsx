@@ -669,7 +669,7 @@ export default function Chat() {
     Promise.allSettled([
       supabase.from('chat_channels').select('*').eq('org_id', profile.org_id).order('created_at'),
       supabase.from('profiles').select('id,full_name,initials,avatar_color,role').eq('org_id', profile.org_id).order('full_name'),
-      supabase.from('projects').select('id,name,status').eq('org_id', profile.org_id).order('name'),
+      supabase.from('projects').select('id,name,status').eq('org_id', profile.org_id).eq('is_archived', false).order('name'),
       supabase.from('companies').select('id,name').eq('org_id', profile.org_id).is('deleted_at', null).order('name'),
       supabase.from('check_ins').select('user_id,status').eq('org_id', profile.org_id).eq('date', today).is('check_out_time', null),
     ]).then(([chR, profR, projR, compR, ciR]) => {
