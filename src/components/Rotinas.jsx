@@ -312,13 +312,21 @@ export default function Rotinas() {
   const [editForm, setEditForm]       = useState({ title: '', frequency: 'semanal', assigned_to: '', project_id: '', description: '' })
 
   // ── Load ────────────────────────────────────────────────────────────────
-  const load = useCallback(async () => {
+  // opts.silent: refetch sem disparar tela de loading (usado após toggle/save)
+  // opts.completionsOnly: só refaz a query de routine_completions (refetch rápido)
+  const load = useCallback(async (opts = {}) => {
     if (!profile) { setLoading(false); return }
-    setLoading(true)
+    const { silent = false, completionsOnly = false } = opts
+    if (!silent) setLoading(true)
     try {
       const since = new Date(Date.now() - 180 * 86400000).toISOString().split('T')[0]
+      if (completionsOnly) {
+        const compR = await supabase.from('routine_completions').select('*').eq('org_id', profile.org_id).gte('reference_date', since).limit(2000)
+        if (!compR.error) setCompletions(compR.data || [])
+        return
+      }
       const [routR, compR, projR, profR, coR] = await Promise.allSettled([
-        supabase.from('routines').select('*').eq('org_id', profile.org_id).eq('is_active', true).is('deleted_at', null).order('title'),
+        supabase.from('routines').select('*').eq('org_id', profile.org_id).eq('is_active', true).is('deleted_at', null).eq('is_archived', false).order('title'),
         supabase.from('routine_completions').select('*').eq('org_id', profile.org_id).gte('reference_date', since).limit(2000),
         supabase.from('projects').select('id,name,company_id,status').eq('org_id', profile.org_id).eq('is_archived', false).order('name'),
         supabase.from('profiles').select('id,full_name,initials,avatar_color').eq('org_id', profile.org_id).order('full_name'),
@@ -330,7 +338,7 @@ export default function Rotinas() {
       if (profR.status === 'fulfilled' && !profR.value.error) setProfilesList(profR.value.data || [])
       if (coR.status  === 'fulfilled' && !coR.value.error)   setCompanies(coR.value.data || [])
     } catch (err) { console.error('[Rotinas] load:', err.message) }
-    finally { setLoading(false) }
+    finally { if (!silent) setLoading(false) }
   }, [profile])
   useEffect(() => { load() }, [load])
 
@@ -421,6 +429,8 @@ export default function Rotinas() {
 
   // ── Toggle ───────────────────────────────────────────────────────────────
   async function toggle(r, override = false) {
+    // Guard contra double-click: se já está salvando essa rotina, ignora.
+    if (saving === r.id) return
     // Controle de acesso: só assigned_to ou owner/gerente pode marcar
     const isLeaderRole = ['owner','gerente'].includes(profile?.role?.toLowerCase())
     const isAssigned   = r.assigned_to === profile?.id
@@ -429,27 +439,53 @@ export default function Rotinas() {
       return
     }
     const ref  = getReference(r.frequency)
-    const done = getCompletionsInCycle(r.id, r.frequency).length > 0
+    const existingComp = completions.find(c => c.routine_id === r.id && (
+      r.frequency === 'mensal' ? c.reference_date?.startsWith(ref.slice(0,7)) : c.reference_date === ref
+    ))
+    const done = !!existingComp
     setSaving(r.id)
+    // ── Update otimista: feedback visual imediato ──
+    const optimisticId = `__optimistic_${r.id}_${Date.now()}`
+    if (done) {
+      // Remove localmente; rollback se o servidor falhar.
+      setCompletions(prev => prev.filter(c => c.id !== existingComp.id))
+    } else {
+      setCompletions(prev => [...prev, {
+        id: optimisticId,
+        routine_id: r.id,
+        completed_by: profile.id,
+        reference_date: ref,
+        org_id: profile.org_id,
+        execution_status: 'done',
+        completed_at: new Date().toISOString(),
+        __optimistic: true,
+      }])
+    }
     try {
       if (done) {
-        const comp = completions.find(c => c.routine_id === r.id && (c.reference_date === ref || c.reference_date?.startsWith(ref.slice(0,7))))
-        if (comp) {
-          const { error } = await supabase.from('routine_completions').delete().eq('id', comp.id).eq('org_id', profile.org_id)
-          if (error) throw error
-        }
+        const { error } = await supabase.from('routine_completions').delete().eq('id', existingComp.id).eq('org_id', profile.org_id)
+        if (error) throw error
       } else {
         const { error } = await supabase.from('routine_completions').insert({
           routine_id: r.id, completed_by: profile.id,
           reference_date: ref, org_id: profile.org_id,
           execution_status: 'done',
         })
-        if (error) throw error
-        toast.success('✅ Rotina registrada')
+        // Trata unique violation (índice uniq_routine_completion_per_cycle):
+        // significa que o save já aconteceu em outra aba/dispositivo. Não é erro.
+        if (error && error.code !== '23505') throw error
+        if (!error) toast.success('✅ Rotina registrada')
       }
-      await load()
+      // Refetch silencioso só de completions (não desmonta a árvore).
+      await load({ silent: true, completionsOnly: true })
     } catch (err) {
-      toast.error('Erro: ' + err.message)
+      // Rollback do update otimista.
+      if (done) {
+        setCompletions(prev => [...prev, existingComp])
+      } else {
+        setCompletions(prev => prev.filter(c => c.id !== optimisticId))
+      }
+      toast.error('Erro: ' + (err.message || 'falha ao salvar'))
     } finally { setSaving(null) }
   }
 
