@@ -6,6 +6,59 @@ import { ToastProvider } from './components/Toast'
 import { DataProvider } from './contexts/DataContext'
 import './index.css'
 
+// ─── PWA AUTO-UPDATE + KILL SWITCH ──────────────────────────────────────────
+// Service Workers podem prender consultores em bundle antigo. Estratégia:
+// 1. Quando um novo SW assume controle (via skipWaiting/clientsClaim configurado
+//    no vite.config.js), forçamos um reload one-shot da aba.
+// 2. Detectamos chunks 404 (bundle antigo pedindo asset que não existe mais)
+//    e disparamos limpeza + reload nesse caso também.
+if ('serviceWorker' in navigator) {
+  // Reload quando o SW novo assumir (skipWaiting + clientsClaim ativos).
+  let reloading = false
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (reloading) return
+    reloading = true
+    console.info('[BX Hub] Nova versão detectada, recarregando.')
+    window.location.reload()
+  })
+  // Cheque manual: se o SW está controlando mas há um waiting, pede skip.
+  navigator.serviceWorker.getRegistration().then(reg => {
+    if (reg?.waiting) {
+      reg.waiting.postMessage({ type: 'SKIP_WAITING' })
+    }
+    // Poll de update a cada 60s para puxar releases novas sem F5.
+    setInterval(() => reg?.update().catch(() => {}), 60_000)
+  }).catch(() => {})
+}
+
+// Captura erros de carregamento de chunk/asset (bundle antigo + asset deletado).
+// Sintoma: bundle apontando para /assets/index-HASH.js que retorna 404 ou HTML.
+window.addEventListener('error', async (e) => {
+  const msg = e?.message || ''
+  const src = e?.target?.src || e?.target?.href || ''
+  const looksLikeStaleAsset =
+    /Loading chunk \d+ failed/i.test(msg) ||
+    /ChunkLoadError/i.test(msg) ||
+    /Unexpected token '<'/i.test(msg) ||  // HTML servido onde se esperava JS
+    /Failed to fetch dynamically imported/i.test(msg) ||
+    (src.includes('/assets/') && (src.endsWith('.js') || src.endsWith('.css')) && (e?.target?.tagName === 'SCRIPT' || e?.target?.tagName === 'LINK'))
+  if (!looksLikeStaleAsset) return
+  if (sessionStorage.getItem('__bx_recovered__')) return  // anti-loop
+  sessionStorage.setItem('__bx_recovered__', '1')
+  console.warn('[BX Hub] Bundle antigo detectado, limpando caches e recarregando.', msg, src)
+  try {
+    if ('caches' in window) {
+      const keys = await caches.keys()
+      await Promise.all(keys.map(k => caches.delete(k)))
+    }
+    if ('serviceWorker' in navigator) {
+      const regs = await navigator.serviceWorker.getRegistrations()
+      await Promise.all(regs.map(r => r.unregister()))
+    }
+  } catch (_) {}
+  window.location.reload()
+}, true)
+
 class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props)
