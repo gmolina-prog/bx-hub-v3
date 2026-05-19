@@ -321,13 +321,13 @@ export default function Rotinas() {
     try {
       const since = new Date(Date.now() - 180 * 86400000).toISOString().split('T')[0]
       if (completionsOnly) {
-        const compR = await supabase.from('routine_completions').select('*').eq('org_id', profile.org_id).gte('reference_date', since).limit(2000)
+        const compR = await supabase.from('routine_completions').select('*').eq('org_id', profile.org_id).gte('reference_date', since).order('reference_date', { ascending: false }).limit(2000)
         if (!compR.error) setCompletions(compR.data || [])
         return
       }
       const [routR, compR, projR, profR, coR] = await Promise.allSettled([
         supabase.from('routines').select('*').eq('org_id', profile.org_id).eq('is_active', true).is('deleted_at', null).eq('is_archived', false).order('title'),
-        supabase.from('routine_completions').select('*').eq('org_id', profile.org_id).gte('reference_date', since).limit(2000),
+        supabase.from('routine_completions').select('*').eq('org_id', profile.org_id).gte('reference_date', since).order('reference_date', { ascending: false }).limit(2000),
         supabase.from('projects').select('id,name,company_id,status').eq('org_id', profile.org_id).eq('is_archived', false).order('name'),
         supabase.from('profiles').select('id,full_name,initials,avatar_color').eq('org_id', profile.org_id).order('full_name'),
         supabase.from('companies').select('id,name').eq('org_id', profile.org_id).order('name'),
